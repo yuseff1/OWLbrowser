@@ -10,7 +10,7 @@ Source of truth for the overnight build loop. Tick only after verification.
 - [x] Renderer shell: tabs, toolbar, omnibox, sidebar, companion panel, onboarding, overlays
 - [x] Internal pages: new tab, settings, companions, agents, chats, routines, skills, apps, library, memory, history, downloads, bookmarks
 - [x] Local checks: tsc main, svelte-check, vite build
-- [ ] CI: Windows NSIS + ZIP build green, nightly release published
+- [x] CI: Windows NSIS + ZIP build green, nightly release published
 - [ ] Main ← UI requests (docs/ui-requests.md): overlay layer for popups over native views
 - [ ] Hide background agent views when an internal page is active (window.ts layout)
 - [ ] Ctrl+Shift+J → downloads (shortcut order)
@@ -27,3 +27,4 @@ Source of truth for the overnight build loop. Tick only after verification.
 - [ ] Code signing, auto-update
 - [ ] Computer-use polish, extension store install
 - [ ] Mobile: device test, signed APK, iOS via EAS
+- [ ] Mobile Android CI green (first run failed at startup; fix pushed 21:40)

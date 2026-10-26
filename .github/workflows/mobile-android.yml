@@ -40,7 +40,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
 
       - name: Install JS dependencies
         working-directory: mobile
