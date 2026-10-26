@@ -1,0 +1,56 @@
+/* Shared styles for OWL UI primitives (menus, popovers, dialogs). Imported once from lib/ui/index.ts. */
+
+.owl-menu {
+  min-width: 200px; padding: 4px; border-radius: 14px; color: var(--ink); font-size: 13px;
+  outline: none;
+}
+.owl-menu-item {
+  display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 9px;
+  color: var(--ink); cursor: default; outline: none; user-select: none; white-space: nowrap;
+}
+.owl-menu-item svg { color: var(--ink-2); flex: none; }
+.owl-menu-item[data-highlighted] { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.owl-menu-item[data-disabled] { opacity: .4; }
+.owl-menu-item.danger, .owl-menu-item.danger svg { color: #d43a3f; }
+.owl-menu-item .k { margin-left: auto; padding-left: 16px; font-size: 11.5px; color: var(--ink-3); }
+.owl-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.owl-menu-label { padding: 6px 10px 4px; font-size: 11.5px; color: var(--ink-3); font-weight: 500; }
+
+.owl-pop { border-radius: 18px; color: var(--ink); outline: none; }
+
+.owl-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 70;
+  background: color-mix(in srgb, var(--ground) 35%, transparent);
+  backdrop-filter: blur(6px) saturate(120%);
+}
+.owl-dialog {
+  position: fixed; left: 50%; top: 50%; z-index: 71; transform: translate(-50%, -50%);
+  width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow: auto;
+  border-radius: 22px; padding: 22px; outline: none;
+}
+.owl-dialog[data-state='open'] { animation: owl-dlg .22s var(--ease-out) both; }
+@keyframes owl-dlg { from { opacity: 0; transform: translate(-50%, -48%) scale(.97); } to { opacity: 1; transform: translate(-50%, -50%); } }
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* rendered markdown (companion messages, run results) */
+.owl-prose { line-height: 1.55; overflow-wrap: anywhere; }
+.owl-prose > * + * { margin-top: .6em; }
+.owl-prose h3, .owl-prose h4, .owl-prose h5, .owl-prose h6 { font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.owl-prose h3 { font-size: 1.12em; } .owl-prose h4 { font-size: 1.04em; } .owl-prose h5, .owl-prose h6 { font-size: 1em; }
+.owl-prose strong { font-weight: 600; color: var(--ink); }
+.owl-prose a { color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent); text-underline-offset: 2px; }
+.owl-prose a:hover { text-decoration-color: var(--accent); }
+.owl-prose code { font-family: var(--font-mono); font-size: .88em; padding: .1em .35em; border-radius: 5px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.owl-prose pre { padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); box-shadow: inset 0 0 0 1px var(--line); overflow-x: auto; }
+.owl-prose pre code { padding: 0; background: none; font-size: 12px; line-height: 1.55; }
+.owl-prose ul, .owl-prose ol { padding-left: 1.25em; }
+.owl-prose ul { list-style: disc; } .owl-prose ol { list-style: decimal; }
+.owl-prose li + li { margin-top: .2em; }
+.owl-prose li > ul, .owl-prose li > ol { margin-top: .2em; }
+.owl-prose blockquote { padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-2); }
+.owl-prose hr { border: 0; height: 1px; background: var(--line); }
+.owl-prose-table { overflow-x: auto; }
+.owl-prose table { border-collapse: collapse; font-size: .94em; font-variant-numeric: tabular-nums; }
+.owl-prose th { font-weight: 500; color: var(--ink-2); text-align: left; padding: 4px 12px 6px 0; border-bottom: 1px solid var(--line); }
+.owl-prose td { padding: 5px 12px 5px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }

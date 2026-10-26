@@ -1,0 +1,164 @@
+@import 'tailwindcss';
+
+/*
+  OWL design tokens.
+  Direction: calm, Apple-like. Warm near-black / soft paper grounds, liquid-glass chrome
+  (translucent, blurred, specular rim), soft neumorphic only on a few tactile controls
+  (composer, segmented controls, companion stage). Colour lives on companions and data, not chrome.
+*/
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter Variable', 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'SF Pro Display', 'Segoe UI Variable Display', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-danger: #e5484d;
+  --color-ok: #30a46c;
+  --color-warn: #f5a524;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root {
+  color-scheme: light;
+  --ground: #f3f2f6;
+  --surface: #ffffff;
+  --surface-2: #f7f6fa;
+  --ink: #1d1b22;
+  --ink-2: #5d5966;
+  --ink-3: #9a96a3;
+  --line: rgba(20, 16, 30, 0.08);
+  --accent: #6d5efc; /* profile colour, overridden at runtime */
+  --accent-ink: #ffffff;
+
+  /* liquid glass */
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-bg-strong: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  --glass-shadow: 0 10px 30px -10px rgba(24, 18, 46, 0.25), 0 2px 6px rgba(24, 18, 46, 0.06);
+  --glass-blur: saturate(180%) blur(22px);
+
+  /* soft neumorphic (used sparingly) */
+  --neu-bg: #eeedf3;
+  --neu-out: 6px 6px 14px rgba(163, 158, 180, 0.45), -6px -6px 14px rgba(255, 255, 255, 0.95);
+  --neu-in: inset 3px 3px 7px rgba(163, 158, 180, 0.45), inset -3px -3px 7px rgba(255, 255, 255, 0.9);
+
+  --chrome: rgba(243, 242, 246, 0.72);
+  --tab-active: rgba(255, 255, 255, 0.92);
+  --halftone: rgba(110, 100, 150, 0.07);
+}
+
+.dark {
+  color-scheme: dark;
+  --ground: #141317;
+  --surface: #1d1b20;
+  --surface-2: #232126;
+  --ink: #eeecf2;
+  --ink-2: #a9a4b2;
+  --ink-3: #6d6875;
+  --line: rgba(255, 255, 255, 0.07);
+  --accent-ink: #ffffff;
+
+  --glass-bg: rgba(38, 35, 42, 0.55);
+  --glass-bg-strong: rgba(34, 32, 38, 0.84);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  --glass-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  --neu-bg: #1c1a1f;
+  --neu-out: 6px 6px 14px rgba(0, 0, 0, 0.55), -5px -5px 12px rgba(255, 255, 255, 0.035);
+  --neu-in: inset 3px 3px 8px rgba(0, 0, 0, 0.55), inset -3px -3px 8px rgba(255, 255, 255, 0.04);
+
+  --chrome: rgba(20, 19, 23, 0.78);
+  --tab-active: rgba(48, 45, 52, 0.9);
+  --halftone: rgba(255, 255, 255, 0.025);
+}
+
+html, body, #app { height: 100%; margin: 0; overflow: hidden; }
+body {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--ground);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  font-feature-settings: 'cv11', 'ss01';
+}
+input, textarea, [contenteditable] { user-select: text; }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* window drag regions (frameless window) */
+.drag { -webkit-app-region: drag; }
+.no-drag, button, input, a, textarea, select, [role='button'], [role='tab'] { -webkit-app-region: no-drag; }
+
+/* ----- liquid glass ----- */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-rim), var(--glass-shadow);
+}
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-rim), var(--glass-shadow);
+}
+/* specular highlight sweep for hero glass pieces */
+.glass-sheen { position: relative; overflow: hidden; }
+.glass-sheen::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 38%, transparent 60%);
+  pointer-events: none; border-radius: inherit; mix-blend-mode: soft-light;
+}
+
+/* ----- soft neumorphic (only composer, segmented controls, companion stage) ----- */
+.neu { background: var(--neu-bg); box-shadow: var(--neu-out); }
+.neu-in { background: var(--neu-bg); box-shadow: var(--neu-in); }
+
+/* halftone dot field (Strawberry-like onboarding/home texture) */
+.halftone {
+  background-image: radial-gradient(var(--halftone) 1.2px, transparent 1.3px);
+  background-size: 14px 14px;
+}
+
+/* scrollbars */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 18%, transparent) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 16%, transparent); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+
+/* focus */
+:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: 6px; }
+
+@keyframes owl-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
+@keyframes owl-blink { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(0.1) } }
+@keyframes owl-pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+@keyframes owl-in { from { opacity: 0; transform: translateY(6px) scale(.98) } to { opacity: 1; transform: none } }
+.animate-bob { animation: owl-bob 3.2s var(--ease-out) infinite; }
+.animate-in { animation: owl-in .22s var(--ease-out) both; }
+.animate-pulse-soft { animation: owl-pulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

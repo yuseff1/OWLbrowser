@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "OWL",
+    "slug": "owl-browser",
+    "scheme": "owl",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "../build/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#12110F",
+    "ios": {
+      "bundleIdentifier": "tech.varsen.owl",
+      "supportsTablet": true,
+      "icon": "../build/icon.png",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "OWL connects to AI models running on your own network (Ollama, LM Studio) when you set one up.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "tech.varsen.owl",
+      "versionCode": 1,
+      "icon": "../build/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "../build/icon.png",
+        "backgroundColor": "#E8A317"
+      },
+      "permissions": ["android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"],
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-image",
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

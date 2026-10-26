@@ -1,0 +1,74 @@
+name: Desktop (Windows)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['mobile/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npx tsc -p tsconfig.main.json --noEmit
+      - run: npx svelte-check --tsconfig ./tsconfig.json --threshold error
+      - run: npx vite build
+
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --win --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OWL-windows
+          path: |
+            release/*.exe
+            release/*.zip
+          if-no-files-found: error
+
+      - name: Nightly release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag -f nightly
+          git push -f origin nightly
+          gh release delete nightly --yes || true
+          gh release create nightly release/*.exe release/*.zip \
+            --prerelease --title "OWL nightly" \
+            --notes "Automatic build of ${GITHUB_SHA::7} on $(date -u +'%Y-%m-%d %H:%M UTC'). Unsigned: Windows SmartScreen will ask you to confirm (More info → Run anyway)."
+
+      - name: Versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${GITHUB_REF_NAME}" release/*.exe release/*.zip --title "OWL ${GITHUB_REF_NAME}" --generate-notes

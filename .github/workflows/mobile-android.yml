@@ -1,0 +1,128 @@
+name: OWL Mobile · Android APK
+
+# Builds the Expo app in mobile/ into an installable release APK on GitHub's runners.
+# No Expo/EAS account needed: `expo prebuild` generates the native project and Gradle builds it.
+# Path filters are not evaluated for tag pushes, so every v* tag builds and attaches the APK to its release.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'mobile/**'
+      - 'build/icon.png'
+      - '.github/workflows/mobile-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+      GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" -Dorg.gradle.daemon=false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Install JS dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Type-check
+        working-directory: mobile
+        run: npx tsc --noEmit
+
+      - name: Generate native Android project (expo prebuild)
+        working-directory: mobile
+        run: npx expo prebuild --platform android --no-install
+
+      # Optional real signing. Add these repo secrets to sign with your own key:
+      #   ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+      # Without them the release APK is signed with the debug keystore that prebuild generates,
+      # which installs fine on any device (sideload) but must not be uploaded to Play.
+      - name: Configure release signing
+        working-directory: mobile/android
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > app/owl-release.jks
+            {
+              echo "OWL_UPLOAD_STORE_FILE=owl-release.jks"
+              echo "OWL_UPLOAD_STORE_PASSWORD=$KS_PASS"
+              echo "OWL_UPLOAD_KEY_ALIAS=$KEY_ALIAS"
+              echo "OWL_UPLOAD_KEY_PASSWORD=$KEY_PASS"
+            } >> gradle.properties
+            python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path('app/build.gradle')
+          s = p.read_text()
+          block = """
+                  release {
+                      storeFile file(OWL_UPLOAD_STORE_FILE)
+                      storePassword OWL_UPLOAD_STORE_PASSWORD
+                      keyAlias OWL_UPLOAD_KEY_ALIAS
+                      keyPassword OWL_UPLOAD_KEY_PASSWORD
+                  }"""
+          s = re.sub(r'(signingConfigs\s*\{)', r'\1' + block, s, count=1)
+          # point the release build type at the release config
+          head, sep, tail = s.partition('buildTypes')
+          tail = re.sub(r'(release\s*\{[^}]*?)signingConfig\s+signingConfigs\.debug', r'\1signingConfig signingConfigs.release', tail, count=1, flags=re.S)
+          p.write_text(head + sep + tail)
+          print('Release signing configured with the provided keystore.')
+          PY
+          else
+            echo "No signing secrets: release APK will be signed with the debug keystore (installable for testing)."
+          fi
+
+      - name: Build release APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        id: apk
+        run: |
+          VERSION=$(node -p "require('./mobile/app.json').expo.version")
+          SHA=$(git rev-parse --short HEAD)
+          NAME="OWL-${VERSION}-${SHA}.apk"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then NAME="OWL-${GITHUB_REF_NAME}.apk"; fi
+          SRC=$(ls mobile/android/app/build/outputs/apk/release/*.apk | head -n1)
+          mkdir -p dist-apk && cp "$SRC" "dist-apk/$NAME"
+          echo "path=dist-apk/$NAME" >> "$GITHUB_OUTPUT"
+          ls -la dist-apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OWL-android-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach APK to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: true
