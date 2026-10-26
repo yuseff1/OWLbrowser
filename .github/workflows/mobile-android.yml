@@ -74,24 +74,7 @@ jobs:
               echo "OWL_UPLOAD_KEY_ALIAS=$KEY_ALIAS"
               echo "OWL_UPLOAD_KEY_PASSWORD=$KEY_PASS"
             } >> gradle.properties
-            python3 - <<'PY'
-          import re, pathlib
-          p = pathlib.Path('app/build.gradle')
-          s = p.read_text()
-          block = """
-                  release {
-                      storeFile file(OWL_UPLOAD_STORE_FILE)
-                      storePassword OWL_UPLOAD_STORE_PASSWORD
-                      keyAlias OWL_UPLOAD_KEY_ALIAS
-                      keyPassword OWL_UPLOAD_KEY_PASSWORD
-                  }"""
-          s = re.sub(r'(signingConfigs\s*\{)', r'\1' + block, s, count=1)
-          # point the release build type at the release config
-          head, sep, tail = s.partition('buildTypes')
-          tail = re.sub(r'(release\s*\{[^}]*?)signingConfig\s+signingConfigs\.debug', r'\1signingConfig signingConfigs.release', tail, count=1, flags=re.S)
-          p.write_text(head + sep + tail)
-          print('Release signing configured with the provided keystore.')
-          PY
+            python3 ../scripts/configure-signing.py
           else
             echo "No signing secrets: release APK will be signed with the debug keystore (installable for testing)."
           fi
