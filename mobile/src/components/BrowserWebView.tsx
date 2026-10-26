@@ -1,6 +1,6 @@
-import React, { memo, useCallback, useRef, useState } from 'react';
-import { Linking, Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import type { ShouldStartLoadRequest, WebViewMessageEvent, WebViewNavigation, WebViewProgressEvent, WebViewScrollEvent } from 'react-native-webview/lib/WebViewTypes';
+import React, { memo, useCallback, useRef } from 'react';
+import { Linking, StyleSheet, View } from 'react-native';
+import type { ShouldStartLoadRequest, WebViewMessageEvent, WebViewNavigation, WebViewNavigationEvent, WebViewProgressEvent } from 'react-native-webview/lib/WebViewTypes';
 import { WebView, type WebViewHandle } from './WebViewBase';
 import { browser, webviews, type BrowserTab } from '@/state/browser';
 import { isBlocked, BLOCKER_SCRIPT } from '@/lib/blocklist';
@@ -22,7 +22,6 @@ type Props = {
 function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bottomInset }: Props) {
   const t = useTheme();
   const ref = useRef<WebViewHandle | null>(null);
-  const [atTop, setAtTop] = useState(true);
   const id = tab.id;
 
   const setRef = useCallback((r: WebViewHandle | null) => {
@@ -34,15 +33,20 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
     browser.onPageNav(id, { url: e.url, title: e.title, loading: e.loading, canGoBack: e.canGoBack, canGoForward: e.canGoForward });
   }, [id]);
 
+  // Android also fires loadStart for history.pushState (doUpdateVisitedHistory); those arrive with loading=false
+  // once the page is complete, so only a start that is really loading turns the progress bar on.
+  const onLoadStart = useCallback((e: WebViewNavigationEvent) => {
+    if (e.nativeEvent?.loading) browser.onLoadStart(id);
+  }, [id]);
+
   const onProgress = useCallback((e: WebViewProgressEvent) => {
-    browser.setRuntime(id, { progress: e.nativeEvent.progress, loading: e.nativeEvent.progress < 1 });
+    browser.onLoadProgress(id, e.nativeEvent.progress);
   }, [id]);
 
   const onLoadEnd = useCallback((e: any) => {
-    const n = e.nativeEvent || {};
-    browser.onPageNav(id, { url: n.url, title: n.title, loading: false, canGoBack: !!n.canGoBack, canGoForward: !!n.canGoForward });
-    browser.setRuntime(id, { loading: false, progress: 1 });
-    webviews.notifyLoaded(id);
+    const n = e?.nativeEvent || {};
+    if (n.url) browser.onPageNav(id, { url: n.url, title: n.title, loading: false, canGoBack: !!n.canGoBack, canGoForward: !!n.canGoForward });
+    browser.onLoadEnd(id);
   }, [id]);
 
   const onMessage = useCallback((e: WebViewMessageEvent) => {
@@ -65,12 +69,17 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
     if (url && !(adblock && isBlocked(url))) browser.newTab(url, { private: tab.private });
   }, [adblock, tab.private]);
 
-  const onScroll = useCallback((e: WebViewScrollEvent) => {
-    const top = (e.nativeEvent.contentOffset?.y ?? 0) <= 0;
-    setAtTop((prev) => (prev === top ? prev : top));
-  }, []);
-
-  const onCrash = useCallback(() => { ref.current?.reload(); }, []);
+  // Renderer died (OOM on low-end phones): clear the loading UI, then reload — at most once per 10 s so a page
+  // that kills the renderer on load can't trap the app in a crash/reload loop.
+  const lastCrash = useRef(0);
+  const onCrash = useCallback(() => {
+    browser.onLoadEnd(id);
+    const now = Date.now();
+    if (now - lastCrash.current > 10000) {
+      lastCrash.current = now;
+      ref.current?.reload();
+    }
+  }, [id]);
 
   const webview = (
     <WebView
@@ -105,11 +114,11 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
       injectedJavaScriptForMainFrameOnly
       onShouldStartLoadWithRequest={onShouldStart}
       onNavigationStateChange={onNav}
+      onLoadStart={onLoadStart}
       onLoadProgress={onProgress}
       onLoadEnd={onLoadEnd}
       onMessage={onMessage}
       onOpenWindow={onOpenWindow}
-      onScroll={Platform.OS === 'android' ? onScroll : undefined}
       onContentProcessDidTerminate={onCrash}
       onRenderProcessGone={onCrash}
       onFileDownload={(e: any) => { Linking.openURL(e.nativeEvent.downloadUrl).catch(() => {}); }}
@@ -118,20 +127,11 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
     />
   );
 
+  // The WebView is mounted directly (no ScrollView/RefreshControl wrapper on Android): the wrapper intercepted
+  // vertical drags on pages that scroll an inner container, so those pages looked frozen. Reload is in the address bar.
   return (
     <View style={[StyleSheet.absoluteFill, !visible && styles.hidden]} pointerEvents={visible ? 'auto' : 'none'}>
-      {Platform.OS === 'android' ? (
-        // Android WebView has no native pull-to-refresh: wrap it, enabled only when the page is scrolled to the top.
-        <ScrollView
-          contentContainerStyle={{ flex: 1 }}
-          nestedScrollEnabled
-          refreshControl={<RefreshControl refreshing={false} enabled={atTop} onRefresh={() => ref.current?.reload()} colors={[t.accent]} progressBackgroundColor={t.surface} />}
-        >
-          {webview}
-        </ScrollView>
-      ) : (
-        webview
-      )}
+      {webview}
     </View>
   );
 }

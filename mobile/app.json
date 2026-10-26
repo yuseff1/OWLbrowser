@@ -38,7 +38,7 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-image",
-      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true, "useLegacyPackaging": true } }]
     ],
     "experiments": {
       "typedRoutes": true

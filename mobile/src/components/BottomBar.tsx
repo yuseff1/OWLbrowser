@@ -65,7 +65,8 @@ export function BottomBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     try { await Share.share(Platform.OS === 'ios' ? { url: tab.url, message: tab.title } : { message: `${tab.title}\n${tab.url}` }); } catch {}
   };
 
-  const progress = rt.loading ? Math.max(0.08, rt.progress) : 0;
+  // Bar only while a load is in flight and below 100%: a finished load (progress 1) never leaves a full bar behind.
+  const progress = rt.loading && rt.progress < 1 ? Math.max(0.08, rt.progress) : 0;
 
   return (
     <>

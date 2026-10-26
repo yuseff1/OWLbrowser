@@ -40,6 +40,10 @@ export const appStore = createStore<AppState>({
 
 const pk = (key: string, profileId = appStore.get().profileId) => `p:${profileId}:${key}`;
 
+const arr = <T,>(v: unknown, fallback: T[] = []): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
+const obj = <T extends object>(v: unknown, fallback: T): T => (v && typeof v === 'object' && !Array.isArray(v) ? (v as T) : fallback);
+
+/** Stored data is validated on load: a corrupt value must never stop the app from starting. */
 async function loadProfileData(profileId: string) {
   const [settings, bookmarks, history, memory] = await Promise.all([
     loadJson<Partial<Settings>>(pk('settings', profileId), {}),
@@ -47,7 +51,12 @@ async function loadProfileData(profileId: string) {
     loadJson<HistoryEntry[]>(pk('history', profileId), []),
     loadJson<MemoryItem[]>(pk('memory', profileId), []),
   ]);
-  return { settings: { ...DEFAULT_SETTINGS, ...settings }, bookmarks, history, memory };
+  return {
+    settings: { ...DEFAULT_SETTINGS, ...obj<Partial<Settings>>(settings, {}) },
+    bookmarks: arr<Bookmark>(bookmarks),
+    history: arr<HistoryEntry>(history).slice(0, 3000),
+    memory: arr<MemoryItem>(memory),
+  };
 }
 
 async function withKeyFlags(list: ModelProvider[]): Promise<ModelProvider[]> {
@@ -56,14 +65,26 @@ async function withKeyFlags(list: ModelProvider[]): Promise<ModelProvider[]> {
 
 export const app = {
   async init() {
-    const [profiles, profileId, providers] = await Promise.all([
-      loadJson<Profile[]>('profiles', [DEFAULT_PROFILE]),
-      loadJson<string>('profileId', 'default'),
-      loadJson<ModelProvider[]>('providers', []),
-    ]);
-    const pid = profiles.some((p) => p.id === profileId) ? profileId : profiles[0].id;
-    const data = await loadProfileData(pid);
-    appStore.set({ profiles, profileId: pid, providers: await withKeyFlags(providers), ...data, ready: true });
+    try {
+      const [rawProfiles, profileId, rawProviders] = await Promise.all([
+        loadJson<Profile[]>('profiles', [DEFAULT_PROFILE]),
+        loadJson<string>('profileId', 'default'),
+        loadJson<ModelProvider[]>('providers', []),
+      ]);
+      const profiles = arr<Profile>(rawProfiles).filter((p) => p && typeof p.id === 'string');
+      if (!profiles.length) profiles.push(DEFAULT_PROFILE);
+      const pid = profiles.some((p) => p.id === profileId) ? profileId : profiles[0].id;
+      const data = await loadProfileData(pid);
+      const providers = arr<ModelProvider>(rawProviders).filter((p) => p && typeof p.id === 'string');
+      // Keystore reads can hang on some devices right after install; never let them block startup.
+      const withKeys = await Promise.race([
+        withKeyFlags(providers),
+        new Promise<ModelProvider[]>((r) => setTimeout(() => r(providers), 3000)),
+      ]);
+      appStore.set({ profiles, profileId: pid, providers: withKeys, ...data, ready: true });
+    } catch {
+      appStore.set({ ready: true }); // start with defaults rather than an endless spinner
+    }
   },
 
   profile(): Profile {

@@ -34,11 +34,39 @@ export const browserStore = createStore<BrowserState>({ tabs: [first], activeId:
 
 const tabsKey = () => `p:${appStore.get().profileId}:tabs`;
 
+let lastPersisted = '';
 function persist() {
   const s = browserStore.get();
   // private tabs are never written to disk
   const tabs = s.tabs.filter((t) => !t.private).map(({ nonce, ...t }) => ({ ...t, src: t.url || t.src }));
-  saveJson(tabsKey(), { tabs, activeId: s.activeId }, 800);
+  const value = { tabs, activeId: s.activeId };
+  // Navigation events fire many times per page; only touch AsyncStorage when something we store changed.
+  const sig = s.activeId + '|' + tabs.map((t) => t.id + '\u0001' + t.src + '\u0001' + t.title).join('\u0002');
+  if (sig === lastPersisted) return;
+  lastPersisted = sig;
+  saveJson(tabsKey(), value, 800);
+}
+
+// ---------- loading watchdog ----------
+// Android WebView does not always send a final "finished" event (SPA history updates, redirects, blocked
+// sub-frames, pages that never fire onPageFinished). Without this the progress bar and the Stop button could stay
+// up forever. If a tab reports no load activity for STALL_MS while "loading", we consider the load done.
+const STALL_MS = 15000;
+const watchdogs = new Map<string, ReturnType<typeof setTimeout>>();
+function clearWatchdog(id: string) {
+  const w = watchdogs.get(id);
+  if (w) { clearTimeout(w); watchdogs.delete(id); }
+}
+function armWatchdog(id: string) {
+  clearWatchdog(id);
+  watchdogs.set(id, setTimeout(() => {
+    watchdogs.delete(id);
+    const rt = browserStore.get().runtime[id];
+    if (rt?.loading) {
+      browser.setRuntime(id, { loading: false, progress: 1 });
+      webviews.notifyLoaded(id);
+    }
+  }, STALL_MS));
 }
 
 function touchAlive(id: string, alive: string[]) {
@@ -123,8 +151,9 @@ export const webviews = {
 export const browser = {
   async init() {
     const saved = await loadJson<{ tabs: BrowserTab[]; activeId: string } | null>(tabsKey(), null);
-    if (saved && saved.tabs?.length) {
-      const tabs = saved.tabs.map((t) => ({ ...t, nonce: 0, src: t.url || t.src || '' }));
+    const savedTabs = saved && Array.isArray(saved.tabs) ? saved.tabs.filter((t) => t && typeof t.id === 'string') : [];
+    if (saved && savedTabs.length) {
+      const tabs = savedTabs.map((t) => ({ ...t, title: t.title || '', nonce: 0, src: t.url || t.src || '' }));
       const activeId = tabs.some((t) => t.id === saved.activeId) ? saved.activeId : tabs[0].id;
       browserStore.set({ tabs, activeId, alive: [activeId], runtime: {}, ready: true });
     } else {
@@ -180,6 +209,7 @@ export const browser = {
     delete runtime[id];
     browserStore.set({ tabs, activeId, runtime, alive: touchAlive(activeId, s.alive.filter((x) => x !== id)) });
     webviews.register(id, null);
+    clearWatchdog(id);
     persist();
   },
 
@@ -201,6 +231,7 @@ export const browser = {
       alive: touchAlive(id, s.alive),
       runtime: { ...s.runtime, [id]: { ...EMPTY_RUNTIME, loading: !!url } },
     });
+    if (url) armWatchdog(id); else clearWatchdog(id);
     persist();
     return url;
   },
@@ -214,10 +245,20 @@ export const browser = {
     const title = nav.title && !/^https?:\/\//.test(nav.title) ? nav.title : tab.title;
     const prev = s.runtime[id] || EMPTY_RUNTIME;
     const changedUrl = url !== tab.url;
-    browserStore.set({
-      tabs: tab.url === url && tab.title === title ? s.tabs : s.tabs.map((t) => (t.id === id ? { ...t, url, title } : t)),
-      runtime: { ...s.runtime, [id]: { ...prev, loading: nav.loading, canGoBack: nav.canGoBack, canGoForward: nav.canGoForward, blocked: changedUrl ? 0 : prev.blocked } },
-    });
+    // Navigation-state events may only END a load. Android also sends them for history.pushState/replaceState
+    // (doUpdateVisitedHistory) with loading=true and no matching finish event, which used to leave the progress bar
+    // pinned at 100% forever. Starting a load is owned by navigate() / onLoadStart() / onLoadProgress().
+    const loading = nav.loading ? prev.loading && prev.progress < 1 : false;
+    if (!loading) clearWatchdog(id);
+    const nextRt = { ...prev, loading, canGoBack: nav.canGoBack, canGoForward: nav.canGoForward, blocked: changedUrl ? 0 : prev.blocked };
+    const sameTab = tab.url === url && tab.title === title;
+    const sameRt = prev.loading === nextRt.loading && prev.canGoBack === nextRt.canGoBack && prev.canGoForward === nextRt.canGoForward && prev.blocked === nextRt.blocked && s.runtime[id] !== undefined;
+    if (!sameTab || !sameRt) {
+      browserStore.set({
+        tabs: sameTab ? s.tabs : s.tabs.map((t) => (t.id === id ? { ...t, url, title } : t)),
+        runtime: sameRt ? s.runtime : { ...s.runtime, [id]: nextRt },
+      });
+    }
     if (!tab.private && !nav.loading) {
       if (changedUrl) app.addHistory(url, title); else app.updateHistoryTitle(url, title);
     }
@@ -226,8 +267,38 @@ export const browser = {
 
   setRuntime(id: string, patch: Partial<TabRuntime>) {
     const s = browserStore.get();
+    if (!s.tabs.some((t) => t.id === id)) return; // late event from a closed tab
     const prev = s.runtime[id] || EMPTY_RUNTIME;
-    browserStore.set({ runtime: { ...s.runtime, [id]: { ...prev, ...patch } } });
+    const next = { ...prev, ...patch };
+    // Skip no-op updates: WebViews repeat identical progress events, and every store write re-runs all selectors.
+    if (s.runtime[id] && (Object.keys(patch) as (keyof TabRuntime)[]).every((k) => prev[k] === next[k])) return;
+    browserStore.set({ runtime: { ...s.runtime, [id]: next } });
+  },
+
+  /** A real page load started in the WebView (main frame). */
+  onLoadStart(id: string) {
+    const prev = browserStore.get().runtime[id] || EMPTY_RUNTIME;
+    this.setRuntime(id, { loading: true, progress: prev.loading && prev.progress < 1 ? prev.progress : 0 });
+    armWatchdog(id);
+  },
+
+  /** WebView load progress (0..1). Reaching 1 ends the load; anything below keeps the watchdog alive. */
+  onLoadProgress(id: string, progress: number) {
+    const p = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
+    if (p >= 1) {
+      clearWatchdog(id);
+      this.setRuntime(id, { progress: 1, loading: false });
+    } else {
+      armWatchdog(id);
+      this.setRuntime(id, { progress: p, loading: true });
+    }
+  },
+
+  /** Load finished or failed. Always clears the loading state. */
+  onLoadEnd(id: string) {
+    clearWatchdog(id);
+    this.setRuntime(id, { loading: false, progress: 1 });
+    webviews.notifyLoaded(id);
   },
 
   goBack(id: string) {
@@ -241,5 +312,9 @@ export const browser = {
     if (ref) ref.reload();
     else { const t = browserStore.get().tabs.find((x) => x.id === id); if (t?.url) this.navigate(id, t.url); }
   },
-  stop(id: string) { webviews.get(id)?.stopLoading(); },
+  stop(id: string) {
+    webviews.get(id)?.stopLoading();
+    // stopLoading() does not reliably emit a finish event on Android; reset the UI ourselves.
+    this.onLoadEnd(id);
+  },
 };

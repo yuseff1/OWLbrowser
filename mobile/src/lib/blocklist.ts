@@ -69,7 +69,7 @@ export const BLOCKER_SCRIPT = `(function(){
   var oo = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(m, u){ this.__owlBlocked = blocked(u); return oo.apply(this, arguments); };
   var os = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.send = function(){ if (this.__owlBlocked) { try { this.abort(); } catch(e){} return; } return os.apply(this, arguments); };
+  XMLHttpRequest.prototype.send = function(){ if (this.__owlBlocked) { var x = this; setTimeout(function(){ try { x.dispatchEvent(new Event('error')); x.dispatchEvent(new Event('loadend')); } catch(e){} }, 0); return; } return os.apply(this, arguments); };
   if (navigator.sendBeacon) { var ob = navigator.sendBeacon.bind(navigator); navigator.sendBeacon = function(u, d){ if (blocked(u)) return true; return ob(u, d); }; }
   function guard(proto, prop){
     var d = Object.getOwnPropertyDescriptor(proto, prop); if (!d || !d.set) return;
