@@ -44,7 +44,7 @@ const api = {
   openProfile: call('openProfile'),
 
   // ---- data
-  bookmarks: call('bookmarks'), toggleBookmark: call('toggleBookmark'), removeBookmark: call('removeBookmark'), isBookmarked: call('isBookmarked'),
+  bookmarks: call('bookmarks'), toggleBookmark: call('toggleBookmark'), removeBookmark: call('removeBookmark'), renameBookmark: call('renameBookmark'), isBookmarked: call('isBookmarked'),
   history: call('history'), removeHistory: call('removeHistory'), clearHistory: call('clearHistory'),
   downloads: call('downloads'), openDownload: call('openDownload'), showDownload: call('showDownload'), cancelDownload: call('cancelDownload'), clearDownloads: call('clearDownloads'),
   clearBrowsingData: call('clearBrowsingData'), // ({cache, cookies, history})
@@ -74,13 +74,15 @@ const api = {
 
   // ---- memory / skills / routines / apps / library
   memory: call('memory'), addMemory: call('addMemory'), updateMemory: call('updateMemory'), removeMemory: call('removeMemory'), clearMemory: call('clearMemory'), searchMemory: call('searchMemory'),
+  memoryProfile: call('memoryProfile'), refreshMemoryProfile: call('refreshMemoryProfile'), // → UserProfile | null
+  chats: call('chats'), saveChat: call('saveChat'), removeChat: call('removeChat'), // persisted companion threads
   skills: call('skills'), saveSkill: call('saveSkill'), removeSkill: call('removeSkill'),
   routines: call('routines'), saveRoutine: call('saveRoutine'), removeRoutine: call('removeRoutine'), runRoutine: call('runRoutine'),
   apps: call('apps'), appCatalog: call('appCatalog'), saveApp: call('saveApp'), removeApp: call('removeApp'), connectApp: call('connectApp'), disconnectApp: call('disconnectApp'),
-  artifacts: call('artifacts'), artifact: call('artifact'), removeArtifact: call('removeArtifact'), openArtifact: call('openArtifact'), exportArtifact: call('exportArtifact'),
+  artifacts: call('artifacts'), artifact: call('artifact'), removeArtifact: call('removeArtifact'), artifactUrl: call('artifactUrl'), openArtifact: call('openArtifact'), exportArtifact: call('exportArtifact'),
 
   // ---- onboarding
-  onboarding: call('onboarding'), completeOnboarding: call('completeOnboarding'),
+  onboarding: call('onboarding'), completeOnboarding: call('completeOnboarding'), // ({ userName?, companionId?, companionName?, look?, defaultModel?: { providerId, model } })
 };
 
 contextBridge.exposeInMainWorld('owl', api);

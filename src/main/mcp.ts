@@ -184,7 +184,11 @@ class StdioTransport implements Transport {
 
   constructor(cfg: McpServerConfig) {
     if (!cfg.command || !String(cfg.command).trim()) throw new Error('No command configured');
-    const env = { ...process.env, ...(cfg.env || {}) };
+    // Inherit the user's environment (PATH etc.) but not variables that would turn a child into an
+    // Electron/Node with injected options; the server's own configured env still wins.
+    const inherited: NodeJS.ProcessEnv = { ...process.env };
+    for (const k of Object.keys(inherited)) if (/^(ELECTRON_|NODE_OPTIONS$|NODE_EXTRA_CA_CERTS$)/i.test(k)) delete inherited[k];
+    const env = { ...inherited, ...(cfg.env || {}) };
     this.proc = spawnStdio(String(cfg.command).trim(), (cfg.args || []).map(String), env);
     this.proc.stdout.setEncoding('utf8');
     this.proc.stderr.setEncoding('utf8');
@@ -220,7 +224,15 @@ class StdioTransport implements Transport {
     await new Promise<void>((res, rej) => this.proc.stdin.write(JSON.stringify(msg) + '\n', 'utf8', (e) => (e ? rej(e) : res())));
   }
 
-  private kill() { try { this.proc.stdin.end(); } catch {} try { this.proc.kill(); } catch {} }
+  private kill() {
+    try { this.proc.stdin.end(); } catch {}
+    // On Windows .cmd shims run as cmd.exe → node.exe; proc.kill() only ends cmd.exe and orphans the
+    // real server. Kill the whole tree so nothing survives OWL quitting.
+    if (process.platform === 'win32' && this.proc.pid && this.proc.exitCode === null) {
+      try { spawn('taskkill', ['/pid', String(this.proc.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => {}); } catch {}
+    }
+    try { this.proc.kill(); } catch {}
+  }
 
   async close() {
     this.closed = true;

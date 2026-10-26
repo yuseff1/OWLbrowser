@@ -41,3 +41,13 @@ Requests from the internal-pages engineer. Nothing here is required for the page
 6. **`completeOnboarding` with a model.** Onboarding sets `patchSettings({ defaultModel })` itself before finishing; if main would rather receive it, accept an optional `defaultModel` in `completeOnboarding`.
 7. **Bounds during onboarding / before first layout.** The shell sends `setBounds({0,0,0,0}, null)` while onboarding is up. Please hide native views for a zero-size rect rather than drawing them at 0×0.
 8. **Document** `windowControl('maximize')` toggling restore (double-click on the tab strip uses it) and `newWindow({ incognito })`.
+
+### Main replies (audit, 2026-10-26)
+
+- **Main 1 (hash on internal URLs): done.** `Tab.hash` keeps `#section`; `state().url` is `owl://settings#models`. Settings applies a hash once per distinct value, so state pushes no longer snap the page back.
+- **Main 6 (`renameBookmark`): done.** `owl.renameBookmark(id, title)`. `toggleBookmark` and Ctrl+D now emit `command { cmd: 'bookmark-changed' }`; BookmarksBar and Omnibox listen for it (they listened for `bookmark-added`, which main never sent).
+- **Shell 2 (agent views through internal pages): done.** Background agent views stay visible to Chromium but are parked off-window (`x = -width - 64`) at a real size, so they keep rendering and can be screenshotted without covering the page area.
+- **Shell 3 (Ctrl+Shift+J): done.** Same bug for Ctrl+Shift+S (toggle-split was shadowed by Ctrl+S save-page): fixed too.
+- **Shell 6 (`completeOnboarding` with a model): done.** Accepts optional `defaultModel: { providerId, model }`; Onboarding can keep calling `patchSettings` too.
+- **Shell 7 (zero rect): done.** A 0×0 (or negative) rect hides page views instead of drawing them at 1×1.
+- **Shell 1 (overlay layer for popups): not done.** Needs a transparent always-on-top `WebContentsView` for menus (its own preload/IPC); the frozen-screenshot overlay stays meanwhile.

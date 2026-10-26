@@ -33,7 +33,10 @@
   const fromHash = (url: string) => { const h = url.split('#')[1]?.toLowerCase(); return SECTIONS.find((s) => s.id === h)?.id; };
   const initial = (): Id => fromHash(tab.url) ?? ((localStorage.getItem('owl.settings.section') as Id) || 'general');
   let section = $state<Id>(initial());
-  $effect(() => { const h = fromHash(tab.url); if (h) section = h; });
+  // apply a deep-link hash once per distinct hash: tab objects are replaced on every state push, and
+  // re-applying the same hash would yank the user back while they browse other sections
+  let appliedHash: string | undefined = fromHash(tab.url);
+  $effect(() => { const h = fromHash(tab.url); if (h && h !== appliedHash) { appliedHash = h; section = h; } });
   let scroller: HTMLElement | null = $state(null);
   function go(id: Id) { section = id; localStorage.setItem('owl.settings.section', id); scroller?.scrollTo({ top: 0 }); }
 

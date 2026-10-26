@@ -1,5 +1,6 @@
 import { providers, settings } from '../settings';
 import type { ModelRef } from '../../shared/types';
+import { checkProviderUrl, maySendKey } from '../net-guard';
 
 export type LlmContent = string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
 export type LlmMessage =
@@ -29,8 +30,9 @@ function headersFor(providerId: string): Record<string, string> {
   const p = providers.get(providerId)!;
   const key = providers.key(providerId);
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (key) h['Authorization'] = `Bearer ${key}`;
-  if (p.kind === 'anthropic' && key) { h['x-api-key'] = key; h['anthropic-version'] = '2023-06-01'; }
+  // never send an API key in clear text over the network (https, or http to this machine only)
+  if (key && maySendKey(p.baseUrl)) h['Authorization'] = `Bearer ${key}`;
+  if (p.kind === 'anthropic' && key && maySendKey(p.baseUrl)) { h['x-api-key'] = key; h['anthropic-version'] = '2023-06-01'; }
   if (p.kind === 'openrouter') { h['HTTP-Referer'] = 'https://owl.varsen.tech'; h['X-Title'] = 'OWL Browser'; }
   return h;
 }
@@ -48,6 +50,8 @@ export async function chat(opts: {
 }): Promise<LlmResponse> {
   const ref = resolveModel(opts.model);
   const p = providers.get(ref.providerId)!;
+  const chk = checkProviderUrl(p.baseUrl);
+  if (!chk.ok) throw new LlmError(`${p.name}: ${chk.reason}`);
   const body: any = {
     model: ref.model,
     messages: opts.messages,

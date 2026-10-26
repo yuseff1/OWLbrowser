@@ -8,7 +8,7 @@
   let items = $state<Bookmark[]>([]);
   const load = () => owl.bookmarks().then((b: any) => (items = (b || []).filter((x: Bookmark) => !x.folder || x.folder === 'bar' || x.folder === 'Bookmarks bar')));
   load();
-  $effect(() => owl.on((type, p) => { if (type === 'command' && p?.cmd === 'bookmark-added') load(); }));
+  $effect(() => owl.on((type, p) => { if (type === 'command' && (p?.cmd === 'bookmark-added' || p?.cmd === 'bookmark-changed')) load(); }));
 
   function open(b: Bookmark, e: MouseEvent) {
     const tab = store.activeTab;

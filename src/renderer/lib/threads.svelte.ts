@@ -1,6 +1,9 @@
-import { owl } from './api';
+import { owl, INCOGNITO } from './api';
 
-/** Companion panel chat threads, persisted locally (see docs/ui-requests.md: main-side thread storage). */
+/**
+ * Companion panel chat threads. Main persists them per profile (owl.chats / saveChat / removeChat);
+ * localStorage stays as an instant-start cache and is migrated to main once.
+ */
 export type ThreadMsg = {
   id: string;
   role: 'user' | 'assistant';
@@ -27,7 +30,10 @@ class Threads {
   currentId = $state<string | null>(null);
   private timer: any = null;
 
+  private dirty = new Set<string>();
+
   constructor() {
+    this.hydrate();
     owl.on((type, p) => {
       if (type !== 'chat-token' || !p?.threadId) return;
       const th = this.list.find((x) => x.id === p.threadId);
@@ -39,10 +45,33 @@ class Threads {
   get current(): Thread | null { return this.list.find((t) => t.id === this.currentId) ?? null; }
   get recent(): Thread[] { return [...this.list].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8); }
 
+  /** load threads from main; push any local-only threads (one-time migration from localStorage) */
+  private async hydrate() {
+    if (INCOGNITO) return;
+    try {
+      const remote = (await owl.chats()) as Thread[] | null;
+      if (!Array.isArray(remote)) return;
+      const byId = new Map(remote.map((t) => [t.id, t]));
+      const localOnly = this.list.filter((t) => !byId.has(t.id) || (byId.get(t.id)!.updatedAt < t.updatedAt));
+      for (const t of this.list) if (!byId.has(t.id) || byId.get(t.id)!.updatedAt < t.updatedAt) byId.set(t.id, t);
+      this.list = [...byId.values()].sort((a, b) => a.updatedAt - b.updatedAt);
+      if (localOnly.length) await owl.saveChat($state.snapshot(localOnly));
+    } catch { /* main unavailable (plain vite dev): keep the local copy */ }
+  }
+
+  /** mark a thread changed; written to main + local cache shortly after */
+  touch(id: string) { this.dirty.add(id); this.save(); }
+
   save() {
+    if (this.current) this.dirty.add(this.current.id);
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
-      try { localStorage.setItem(KEY, JSON.stringify($state.snapshot(this.list).slice(-100))); } catch {}
+      const snap = $state.snapshot(this.list) as Thread[];
+      try { localStorage.setItem(KEY, JSON.stringify(snap.slice(-100))); } catch {}
+      if (INCOGNITO || !this.dirty.size) return;
+      const changed = snap.filter((t) => this.dirty.has(t.id));
+      this.dirty.clear();
+      owl.saveChat(changed).catch(() => {});
     }, 300);
   }
 
@@ -54,7 +83,13 @@ class Threads {
   }
   open(id: string) { this.currentId = id; }
   clear() { this.currentId = null; }
-  remove(id: string) { this.list = this.list.filter((t) => t.id !== id); if (this.currentId === id) this.currentId = null; this.save(); }
+  remove(id: string) {
+    this.list = this.list.filter((t) => t.id !== id);
+    if (this.currentId === id) this.currentId = null;
+    this.dirty.delete(id);
+    if (!INCOGNITO) owl.removeChat(id).catch(() => {});
+    this.save();
+  }
 
   private ensure(companionId: string): Thread {
     return this.current ?? this.start(companionId);
@@ -93,7 +128,7 @@ class Threads {
     }
     m.pending = false;
     th.updatedAt = Date.now();
-    this.save();
+    this.touch(th.id);
   }
 
   /** agent mode: start a run on the current tab */
@@ -109,7 +144,7 @@ class Threads {
       th.messages.push({ id: uid(), role: 'assistant', content: e?.message || 'Couldn’t start the task.', t: Date.now(), companionId, error: true });
     }
     th.updatedAt = Date.now();
-    this.save();
+    this.touch(th.id);
   }
 }
 

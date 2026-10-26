@@ -18,7 +18,7 @@ export const SNAPSHOT_SCRIPT = `(() => {
   };
   const label = (el) => {
     const t = (el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('alt') ||
-      (el.labels && el.labels[0] && el.labels[0].innerText) || el.innerText || el.value || el.getAttribute('name') || '').trim();
+      (el.labels && el.labels[0] && el.labels[0].innerText) || el.innerText || (el.type === 'password' ? '' : el.value) || el.getAttribute('name') || '').trim();
     return t.replace(/\\s+/g, ' ').slice(0, 90);
   };
   const sel = 'a[href],button,input:not([type=hidden]),textarea,select,[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=radio],[role=switch],[role=option],[role=combobox],[role=textbox],[contenteditable=""],[contenteditable=true],summary,label[for]';
@@ -37,7 +37,8 @@ export const SNAPSHOT_SCRIPT = `(() => {
     el.setAttribute('data-owl-ref', String(n));
     const inView = r.top >= 0 && r.bottom <= vh;
     let extra = '';
-    if (tag === 'input' || tag === 'textarea') extra = el.value ? ' value="' + String(el.value).slice(0, 40) + '"' : '';
+    const secretField = el.type === 'password' || /^(cc-|one-time-code|current-password|new-password)/i.test(el.getAttribute('autocomplete') || '');
+    if (tag === 'input' || tag === 'textarea') extra = el.value ? (secretField ? ' [filled]' : ' value="' + String(el.value).slice(0, 40) + '"') : '';
     if (el.type === 'checkbox' || el.type === 'radio') extra += el.checked ? ' [checked]' : '';
     if (tag === 'a') { const h = el.getAttribute('href') || ''; if (h && !h.startsWith('javascript')) extra += ' -> ' + h.slice(0, 80); }
     if (el.disabled) extra += ' [disabled]';
@@ -59,7 +60,7 @@ export const LOCATE_SCRIPT = (ref: number) => `(() => {
   if (!el) return null;
   el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
   const r = el.getBoundingClientRect();
-  const form = el.closest('form'); const label = ((el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || '') + '').trim().slice(0, 80); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tag: el.tagName.toLowerCase(), label, type: el.type || '', inForm: !!form, editable: el.isContentEditable || /input|textarea|select/i.test(el.tagName) };
+  const form = el.closest('form'); const label = ((el.getAttribute('aria-label') || el.innerText || (el.type === 'password' ? '' : el.value) || el.getAttribute('title') || '') + '').trim().slice(0, 80); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tag: el.tagName.toLowerCase(), label, type: el.type || '', autocomplete: (el.getAttribute('autocomplete') || '') + '', inForm: !!form, sensitiveForm: !!(form && form.querySelector('input[type=password],[autocomplete^="cc-"],[name*="card" i],[name*="cvv" i],[name*="cvc" i]')), editable: el.isContentEditable || /input|textarea|select/i.test(el.tagName) };
 })()`;
 
 export const SELECT_OPTION_SCRIPT = (ref: number, value: string) => `(() => {
@@ -106,7 +107,7 @@ export const READ_SCRIPT = `(() => {
 })()`;
 
 /** Visual overlay shown on a tab while a companion controls it (Strawberry-style "Controlled by X"). */
-export const OVERLAY_SCRIPT = (name: string, color: string) => `(() => {
+export const OVERLAY_SCRIPT = (name: string, rawColor: string, color = /^#[0-9a-fA-F]{3,8}$/.test(rawColor) ? rawColor : '#4C6FFF') => `(() => {
   if (window.__owlOverlay) { window.__owlOverlay.querySelector('b').textContent = ${JSON.stringify(name)}; return; }
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;';

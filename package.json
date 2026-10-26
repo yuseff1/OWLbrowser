@@ -51,6 +51,16 @@
     "asarUnpack": [
       "node_modules/sql.js/dist/*.wasm"
     ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": false,
+      "onlyLoadAppFromAsar": true,
+      "loadBrowserProcessSpecificV8Snapshot": false,
+      "grantFileProtocolExtraPrivileges": false
+    },
     "win": {
       "target": [
         {
@@ -76,6 +86,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "OWL",
+      "include": "build/installer.nsh",
       "artifactName": "OWL-Setup-${version}.${ext}"
     },
     "protocols": [

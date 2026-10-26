@@ -4,8 +4,11 @@ import { JsonStore } from './store';
 /** Encrypted-at-rest secrets (API keys, passwords) using the OS keychain (DPAPI on Windows). */
 const store = new JsonStore<Record<string, string>>('secrets', {});
 
+let warnedPlain = false;
 function enc(v: string): string {
   if (safeStorage.isEncryptionAvailable()) return 'e:' + safeStorage.encryptString(v).toString('base64');
+  // Only reachable where the OS offers no keychain (e.g. Linux without libsecret); DPAPI is always present on Windows.
+  if (!warnedPlain) { warnedPlain = true; console.warn('[secrets] OS encryption unavailable: secrets are stored obfuscated, not encrypted'); }
   return 'p:' + Buffer.from(v, 'utf8').toString('base64');
 }
 function dec(v: string): string {

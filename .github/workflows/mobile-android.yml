@@ -12,6 +12,11 @@ on:
       - 'build/icon.png'
       - '.github/workflows/mobile-android.yml'
   workflow_dispatch:
+    inputs:
+      abis:
+        description: 'Android ABIs to build (comma separated). arm64-v8a covers practically every phone from the last ~8 years.'
+        required: false
+        default: 'arm64-v8a'
 
 permissions:
   contents: write
@@ -26,6 +31,9 @@ jobs:
     timeout-minutes: 60
     env:
       NODE_OPTIONS: --max-old-space-size=6144
+      # One ABI instead of four: the universal APK was ~106 MB (four copies of every native library), which makes
+      # Play Protect's scan of a sideloaded app slow enough that the installer looks stuck at 100%.
+      OWL_ABIS: ${{ github.event.inputs.abis || 'arm64-v8a' }}
       GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" -Dorg.gradle.daemon=false
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +88,7 @@ jobs:
 
       - name: Build release APK
         working-directory: mobile/android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace -PreactNativeArchitectures="$OWL_ABIS"
 
       - name: Name the APK
         id: apk
@@ -93,6 +101,9 @@ jobs:
           mkdir -p dist-apk && cp "$SRC" "dist-apk/$NAME"
           echo "path=dist-apk/$NAME" >> "$GITHUB_OUTPUT"
           ls -la dist-apk
+          SIZE_MB=$(( $(stat -c %s "dist-apk/$NAME") / 1048576 ))
+          echo "APK size: ${SIZE_MB} MB (ABIs: $OWL_ABIS)"
+          if [ "$SIZE_MB" -gt 80 ]; then echo "::warning::APK is ${SIZE_MB} MB; large APKs make sideload installs slow."; fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -108,6 +119,9 @@ jobs:
         with:
           files: ${{ steps.apk.outputs.path }}
           generate_release_notes: true
+          body: |
+            Android APK for 64-bit ARM phones (${{ env.OWL_ABIS }}). Sideload: allow installs from your browser or file manager, then open the APK.
+            If the installer stays at 100% / "Scanning app": that is Google Play Protect checking an app that isn't from the Play Store. Wait up to a minute, or tap "More details" → "Install anyway". If an older OWL build is installed and the install fails, uninstall it first.
 
       - name: Android nightly release
         if: github.ref == 'refs/heads/main'
@@ -120,4 +134,10 @@ jobs:
           gh release delete android-nightly --yes || true
           gh release create android-nightly dist-apk/OWL-android-nightly.apk \
             --prerelease --title "OWL Android nightly" \
-            --notes "Automatic build of ${GITHUB_SHA::7}. Sideload: allow installs from your browser, then open the APK."
+            --notes "Automatic build of ${GITHUB_SHA::7} for 64-bit ARM phones (${OWL_ABIS}).
+
+          Install: allow installs from your browser or file manager, then open the APK.
+
+          If the installer stays at 100% or on \"Scanning app\": Google Play Protect is checking an app that is not from the Play Store. Wait up to a minute, or tap \"More details\" then \"Install anyway\" (or open Play Store > Play Protect and allow it). If an older OWL build is installed and the install fails, uninstall it first.
+
+          If the app opens but shows an error screen, take a screenshot of it: it names what went wrong."

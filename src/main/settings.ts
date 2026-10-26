@@ -1,6 +1,7 @@
 import { JsonStore, uid } from './store';
 import { secrets } from './secrets';
 import type { ModelProvider, ProviderKind, Settings } from '../shared/types';
+import { checkProviderUrl, maySendKey } from './net-guard';
 
 export const DEFAULT_SETTINGS: Settings = {
   searchEngine: 'google',
@@ -66,6 +67,9 @@ export const providers = {
   key(id: string) { return secrets.get('provider:' + id); },
   upsert(p: Partial<ModelProvider> & { kind: ProviderKind; apiKey?: string }) {
     const preset = PROVIDER_PRESETS[p.kind];
+    if (!preset) throw new Error('Unknown provider kind');
+    if (p.baseUrl) { const chk = checkProviderUrl(p.baseUrl); if (!chk.ok) throw new Error(chk.reason); }
+    if (p.apiKey !== undefined && p.apiKey !== null && typeof p.apiKey !== 'string') throw new Error('Invalid API key');
     const id = p.id || uid(p.kind + '_');
     providerStore.update((d) => {
       const existing = d.providers.find((x) => x.id === id);
@@ -97,9 +101,11 @@ export const providers = {
     const p = this.get(id);
     if (!p) return [];
     const key = this.key(id);
+    if (!checkProviderUrl(p.baseUrl).ok) return [];
     const headers: Record<string, string> = {};
-    if (key) headers['Authorization'] = `Bearer ${key}`;
-    if (p.kind === 'anthropic' && key) { headers['x-api-key'] = key; headers['anthropic-version'] = '2023-06-01'; }
+    const sendKey = !!key && maySendKey(p.baseUrl);
+    if (sendKey) headers['Authorization'] = `Bearer ${key}`;
+    if (p.kind === 'anthropic' && sendKey) { headers['x-api-key'] = key; headers['anthropic-version'] = '2023-06-01'; }
     try {
       const r = await fetch(p.baseUrl + '/models', { headers, signal: AbortSignal.timeout(6000) });
       if (!r.ok) throw new Error(String(r.status));

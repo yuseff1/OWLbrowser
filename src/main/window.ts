@@ -1,8 +1,10 @@
-import { BrowserWindow, WebContentsView, WebContents, nativeTheme, app, Menu, clipboard, shell, screen } from 'electron';
+import { BrowserWindow, WebContentsView, WebContents, nativeTheme, app, Menu, clipboard, shell, screen, dialog } from 'electron';
 import * as path from 'path';
 import { sessionFor } from './profiles';
 import { settings } from './settings';
 import { history, bookmarks } from './data';
+import { uiUrl } from './ui-protocol';
+import { logLine, crashLogPath } from './crash';
 import type { TabState, WindowState } from '../shared/types';
 
 export type InternalPage = NonNullable<TabState['internal']>;
@@ -24,6 +26,8 @@ export class Tab {
   agentRunId?: string;
   internal?: InternalPage;
   artifactId?: string;
+  /** '#section' of an internal URL (owl://settings#models), kept so deep links survive state round-trips */
+  hash?: string;
   groupColor?: string;
   /** tabs created by agents in the background are hidden from the strip until opened */
   hidden = false;
@@ -51,6 +55,10 @@ export class Tab {
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
+        nodeIntegrationInSubFrames: false,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        webviewTag: false,
         spellcheck: true,
         backgroundThrottling: !this.agentId,
         safeDialogs: true,
@@ -89,7 +97,7 @@ export class Tab {
     const wc = this.wc;
     return {
       id: this.id,
-      url: this.internal ? `owl://${this.internal}` : (wc?.getURL() || this.url),
+      url: this.internal ? `owl://${this.internal}${this.hash || ''}` : (wc?.getURL() || this.url),
       title: this.title,
       favicon: this.favicon,
       loading: this.loading,
@@ -153,14 +161,24 @@ export class OwlWindow {
       webPreferences: {
         preload: path.join(__dirname, '..', 'preload', 'ui.js'),
         contextIsolation: true,
-        sandbox: false,
+        sandbox: true,
         nodeIntegration: false,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        webviewTag: false,
         spellcheck: false,
         backgroundThrottling: false,
       },
     });
-    this.win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'), { query: { profile: profileId, incognito: incognito ? '1' : '0' } });
-    this.win.once('ready-to-show', () => this.win.show());
+    this.win.loadURL(uiUrl({ profile: profileId, incognito: incognito ? '1' : '0' })).catch(() => { /* reported by did-fail-load (watchUi) */ });
+    this.lockDownUi(this.win.webContents);
+    this.win.once('ready-to-show', () => this.reveal());
+    // Never leave the window (and with it the whole process) invisible: if ready-to-show does not
+    // arrive (UI failed to load, renderer crashed, GPU trouble), show the window anyway.
+    const showTimer = setTimeout(() => { if (!this.win.isDestroyed() && !this.win.isVisible()) { logLine('warn', 'ready-to-show did not fire within 5s; showing window anyway'); this.reveal(); } }, 5000);
+    this.win.once('show', () => clearTimeout(showTimer));
+    this.win.once('closed', () => clearTimeout(showTimer));
+    this.watchUi(this.win.webContents, { profile: profileId, incognito: incognito ? '1' : '0' });
     this.win.on('closed', () => { this.tabs.forEach((t) => t.destroy()); this.hooks.onClosed(this); });
     this.win.on('focus', () => this.pushState());
     nativeTheme.on('updated', () => this.updateTitleBar());
@@ -170,6 +188,64 @@ export class OwlWindow {
   get id() { return this.win.id; }
   get active(): Tab | null { return this.tabs.find((t) => t.id === this.activeId) ?? null; }
   tab(id: number) { return this.tabs.find((t) => t.id === id) ?? null; }
+
+  /**
+   * The UI renderer holds the privileged window.owl bridge: it must never navigate away from the
+   * owl-ui:// origin or spawn windows (which would inherit its preload). Links from companion
+   * messages / artifacts open as normal browser tabs instead.
+   */
+  private lockDownUi(wc: WebContents) {
+    const openAsTab = (url: string) => { if (/^(https?|mailto):/i.test(url) || url.startsWith('owl://')) this.newTab(url, { openerId: this.activeId ?? undefined }); };
+    wc.setWindowOpenHandler(({ url }) => { openAsTab(url); return { action: 'deny' }; });
+    // will-navigate / will-redirect fire for the main frame only (artifact iframes are sandboxed separately)
+    wc.on('will-navigate', (e, url) => {
+      if (url.startsWith('owl-ui://app/')) return;
+      e.preventDefault();
+      openAsTab(url);
+    });
+    wc.on('will-redirect', (e, url) => { if (e.isMainFrame && !url.startsWith('owl-ui://app/')) e.preventDefault(); });
+    wc.on('will-attach-webview', (e) => e.preventDefault());
+  }
+
+  private reveal() {
+    if (this.win.isDestroyed() || this.win.isVisible()) return;
+    this.win.show();
+  }
+
+  /** The UI renderer failing must be visible and recoverable, never a silent hidden window. */
+  private watchUi(wc: WebContents, query: Record<string, string>) {
+    let failures = 0;
+    const offer = async (what: string) => {
+      this.reveal();
+      if (this.win.isDestroyed()) return;
+      const { response } = await dialog.showMessageBox(this.win, {
+        type: 'error', title: 'OWL', buttons: ['Reload', 'Close window'], defaultId: 0, cancelId: 1,
+        message: `OWL's interface ${what}.`,
+        detail: `Details were written to ${crashLogPath() ?? 'the log'}.`,
+      }).catch(() => ({ response: 1 }));
+      if (this.win.isDestroyed()) return;
+      if (response === 0 && failures < 5) wc.loadURL(uiUrl(query)).catch((e) => logLine('error', 'ui reload', e));
+      else this.win.close();
+    };
+    wc.on('did-fail-load', (_e, code, desc, url, isMain) => {
+      if (!isMain || code === -3) return; // -3 = aborted (a newer navigation replaced it)
+      failures++;
+      logLine('error', `UI failed to load ${url}: ${code} ${desc}`);
+      void offer('failed to load');
+    });
+    wc.on('render-process-gone', (_e, d) => {
+      if (d.reason === 'clean-exit') return;
+      failures++;
+      logLine('error', `UI renderer gone: ${d.reason} (${d.exitCode})`);
+      void offer('stopped unexpectedly');
+    });
+    wc.on('preload-error', (_e, p, err) => logLine('error', `UI preload failed: ${p}`, err));
+    wc.on('unresponsive', () => logLine('warn', 'UI renderer unresponsive'));
+    wc.on('console-message', (e: any) => {
+      // only errors, to keep the log useful (single-arg form: Electron 45 deprecates the positional args)
+      if (e?.level === 'error') logLine('warn', `UI console: ${String(e.message).slice(0, 500)}`);
+    });
+  }
 
   updateTitleBar() {
     if (process.platform !== 'win32' || this.win.isDestroyed()) return;
@@ -206,6 +282,7 @@ export class OwlWindow {
   newTab(url = 'owl://newtab', opts: { background?: boolean; index?: number; agentId?: string; runId?: string; hidden?: boolean; artifactId?: string; openerId?: number } = {}): Tab {
     const internal = parseInternal(url);
     const t = new Tab(this, internal ? 'about:blank' : url, { internal, agentId: opts.agentId, runId: opts.runId, artifactId: opts.artifactId });
+    if (internal) { const h = url.indexOf('#'); if (h > 0 && h < url.length - 1) t.hash = url.slice(h, h + 64); }
     t.hidden = !!opts.hidden;
     let index = opts.index ?? this.tabs.length;
     if (opts.openerId != null && opts.index == null) {
@@ -293,18 +370,27 @@ export class OwlWindow {
     for (const t of this.tabs) {
       if (t.view && attached.has(t.view) && !want.includes(t)) { try { cv.removeChildView(t.view); } catch {} }
     }
+    // the shell sends a 0×0 rect while onboarding / before its first layout: draw no page then
+    const empty = this.bounds.width < 1 || this.bounds.height < 1;
     for (const t of want) {
       const v = t.view!;
       cv.addChildView(v); // re-adding moves it to the top
-      let b = this.bounds;
-      if (split && this.splitBounds) b = t === split ? this.splitBounds : this.bounds;
-      v.setBounds(roundB(b));
-      const show = !this.overlay && (t === active || t === split);
-      v.setVisible(show || !!t.agentId);
-      if (!show && t.agentId) v.setBounds(roundB(this.bounds)); // keep rendering size for agents
+      const show = !this.overlay && !empty && (t === active || t === split);
+      if (show) {
+        const b = split && this.splitBounds && t === split ? this.splitBounds : this.bounds;
+        v.setBounds(roundB(b));
+        v.setVisible(true);
+      } else if (t.agentId) {
+        // Background agent tab: keep it visible to Chromium (so it renders, paints and can be
+        // screenshotted at a real size) but park it outside the window so it never draws over
+        // an internal page, the onboarding screen or the frozen-overlay menus.
+        const w = Math.max(800, Math.round(this.bounds.width)), h = Math.max(600, Math.round(this.bounds.height));
+        v.setBounds({ x: -w - 64, y: 0, width: w, height: h });
+        v.setVisible(true);
+      } else {
+        v.setVisible(false);
+      }
     }
-    // when the overlay is up, hide even agent views so UI menus render on top
-    if (this.overlay) for (const t of want) t.view!.setVisible(false);
   }
 
   wireWebContents(t: Tab, wc: WebContents) {
@@ -334,9 +420,16 @@ export class OwlWindow {
     wc.on('leave-html-full-screen', () => { this.win.setFullScreen(false); this.send('fullscreen', false); });
     wc.on('before-input-event', (e, input) => this.handleShortcut(e, input));
     wc.on('context-menu', (_e, p) => this.contextMenu(t, p));
-    wc.on('render-process-gone', () => { t.view = null; t.loading = false; update(); });
-    wc.setWindowOpenHandler(({ url, disposition }) => {
-      if (disposition === 'new-window' && /popup|width=/.test('')) return { action: 'allow' };
+    wc.on('render-process-gone', () => {
+      const dead = t.view;
+      t.view = null; t.loading = false;
+      if (dead && !this.win.isDestroyed()) { try { this.win.contentView.removeChildView(dead); } catch {} }
+      this.layout(); update();
+    });
+    wc.setWindowOpenHandler(({ url, disposition, features }) => {
+      // real popups (window.open with size/popup features, e.g. OAuth / payment sign-in) need a window
+      // with window.opener intact; everything else opens as a tab
+      if (disposition === 'new-window' && /(^|,)\s*(popup|width|height)\b/i.test(features || '')) return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true } };
       this.hooks.onNewWindowRequest(this, url, disposition);
       if (disposition === 'foreground-tab' || disposition === 'background-tab' || disposition === 'new-window' || disposition === 'default') {
         this.newTab(url, { background: disposition === 'background-tab', openerId: t.id });
@@ -344,7 +437,16 @@ export class OwlWindow {
       }
       return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true } };
     });
-    wc.ipc.on('owl-web:password', (_e, data) => this.hooks.onPasswordSubmit(this, t, data));
+    wc.ipc.on('owl-web:password', (e, data) => {
+      const frame = e.senderFrame;
+      if (!frame || frame.parent || !data || typeof data !== 'object') return; // top frame only
+      let origin = '';
+      try { const u = new URL(frame.url); if (u.protocol !== 'https:' && u.protocol !== 'http:') return; origin = u.origin; } catch { return; }
+      const username = typeof data.username === 'string' ? data.username.slice(0, 512) : '';
+      const password = typeof data.password === 'string' ? data.password : '';
+      if (!password || password.length > 4096) return;
+      this.hooks.onPasswordSubmit(this, t, { origin, username, password });
+    });
   }
 
   zoomTab(id: number, delta: number | 'reset') {
@@ -419,12 +521,12 @@ export class OwlWindow {
     else if ((ctrl && k === 'r') || k === 'f5') cmd = input.shift ? 'hard-reload' : 'reload';
     else if (ctrl && k === 'f') cmd = 'find';
     else if (ctrl && k === 'd') cmd = 'bookmark';
+    else if (ctrl && input.shift && k === 'j') cmd = 'downloads';
     else if (ctrl && k === 'j') cmd = 'toggle-companion';
     else if (ctrl && k === 'k') cmd = 'palette';
     else if (ctrl && k === 'h') cmd = 'history';
     else if (ctrl && input.shift && k === 'b') cmd = 'toggle-bookmarks-bar';
     else if (ctrl && input.shift && k === 'o') cmd = 'bookmarks';
-    else if (ctrl && input.shift && k === 'j' ) cmd = 'downloads';
     else if (ctrl && (k === '=' || k === '+')) cmd = 'zoom-in';
     else if (ctrl && k === '-') cmd = 'zoom-out';
     else if (ctrl && k === '0') cmd = 'zoom-reset';
@@ -434,10 +536,10 @@ export class OwlWindow {
     else if (input.alt && k === 'arrowright') cmd = 'forward';
     else if (k === 'f12' || (ctrl && input.shift && k === 'i')) cmd = 'devtools';
     else if (ctrl && k === 'p') cmd = 'print';
+    else if (ctrl && input.shift && k === 's') cmd = 'toggle-split';
     else if (ctrl && k === 's') cmd = 'save-page';
     else if (ctrl && k === 'u') cmd = 'view-source';
     else if (k === 'escape' && this.win.isFullScreen()) cmd = 'exit-fullscreen';
-    else if (ctrl && input.shift && k === 's') cmd = 'toggle-split';
     else if (ctrl && k === '\\') cmd = 'toggle-sidebar';
     if (cmd) { e.preventDefault(); this.hooks.onCommand(this, cmd, arg); }
   }

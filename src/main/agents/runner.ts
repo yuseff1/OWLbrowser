@@ -14,6 +14,11 @@ import type { AgentRun, AgentStep, Companion, Artifact } from '../../shared/type
 
 const MAX_STEPS = 60;
 
+/** Browser tools that act on a page; in 'ask-always' approval mode each one needs the user's OK. */
+const ACTING_BROWSER_TOOLS = new Set(['click', 'type', 'select_option', 'press_key']);
+/** MCP tool names that look like they change something outside OWL (send, post, pay, delete...). */
+const RISKY_MCP = /(^|[_\-.])(send|post|publish|create|update|edit|write|delete|remove|destroy|archive|pay|charge|refund|transfer|invoice|order|purchase|buy|book|invite|share|comment|reply|merge|deploy|execute|exec|run|trigger|move|rename|upload|set|add|insert|cancel|approve|close|submit)(?![a-z])/;
+
 const fn = (name: string, description: string, properties: any = {}, required: string[] = []): LlmTool => ({
   type: 'function', function: { name, description, parameters: { type: 'object', properties, required } },
 });
@@ -49,6 +54,8 @@ export class AgentRuntime extends EventEmitter {
   private queue: string[] = [];
   private followUps = new Map<string, string[]>();
   private takeover = new Set<string>();
+  /** runs whose user already approved desktop (computer-use) control */
+  private desktopOk = new Set<string>();
 
   constructor(private hooks: RuntimeHooks) { super(); }
 
@@ -260,6 +267,7 @@ export class AgentRuntime extends EventEmitter {
 
   private finalize(run: AgentRun & { profileId: string }) {
     this.controllers.delete(run.id);
+    this.desktopOk.delete(run.id);
     const host = this.hooks.host(run.profileId);
     for (const id of run.tabIds) host.getTab(id)?.wc.executeJavaScript(OVERLAY_REMOVE).catch(() => {});
     const store = dataFor(run.profileId).runs;
@@ -338,6 +346,14 @@ export class AgentRuntime extends EventEmitter {
     if (name.startsWith('memory_')) return { text: await Promise.resolve(runMemoryTool(profileId, name, args)) };
     if (name.startsWith('computer_')) {
       if (!settings.get().computerUse) return { text: 'Computer use is turned off in Settings.' };
+      // Desktop control escapes the browser sandbox entirely: the first action of every run needs the user's OK
+      // (and every action in 'ask-always' mode). Screenshots / window lists are read-only.
+      const readOnly = name === 'computer_screenshot' || name === 'computer_list_windows';
+      if (!readOnly && name !== 'computer_open_app' && (!this.desktopOk.has(run.id) || settings.get().approvalMode === 'ask-always')) {
+        const ok = await this.guard(run, 'Control your computer (mouse & keyboard outside the browser)', describe(name, args));
+        if (!ok) return { text: 'The user denied desktop control. Do not retry; continue in the browser or ask the user.' };
+        this.desktopOk.add(run.id);
+      }
       if (name === 'computer_open_app') {
         const ok = await this.guard(run, 'Open an app on your computer', String(args.command || args.app || ''));
         if (!ok) return { text: 'Denied.' };
@@ -347,8 +363,16 @@ export class AgentRuntime extends EventEmitter {
     }
     const m = parseMcpToolName(name);
     if (m) {
+      if (settings.get().approvalMode === 'ask-always' || RISKY_MCP.test(m.toolName)) {
+        const ok = await this.guard(run, `Use app tool "${m.toolName}"`, JSON.stringify(args ?? {}).slice(0, 300));
+        if (!ok) return { text: 'The user denied this app action. Do not retry it.' };
+      }
       const text = await mcp.call(profileId, m.serverId, m.toolName, args);
       return { text };
+    }
+    if (ACTING_BROWSER_TOOLS.has(name) && settings.get().approvalMode === 'ask-always') {
+      const ok = await this.guard(run, describe(name, args), ctx.tabId != null ? `in ${ctx.host.getTab(ctx.tabId)?.url ?? 'the current tab'}` : 'in a new tab');
+      if (!ok) return { text: 'The user denied this action. Do not retry it; ask or choose another path.' };
     }
     return runBrowserTool(name, args, ctx);
   }

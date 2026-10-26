@@ -1,3 +1,4 @@
+import { fatal, logLine, markStartupDone } from './crash'; // first: installs crash handlers before any other module runs
 import { app, BrowserWindow, ipcMain, session, Session, dialog, shell, Notification, nativeTheme, net, webContents, protocol } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -20,12 +21,17 @@ import { computer } from './agents/computer';
 import { detectSources, importFrom, importPasswordsCsv, loadInstalledExtensions, passwords } from './import/chromium';
 import { enableAdblock, disableAdblock } from './adblock';
 import type { DownloadItem, Artifact } from '../shared/types';
+import { isTrustedUiFrame } from './ui-protocol';
+import { artifactUrl } from './artifact-protocol';
+import { threads } from './threads';
+import { isWebUrl, isPrivateHost } from './net-guard';
 
 // ---------- process-level performance flags (lower RAM than stock Chrome) ----------
 app.commandLine.appendSwitch('enable-features', 'BackForwardCache,ReduceUserAgent,PartitionAlloc,HighEfficiencyModeAvailable,ThrottleDisplayNoneAndVisibilityHiddenCrossOriginIframes');
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,MediaRouter,OptimizationHints,Translate,InterestFeedContentSuggestions');
 app.commandLine.appendSwitch('renderer-process-limit', '24');
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096 --lite-mode=false');
+// note: '--lite-mode=false' is not a valid V8 flag (bools are --flag/--no-flag) and was rejected at every start
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
 app.setAppUserModelId('tech.varsen.owl');
 
 const isDev = process.argv.includes('--dev');
@@ -35,13 +41,19 @@ const preparedSessions = new Set<string>();
 const downloads = new Map<string, Electron.DownloadItem>();
 const pendingPasswords = new Map<string, { profileId: string; origin: string; username: string; password: string }>();
 
-if (!app.requestSingleInstanceLock()) { app.quit(); }
+// A second launch hands its argv to the running instance (see 'second-instance') and exits at once.
+// app.exit() before 'ready' terminates immediately: no 'ready', no before-quit flush that could
+// overwrite the first instance's settings/secrets with this process's stale copy.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.exit(0);
 
 app.on('second-instance', (_e, argv) => {
   const url = argv.find((a) => /^https?:\/\//.test(a) || a.endsWith('.html') || a.endsWith('.pdf'));
   const w = focusedWindow() || [...windows][0];
-  if (w) { if (w.win.isMinimized()) w.win.restore(); w.win.focus(); if (url) w.newTab(fileToUrl(url)); }
-  else createWindow(profiles.lastUsed(), false, url ? [fileToUrl(url)] : undefined);
+  try {
+    if (w) { if (w.win.isMinimized()) w.win.restore(); if (!w.win.isVisible()) w.win.show(); w.win.focus(); if (url) w.newTab(fileToUrl(url)); }
+    else createWindow(profiles.lastUsed(), false, url ? [fileToUrl(url)] : undefined);
+  } catch (e) { logLine('error', 'second-instance', e); }
 });
 
 app.on('open-url', (e, url) => { e.preventDefault(); const w = focusedWindow(); if (w) w.newTab(url); else app.whenReady().then(() => createWindow(profiles.lastUsed(), false, [url])); });
@@ -53,10 +65,19 @@ function focusedWindow(): OwlWindow | null {
   for (const w of windows) if (w.win === f) return w;
   return [...windows].pop() || null;
 }
-function windowFor(e: Electron.IpcMainInvokeEvent): OwlWindow {
-  for (const w of windows) if (w.win.webContents === e.sender) return w;
-  return focusedWindow()!;
+/** The OWL window whose UI document sent this IPC, or null for anything else (web pages, iframes, artifacts, popups). */
+function windowFor(e: Electron.IpcMainInvokeEvent): OwlWindow | null {
+  if (!isTrustedUiFrame(e.senderFrame)) return null;
+  for (const w of windows) if (!w.win.isDestroyed() && w.win.webContents === e.sender) return w;
+  return null;
 }
+function knownProfile(id: unknown): string {
+  if (typeof id !== 'string' || !profiles.list().some((p) => p.id === id)) throw new Error('Unknown profile');
+  return id;
+}
+
+// Defence in depth for every renderer: no <webview> tags anywhere.
+app.on('web-contents-created', (_e, wc) => { wc.on('will-attach-webview', (ev) => ev.preventDefault()); });
 function windowsForProfile(pid: string) { return [...windows].filter((w) => w.profileId === pid && !w.incognito); }
 function broadcast(profileId: string | null, type: string, payload?: any) {
   for (const w of windows) if (!profileId || w.profileId === profileId) w.send(type, payload);
@@ -83,8 +104,27 @@ function prepareSession(profileId: string, incognito: boolean): Session {
 
   if (settings.get().adblock) enableAdblock(ses).catch((e) => console.warn('[adblock]', e.message));
 
+  const DEVICE_PERMS = new Set(['hid', 'serial', 'usb', 'bluetooth']);
+  const storedPerm = (origin: string, permission: string): boolean | undefined => {
+    const perms: Record<string, boolean> | undefined = (dataFor(profileId).session.get() as any).perms;
+    return perms ? perms[origin + '|' + permission] : undefined;
+  };
+  // Permission *checks* (navigator.permissions, device APIs): honour the user's stored choice; device APIs default to deny.
+  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
+    let origin = '';
+    try { origin = new URL(requestingOrigin).origin; } catch { /* opaque */ }
+    const stored = origin ? storedPerm(origin, permission) : undefined;
+    if (stored !== undefined) return stored;
+    if (DEVICE_PERMS.has(permission)) return false;
+    return true; // Electron's default for everything else; real grants still go through the request handler below
+  });
+  ses.setDevicePermissionHandler(() => false); // WebHID / WebSerial / WebUSB devices are never auto-granted
+  ses.on('select-hid-device', (e, _d, cb) => { e.preventDefault(); cb(); });
+  ses.on('select-serial-port', (e, _ports, _wc, cb) => { e.preventDefault(); cb(''); });
+  ses.on('select-usb-device', (e, _d, cb) => { e.preventDefault(); cb(); });
+
   ses.setPermissionRequestHandler((wc, permission, callback, details) => {
-    const auto = ['fullscreen', 'clipboard-sanitized-write', 'pointerLock', 'window-management'];
+    const auto = ['fullscreen', 'clipboard-sanitized-write', 'pointerLock']; // window-management (multi-screen details) now prompts, like Chrome
     if (auto.includes(permission)) return callback(true);
     const origin = (() => { try { return new URL(details.requestingUrl || wc.getURL()).origin; } catch { return 'This site'; } })();
     const store = dataFor(profileId).session as any;
@@ -92,6 +132,7 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     const k = origin + '|' + permission;
     if (k in perms) return callback(perms[k]);
     const w = [...windows].find((x) => x.tabs.some((t) => t.wc === wc)) || focusedWindow();
+    if (!w || DEVICE_PERMS.has(permission)) return callback(false);
     const label = ({ media: 'use your camera/microphone', geolocation: 'know your location', notifications: 'show notifications', midi: 'use MIDI devices', 'clipboard-read': 'read your clipboard', 'display-capture': 'capture your screen' } as any)[permission] || permission;
     dialog.showMessageBox(w!.win, { type: 'question', buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1, message: `${origin} wants to ${label}`, checkboxLabel: 'Remember for this site', checkboxChecked: true })
       .then(({ response, checkboxChecked }) => {
@@ -105,7 +146,8 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     const id = uid('d_');
     downloads.set(id, item);
     const dir = app.getPath('downloads');
-    item.setSavePath(uniquePath(path.join(dir, item.getFilename())));
+    const safeName = path.basename(item.getFilename() || 'download').replace(/[\x00-\x1f<>:"/\\|?*]/g, '_').replace(/^\.+/, '_') || 'download';
+    item.setSavePath(uniquePath(path.join(dir, safeName)));
     const rec = (): DownloadItem => ({ id, url: item.getURL(), filename: path.basename(item.getSavePath()), path: item.getSavePath(), received: item.getReceivedBytes(), total: item.getTotalBytes(), state: item.getState(), startedAt: Math.round(item.getStartTime() * 1000) });
     const store = dataFor(profileId).downloads;
     const save = () => { const r = rec(); store.update((l) => { const i = l.findIndex((x) => x.id === id); if (i >= 0) l[i] = r; else l.unshift(r); if (l.length > 500) l.length = 500; }); broadcast(profileId, 'download', r); };
@@ -190,9 +232,19 @@ function hostFor(profileId: string): BrowserHost {
     focusTab(id) { for (const w of windowsForProfile(profileId)) if (w.tab(id)) { w.activate(id); w.win.focus(); } },
     async fetchText(url) {
       const ses = prepareSession(profileId, false);
-      const r = await ses.fetch(url, { headers: { 'User-Agent': ses.getUserAgent(), Accept: 'text/html,application/xhtml+xml,*/*' } });
-      const t = await r.text();
-      return t.slice(0, 2_000_000);
+      if (!isWebUrl(url)) throw new Error('Only http(s) URLs can be fetched');
+      const startPrivate = isPrivateHost(new URL(url).hostname); // caller already approved a local address
+      let cur = url;
+      for (let hop = 0; hop < 6; hop++) {
+        const r = await ses.fetch(cur, { redirect: 'manual', headers: { 'User-Agent': ses.getUserAgent(), Accept: 'text/html,application/xhtml+xml,*/*' } });
+        const loc = r.status >= 300 && r.status < 400 ? r.headers.get('location') : null;
+        if (!loc) { const t = await r.text(); return t.slice(0, 2_000_000); }
+        const next = new URL(loc, cur).toString();
+        if (!isWebUrl(next)) throw new Error('Redirect to a non-web URL was blocked');
+        if (!startPrivate && isPrivateHost(new URL(next).hostname)) throw new Error('Redirect to a local-network address was blocked');
+        cur = next;
+      }
+      throw new Error('Too many redirects');
     },
   };
 }
@@ -328,19 +380,20 @@ const api: Record<string, Handler> = {
   print: (w, id) => w.tab(id)?.wc?.print(),
   command: (w, cmd, arg) => runCommand(w, cmd, arg),
   windowControl: (w, a: string) => { if (a === 'minimize') w.win.minimize(); else if (a === 'maximize') w.win.isMaximized() ? w.win.unmaximize() : w.win.maximize(); else if (a === 'close') w.win.close(); else if (a === 'fullscreen') w.win.setFullScreen(!w.win.isFullScreen()); },
-  newWindow: (w, opts: any = {}) => { createWindow(opts.profileId || w.profileId, !!opts.incognito); },
+  newWindow: (w, opts: any = {}) => { createWindow(opts?.profileId ? knownProfile(opts.profileId) : w.profileId, !!opts?.incognito); },
   suggest: (w, text: string) => suggest(w, text),
   pageInfo: (w, id) => { const t = w.tab(id); const url = t?.wc?.getURL() || t?.url || ''; return { url, title: t?.title, secure: url.startsWith('https:') }; },
 
   profiles: (w) => ({ profiles: profiles.list(), current: w.profileId }),
-  createProfile: (_w, name: string, color?: string) => { const p = profiles.create(name, color); createWindow(p.id); return p; },
-  renameProfile: (_w, id, name, color) => profiles.rename(id, name, color),
-  removeProfile: (_w, id) => { for (const w of windowsForProfile(id)) w.win.close(); profiles.remove(id); },
-  openProfile: (_w, id) => { const ex = windowsForProfile(id)[0]; if (ex) ex.win.focus(); else createWindow(id); },
+  createProfile: (_w, name: string, color?: string) => { const p = profiles.create(String(name ?? '').slice(0, 64), typeof color === 'string' ? color : undefined); createWindow(p.id); return p; },
+  renameProfile: (_w, id, name, color) => profiles.rename(knownProfile(id), String(name ?? '').slice(0, 64), typeof color === 'string' ? color : undefined),
+  removeProfile: (_w, id) => { knownProfile(id); for (const w of windowsForProfile(id)) w.win.close(); profiles.remove(id); },
+  openProfile: (_w, id) => { knownProfile(id); const ex = windowsForProfile(id)[0]; if (ex) ex.win.focus(); else createWindow(id); },
 
   bookmarks: (w) => bookmarks.list(w.profileId),
-  toggleBookmark: (w, url, title, fav) => bookmarks.toggle(w.profileId, url, title, fav),
+  toggleBookmark: (w, url, title, fav) => { const on = bookmarks.toggle(w.profileId, url, title, fav); broadcast(w.profileId, 'command', { cmd: 'bookmark-changed' }); return on; },
   removeBookmark: (w, id) => bookmarks.remove(w.profileId, id),
+  renameBookmark: (w, id: string, title: string) => bookmarks.rename(w.profileId, String(id), String(title ?? '').slice(0, 500)),
   isBookmarked: (w, url) => bookmarks.has(w.profileId, url),
   history: (w, q = '', offset = 0, limit = 200) => history.list(w.profileId, offset, limit, q),
   removeHistory: (w, url) => history.remove(w.profileId, url),
@@ -406,7 +459,9 @@ const api: Record<string, Handler> = {
 
   importSources: () => detectSources(),
   importFrom: async (w, src, what) => {
-    const r = await importFrom(src, w.profileId, what, (msg) => w.send('toast', { title: 'Importing…', body: msg }));
+    const known = (await detectSources()).find((s) => s.path === src?.path);
+    if (!known) throw new Error('Unknown browser profile');
+    const r = await importFrom(known, w.profileId, what || {}, (msg) => w.send('toast', { title: 'Importing…', body: msg }));
     if (what?.extensions) loadInstalledExtensions(sessionFor(w.profileId), w.profileId).catch(() => {});
     return r;
   },
@@ -427,7 +482,7 @@ const api: Record<string, Handler> = {
     const ses: any = sessionFor(w.profileId);
     const dest = path.join(app.getPath('userData'), 'extensions', w.profileId, path.basename(r.filePaths[0]));
     fs.cpSync(r.filePaths[0], dest, { recursive: true });
-    const e = await (ses.extensions?.loadExtension ? ses.extensions.loadExtension(dest, { allowFileAccess: true }) : ses.loadExtension(dest, { allowFileAccess: true }));
+    const e = await (ses.extensions?.loadExtension ? ses.extensions.loadExtension(dest, { allowFileAccess: false }) : ses.loadExtension(dest, { allowFileAccess: false }));
     return { id: e.id, name: e.name, version: e.version };
   },
   removeExtension: (w, id) => {
@@ -474,6 +529,11 @@ const api: Record<string, Handler> = {
   removeMemory: (w, id) => memory.remove(w.profileId, id),
   clearMemory: (w) => memory.clear(w.profileId),
   searchMemory: (w, q) => memory.search(w.profileId, q, 20),
+  memoryProfile: (w) => { try { const p = memory.profile(w.profileId); return p && (p.static.length || p.dynamic.length) ? p : null; } catch { return null; } },
+  refreshMemoryProfile: async (w) => { try { return await memory.refreshProfile(w.profileId); } catch { return null; } },
+  chats: (w) => (w.incognito ? [] : threads.list(w.profileId)),
+  saveChat: (w, t) => (w.incognito ? 0 : threads.save(w.profileId, t)),
+  removeChat: (w, id: string) => threads.remove(w.profileId, String(id)),
   skills: (w) => ({ mine: skills.mine(w.profileId), official: skills.official() }),
   saveSkill: (w, s) => skills.save(w.profileId, s),
   removeSkill: (w, id) => skills.remove(w.profileId, id),
@@ -489,6 +549,7 @@ const api: Record<string, Handler> = {
   disconnectApp: (_w, id) => mcp.disconnect(id),
   artifacts: (w) => dataFor(w.profileId).artifacts.get().map((a) => ({ ...a, html: a.html.slice(0, 4000) })),
   artifact: (w, id) => dataFor(w.profileId).artifacts.get().find((a) => a.id === id) || null,
+  artifactUrl: (_w, id: string) => artifactUrl(String(id)),
   removeArtifact: (w, id) => dataFor(w.profileId).artifacts.update((l) => l.filter((a) => a.id !== id)),
   openArtifact: (w, id) => { w.newTab('owl://artifact', { artifactId: id }); },
   exportArtifact: async (w, id) => {
@@ -504,6 +565,10 @@ const api: Record<string, Handler> = {
     appState.update((s) => { s.onboardingDone = true; s.userName = o.userName; s.companionId = o.companionId; });
     if (o.companionId) companions.save(w.profileId, { id: o.companionId, hired: true, ...(o.companionName ? { name: o.companionName } : {}), ...(o.look ? { look: o.look } : {}) });
     if (o.userName) memory.add(w.profileId, `The user's name is ${o.userName}.`, 'fact', 'onboarding', { isStatic: true } as any);
+    if (o.defaultModel && typeof o.defaultModel.providerId === 'string' && typeof o.defaultModel.model === 'string') {
+      const s = settings.patch({ defaultModel: { providerId: o.defaultModel.providerId, model: o.defaultModel.model } });
+      broadcast(null, 'settings', s);
+    }
     return true;
   },
 };
@@ -526,15 +591,24 @@ function suggest(w: OwlWindow, text: string) {
 
 for (const [name, fn] of Object.entries(api)) {
   ipcMain.handle('owl:' + name, async (e, ...args) => {
-    try { return await fn(windowFor(e), ...args); }
+    const w = windowFor(e);
+    if (!w) { console.warn(`[ipc] blocked owl:${name} from untrusted sender ${e.senderFrame?.url?.slice(0, 80) ?? '?'}`); throw new Error('Forbidden'); }
+    try { return await fn(w, ...args); }
     catch (err: any) { console.error(`[ipc] ${name}`, err); throw new Error(err?.message || String(err)); }
   });
 }
 
 // credentials for autofill — origin taken from the requesting frame, never trusted from the page
 ipcMain.handle('owl-web:credentials', (e) => {
+  const frame = e.senderFrame;
+  if (!frame || frame.parent) return null; // never into iframes (a third-party frame must not receive the top site's password)
   let origin = '';
-  try { origin = new URL(e.senderFrame?.url || e.sender.getURL()).origin; } catch { return null; }
+  try {
+    const u = new URL(frame.url);
+    // https, or http on this machine (dev servers); never autofill over plain http on the network
+    if (!(u.protocol === 'https:' || (u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)))) return null;
+    origin = u.origin;
+  } catch { return null; }
   const w = [...windows].find((x) => x.tabs.some((t) => t.wc === e.sender));
   if (!w || w.incognito) return null;
   const list = passwords.findForOrigin(w.profileId, origin);
@@ -544,23 +618,42 @@ ipcMain.handle('owl-web:credentials', (e) => {
 
 // ---------- lifecycle ----------
 app.whenReady().then(async () => {
-  nativeTheme.themeSource = settings.get().theme;
-  const urlArg = process.argv.slice(1).find((a) => /^https?:\/\//.test(a));
-  createWindow(profiles.lastUsed(), false, urlArg ? [urlArg] : undefined);
-  scheduler.start();
+  if (!gotLock) return;
+  logLine('info', `starting OWL ${app.getVersion()} (electron ${process.versions.electron}, ${process.platform}) packaged=${app.isPackaged}`);
+  try { nativeTheme.themeSource = settings.get().theme; } catch (e) { logLine('warn', 'themeSource', e); }
+  try {
+    const urlArg = process.argv.slice(1).find((a) => /^https?:\/\//.test(a));
+    createWindow(profiles.lastUsed(), false, urlArg ? [urlArg] : undefined);
+  } catch (e) {
+    // Without a window the process would live on invisibly (and block the installer). Fail loudly instead.
+    return fatal('creating the first window', e);
+  }
+  markStartupDone();
+  try { scheduler.start(); } catch (e) { logLine('error', 'scheduler.start', e); }
   providers.autodetectLocal().catch(() => {});
   if (isDev) console.log('[owl] dev mode');
-});
+}).catch((e) => fatal('app ready', e));
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (!windows.size) createWindow(profiles.lastUsed()); });
+let quitting = false;
 app.on('before-quit', () => {
-  for (const p of profiles.list()) saveSession(p.id);
-  flushAll(); flushMemory(); settings.flush(); secrets.flush(); appState.flush();
-  scheduler.stop();
-  try { mcp.disconnectAll(); } catch {}
-  try { computer.dispose(); } catch {}
+  if (!gotLock || quitting) return;
+  quitting = true;
+  // each step isolated: one failing flush must not stop the rest (or the child-process cleanup)
+  const step = (name: string, fn: () => unknown) => { try { const r: any = fn(); if (r && typeof r.catch === 'function') r.catch((e: any) => logLine('warn', `quit:${name}`, e)); } catch (e) { logLine('warn', `quit:${name}`, e); } };
+  step('session', () => { for (const p of profiles.list()) saveSession(p.id); });
+  step('data', () => flushAll());
+  step('memory', () => flushMemory());
+  step('threads', () => threads.flush());
+  step('settings', () => settings.flush());
+  step('secrets', () => secrets.flush());
+  step('app', () => appState.flush());
+  step('scheduler', () => scheduler.stop());
+  step('mcp', () => mcp.disconnectAll());
+  step('computer', () => computer.dispose());
+  // Watchdog: whatever happens (a hung renderer refusing to close, a stuck child), the process
+  // must not outlive the quit request, or the installer finds OWL.exe still running.
+  setTimeout(() => { logLine('warn', 'quit watchdog fired; forcing exit'); app.exit(0); }, 6000).unref();
 });
-
-process.on('unhandledRejection', (r) => console.warn('[owl] unhandled', r));
 export { webContents, net, protocol, htmlToText };

@@ -709,7 +709,7 @@ export async function loadInstalledExtensions(ses: Session, profileId: string): 
     const dir = path.join(root, id);
     if (!exists(path.join(dir, 'manifest.json'))) continue;
     try {
-      loaded.push(await load(dir, { allowFileAccess: true }));
+      loaded.push(await load(dir, { allowFileAccess: false }));
     } catch (e: any) {
       console.warn('[import] extension failed to load:', id, e?.message || e);
     }

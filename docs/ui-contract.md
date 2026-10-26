@@ -42,7 +42,12 @@ Returns:
 - routines() → Routine[] ; saveRoutine(partial) ; removeRoutine(id) ; runRoutine(id)
 - apps() → Array<McpServerView> ({id,name,transport,url?,command?,args?,enabled,hasToken,status,error?,description?,icon?}) ; appCatalog() → Array<{id?, name, description, category, transport, url, needsToken, iconDomain}> ; saveApp(cfg & {token?}) ; removeApp(id) ; connectApp(id) → {ok, status, error?, tools?}
 - artifacts() → Artifact[] ; artifact(id) → Artifact ; openArtifact(id) ; exportArtifact(id) (save dialog)
-- onboarding() → { done: boolean, userName?: string, companionId?: string } ; completeOnboarding({ userName, companionId, companionName, look? })
-- appInfo() → { version, electron, chrome, platform, userData }
+- onboarding() → { done: boolean, userName?: string, companionId?: string } ; completeOnboarding({ userName, companionId, companionName, look?, defaultModel?: { providerId, model } })
+- renameBookmark(id, title) ; toggleBookmark / Ctrl+D emit event 'command' { cmd: 'bookmark-changed' }
+- internal tab URLs keep their hash: owl://settings#models
+- appInfo() → { version, electron, chrome, platform, userData, computerUse }
+- memoryProfile() → UserProfile | null ({ static: string[], dynamic: string[], at, generated: 'llm'|'heuristic' }) ; refreshMemoryProfile() → UserProfile | null (one small LLM call)
+- chats() → Thread[] (newest first; [] in incognito) ; saveChat(thread | thread[]) → count (upsert, newer updatedAt wins) ; removeChat(threadId). Thread = { id, title, companionId, createdAt, updatedAt, messages: [{ id, role, content, t, companionId, runId?, error?, withPage? }] }
+- artifactUrl(id) → 'owl-artifact://a/<id>' : frame it with <iframe sandbox="allow-scripts …"> (no allow-same-origin). Served with its own CSP so inline scripts and https CDNs run; only the UI session can load it.
 
 Art: `art/owl-mark.png`, `art/onboarding-hoot.png`, `art/companions/<id>.png|webp`, `art/companions/<id>-face.png|webp` for ids hoot, nova, pip, echo, atlas, byte, custom (served from src/renderer/public → './art/...').

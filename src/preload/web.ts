@@ -29,9 +29,17 @@ window.addEventListener('click', (e) => {
   if (b) setTimeout(capture, 0);
 }, true);
 
+/** Only real, visible login fields get autofilled: no invisible/off-screen honeypot inputs that harvest the password. */
+function visible(el: HTMLInputElement) {
+  const r = el.getBoundingClientRect();
+  const s = getComputedStyle(el);
+  return r.width >= 8 && r.height >= 8 && r.bottom > 0 && r.right > 0 && r.top < innerHeight * 3 && s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0.1;
+}
+
 async function autofill() {
-  const pw = document.querySelector('input[type=password]') as HTMLInputElement | null;
-  if (!pw || pw.value) return;
+  if (window.top !== window) return;
+  const pw = (Array.from(document.querySelectorAll('input[type=password]')) as HTMLInputElement[]).find((i) => !i.value && !i.disabled && visible(i));
+  if (!pw) return;
   const cred = await ipcRenderer.invoke('owl-web:credentials', location.origin).catch(() => null);
   if (!cred) return;
   const { user } = findForm(pw);

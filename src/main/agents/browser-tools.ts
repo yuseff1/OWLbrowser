@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron';
 import type { LlmTool } from './llm';
 import { SNAPSHOT_SCRIPT, LOCATE_SCRIPT, SELECT_OPTION_SCRIPT, CLEAR_SCRIPT, READ_SCRIPT, CURSOR_SCRIPT } from './page-scripts';
+import { isWebUrl, resolvesToPrivate } from '../net-guard';
 
 /** What the agent runtime needs from the browser to drive tabs. Implemented by the window/tab manager. */
 export interface BrowserHost {
@@ -54,10 +55,30 @@ export const BROWSER_TOOLS: LlmTool[] = [
 
 function toUrl(input: string): string {
   const s = input.trim();
-  if (/^(https?|file|about|chrome|owl):/i.test(s)) return s;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^[\w-]+(\.[\w-]+)+:\d+/.test(s)) return s; // explicit scheme (checked by gateUrl)
   if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/.test(s) && !s.includes(' ')) return 'https://' + s;
   return 'https://www.google.com/search?q=' + encodeURIComponent(s);
 }
+
+/**
+ * Security gate for every URL an agent loads or fetches (prompt-injection defence):
+ * only http(s) (plus about:blank); local files, chrome://, owl://, devtools://, data:, javascript: are refused;
+ * hosts on this machine / the LAN (router admin pages, local services) need the user's approval.
+ */
+async function gateUrl(url: string, ctx: ToolCtx): Promise<string | null> {
+  if (url === 'about:blank') return null;
+  if (!isWebUrl(url)) return `Blocked: agents may only open http(s) web pages, not "${url.split(':')[0]}:" URLs. Ask the user to open it themselves if it is really needed.`;
+  const host = new URL(url).hostname;
+  if (await resolvesToPrivate(host)) {
+    if (!ctx.guard) return 'Blocked: this address is on your computer or local network.';
+    const ok = await ctx.guard(`Open a local-network address (${host})`, url);
+    if (!ok) return 'The user denied access to this local-network address. Do not retry it.';
+  }
+  return null;
+}
+
+/** Fields an agent must not type into without the user's OK (passwords, card numbers, one-time codes). */
+const SENSITIVE_FIELD = /^(cc-|one-time-code|current-password|new-password)/i;
 
 async function waitForLoad(wc: WebContents, timeout = 15000) {
   if (!wc.isLoading()) { await sleep(250); return; }
@@ -132,14 +153,20 @@ export function htmlToText(html: string): string {
 export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Promise<{ text: string; image?: string }> {
   switch (name) {
     case 'open_tab': {
-      const t = await ctx.host.openTab(toUrl(args.url), { background: ctx.background, agentId: ctx.agentId, runId: ctx.runId });
+      const target = toUrl(String(args.url ?? ''));
+      const blocked = await gateUrl(target, ctx);
+      if (blocked) return { text: blocked };
+      const t = await ctx.host.openTab(target, { background: ctx.background, agentId: ctx.agentId, runId: ctx.runId });
       ctx.setTab(t.id);
       await waitForLoad(t.wc);
       return { text: `Opened tab ${t.id}: ${t.wc.getTitle()} (${t.wc.getURL()})` };
     }
     case 'navigate': {
+      const target = toUrl(String(args.url ?? ''));
+      const blocked = await gateUrl(target, ctx);
+      if (blocked) return { text: blocked };
       const wc = await currentWc(ctx);
-      await wc.loadURL(toUrl(args.url)).catch((e) => { if (!/ERR_ABORTED/.test(String(e))) throw e; });
+      await wc.loadURL(target).catch((e) => { if (!/ERR_ABORTED/.test(String(e))) throw e; });
       await waitForLoad(wc);
       return { text: `Now at ${wc.getURL()} — ${wc.getTitle()}` };
     }
@@ -152,7 +179,8 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
       const wc = await currentWc(ctx);
       const loc = await wc.executeJavaScript(LOCATE_SCRIPT(Number(args.ref)), true);
       if (!loc) return { text: `Element [${args.ref}] not found — take a new snapshot.` };
-      if (ctx.guard && (RISKY.test(loc.label) || loc.type === 'submit')) {
+      // labels are page-controlled, so also gate any click inside a form holding a password / card field
+      if (ctx.guard && (RISKY.test(loc.label) || loc.type === 'submit' || (loc.sensitiveForm && (loc.tag === 'button' || /^(submit|button|image)$/.test(loc.type || ''))))) {
         const ok = await ctx.guard(`Click "${loc.label || loc.tag}"`, `on ${wc.getURL()}`);
         if (!ok) return { text: 'The user denied this action. Do not retry it; ask or choose another path.' };
       }
@@ -167,6 +195,10 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
       const wc = await currentWc(ctx);
       const loc = await wc.executeJavaScript(LOCATE_SCRIPT(Number(args.ref)), true);
       if (!loc) return { text: `Element [${args.ref}] not found — take a new snapshot.` };
+      if (loc.type === 'password' || SENSITIVE_FIELD.test(loc.autocomplete || '')) {
+        const ok = ctx.guard ? await ctx.guard('Type into a password / payment field', `field "${loc.label || loc.tag}" on ${wc.getURL()}`) : false;
+        if (!ok) return { text: 'The user did not allow typing into this sensitive field. Ask the user to fill it in themselves (they can take over the tab).' };
+      }
       await trustedClick(wc, loc.x, loc.y);
       await sleep(120);
       if (args.clear) {
@@ -235,7 +267,10 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
     case 'web_search':
       return { text: await searchWeb(ctx.host, String(args.query)) };
     case 'fetch_url': {
-      const html = await ctx.host.fetchText(toUrl(String(args.url)));
+      const target = toUrl(String(args.url ?? ''));
+      const blocked = await gateUrl(target, ctx);
+      if (blocked) return { text: blocked };
+      const html = await ctx.host.fetchText(target);
       return { text: htmlToText(html).slice(0, 15000) };
     }
   }

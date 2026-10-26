@@ -15,11 +15,16 @@
   let error = $state('');
   let missing = $state(false);
   let nonce = $state(0);
+  /** owl-artifact:// URL from main (own CSP, so scripted artifacts run); null in plain vite dev → srcdoc fallback */
+  let src = $state<string | null>(null);
 
   async function load(id?: string) {
     loading = true; error = ''; missing = false;
     if (!id) { missing = true; loading = false; return; }
-    try { a = (await owl.artifact(id)) as Artifact | null; missing = !a; }
+    try {
+      a = (await owl.artifact(id)) as Artifact | null; missing = !a;
+      src = a ? (((await owl.artifactUrl(id).catch(() => null)) as string | null) ?? null) : null;
+    }
     catch (e: any) { error = e?.message || 'Couldn’t open this artifact.'; }
     loading = false;
   }
@@ -59,7 +64,11 @@
       </div>
     {:else}
       {#key nonce}
-        <iframe title={a.title} srcdoc={a.html} sandbox="allow-scripts allow-popups allow-forms allow-modals" class="absolute inset-0 size-full border-0"></iframe>
+        {#if src}
+          <iframe title={a.title} src={src} sandbox="allow-scripts allow-popups allow-forms allow-modals" referrerpolicy="no-referrer" class="absolute inset-0 size-full border-0"></iframe>
+        {:else}
+          <iframe title={a.title} srcdoc={a.html} sandbox="allow-scripts allow-popups allow-forms allow-modals" class="absolute inset-0 size-full border-0"></iframe>
+        {/if}
       {/key}
     {/if}
   </div>

@@ -31,9 +31,13 @@
   let hits = $state<Hit[] | null>(null);
   let searching = $state(false);
 
+  type Profile = { static: string[]; dynamic: string[]; at: number; generated: 'llm' | 'heuristic' };
+  let profile = $state<Profile | null>(null);
+
   async function load() {
     error = '';
     try { items = ((await owl.memory()) as MemoryItem[]) || []; } catch (e: any) { error = e?.message || 'Couldn’t load memory.'; }
+    try { profile = ((await owl.memoryProfile()) as Profile | null) ?? null; } catch { profile = null; }
     loading = false;
   }
   onMount(() => { load(); });
@@ -111,6 +115,20 @@
         <h2 id="mem-about" class="text-[14px] font-semibold">About you</h2>
         {#if loading}
           <div class="mt-3 flex flex-col gap-2"><Skel w="70%" h={13} /><Skel w="55%" h={13} /><Skel w="62%" h={13} /></div>
+        {:else if profile && (profile.static.length || profile.dynamic.length)}
+          <ul class="mt-2.5 flex flex-col gap-1.5">
+            {#each profile.static.slice(0, 5) as line, i (i)}
+              <li class="flex items-start gap-2 text-[13.5px] leading-snug"><Brain size={12} class="mt-[4px] shrink-0 text-ink-3" />{line}</li>
+            {/each}
+          </ul>
+          {#if profile.dynamic.length}
+            <p class="mt-3 text-[12px] font-medium text-ink-2">Lately</p>
+            <ul class="mt-1 flex flex-col gap-1">
+              {#each profile.dynamic.slice(0, 3) as line, i (i)}
+                <li class="flex items-start gap-2 text-[13px] leading-snug text-ink-2"><History size={12} class="mt-[4px] shrink-0 text-ink-3" />{line}</li>
+              {/each}
+            </ul>
+          {/if}
         {:else if pinned.length || items.length}
           <ul class="mt-2.5 flex flex-col gap-1.5">
             {#each (pinned.length ? pinned : items.slice(0, 3)).slice(0, 4) as m (m.id)}

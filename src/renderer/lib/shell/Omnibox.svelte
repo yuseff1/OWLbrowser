@@ -31,7 +31,7 @@
     if (!u || tab?.internal) { starred = false; return; }
     owl.isBookmarked(u).then((b: any) => (starred = !!b));
   });
-  $effect(() => owl.on((type, p) => { if (type === 'command' && p?.cmd === 'bookmark-added') { const u = tab?.url; if (u) owl.isBookmarked(u).then((b: any) => (starred = !!b)); } }));
+  $effect(() => owl.on((type, p) => { if (type === 'command' && (p?.cmd === 'bookmark-added' || p?.cmd === 'bookmark-changed')) { const u = tab?.url; if (u) owl.isBookmarked(u).then((b: any) => (starred = !!b)); } }));
 
   // suggestions (debounced)
   let timer: any;

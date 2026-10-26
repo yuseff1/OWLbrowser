@@ -3,6 +3,7 @@ import { JsonStore, uid } from '../store';
 import { profiles } from '../profiles';
 import { providers, settings } from '../settings';
 import { chat } from './llm';
+import { maySendKey } from '../net-guard';
 import type { LlmTool } from './llm';
 import type { MemoryItem } from '../../shared/types';
 
@@ -389,7 +390,7 @@ function resolveEmbedder(): Embedder | null {
     const mk = (p: (typeof list)[number], model: string, dimensions?: number): Embedder => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const key = providers.key(p.id);
-      if (key) headers['Authorization'] = `Bearer ${key}`;
+      if (key && maySendKey(p.baseUrl)) headers['Authorization'] = `Bearer ${key}`;
       if (p.kind === 'openrouter') { headers['HTTP-Referer'] = 'https://owl.varsen.tech'; headers['X-Title'] = 'OWL Browser'; }
       return { providerId: p.id, baseUrl: p.baseUrl.replace(/\/+$/, ''), model, headers, dimensions, id: `${p.id}:${model}${dimensions ? ':' + dimensions : ''}` };
     };

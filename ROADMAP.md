@@ -12,19 +12,23 @@ Source of truth for the overnight build loop. Tick only after verification.
 - [x] Local checks: tsc main, svelte-check, vite build
 - [x] CI: Windows NSIS + ZIP build green, nightly release published
 - [ ] Main ← UI requests (docs/ui-requests.md): overlay layer for popups over native views
-- [ ] Hide background agent views when an internal page is active (window.ts layout)
-- [ ] Ctrl+Shift+J → downloads (shortcut order)
-- [ ] Settings deep link hash (`owl://settings#models`)
-- [ ] Chats API in main (replace localStorage)
-- [ ] `renameBookmark` IPC
-- [ ] Memory profile API for the Memory page
-- [ ] Artifact sandbox frame with its own CSP so scripted artifacts run
-- [ ] Hide native views when page rect is zero
-- [ ] `completeOnboarding` accepts defaultModel
+- [x] Hide background agent views when an internal page is active (parked off-window)
+- [x] Ctrl+Shift+J → downloads (shortcut order; Ctrl+Shift+S split too)
+- [x] Settings deep link hash (`owl://settings#models`)
+- [x] Chats API in main (`chats/saveChat/removeChat`, threads.ts; UI migrates localStorage once)
+- [x] `renameBookmark` IPC
+- [x] Memory profile API for the Memory page (`memoryProfile`)
+- [x] Artifact sandbox frame with its own CSP so scripted artifacts run (`owl-artifact://`)
+- [x] Hide native views when page rect is zero
+- [x] `completeOnboarding` accepts defaultModel
 - [ ] Windows runtime smoke test (launch, browse, import Chrome, run Hoot)
+
+- [x] Security audit: owl-ui:// origin, IPC sender check, agent URL guard, fuses (docs/security-audit.md)
+- [ ] Auto-update from GitHub releases (electron-updater)
+- [ ] Agent end-to-end check with a cloud + local model (mock OpenAI-compatible server test)
 
 ## v0.2
 - [ ] Code signing, auto-update
 - [ ] Computer-use polish, extension store install
 - [ ] Mobile: device test, signed APK, iOS via EAS
-- [ ] Mobile Android CI green (first run failed at startup; fix pushed 21:40)
+- [x] Mobile Android CI green (APK in `android-nightly` release)
