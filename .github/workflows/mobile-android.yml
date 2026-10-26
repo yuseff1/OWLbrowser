@@ -108,3 +108,16 @@ jobs:
         with:
           files: ${{ steps.apk.outputs.path }}
           generate_release_notes: true
+
+      - name: Android nightly release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp "${{ steps.apk.outputs.path }}" dist-apk/OWL-android-nightly.apk
+          git tag -f android-nightly
+          git push -f origin android-nightly
+          gh release delete android-nightly --yes || true
+          gh release create android-nightly dist-apk/OWL-android-nightly.apk \
+            --prerelease --title "OWL Android nightly" \
+            --notes "Automatic build of ${GITHUB_SHA::7}. Sideload: allow installs from your browser, then open the APK."
