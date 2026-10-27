@@ -70,7 +70,41 @@ const MAX_AGENT_TABS = 12;
 // app.exit() before 'ready' terminates immediately: no 'ready', no before-quit flush that could
 // overwrite the first instance's settings/secrets with this process's stale copy.
 const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.exit(0);
+logLine('info', `launch pid=${process.pid} gotLock=${gotLock}`);
+// Heartbeat: the instance holding the lock stamps userData/instance.json every 5 s. A second launch that
+// finds the stamp stale (that instance hung before showing a window, or its event loop is frozen) or
+// missing (a pre-0.1.13 zombie) kills it and relaunches, instead of exiting into nothing on every click.
+const beatFile = path.join(app.getPath('userData'), 'instance.json');
+function readBeat(): { pid: number; beat: number } | null {
+  try { const j = JSON.parse(fs.readFileSync(beatFile, 'utf8')); return typeof j?.pid === 'number' && typeof j?.beat === 'number' ? j : null; } catch { return null; }
+}
+if (gotLock) {
+  const stamp = () => { try { fs.writeFileSync(beatFile, JSON.stringify({ pid: process.pid, beat: Date.now() })); } catch { /* read-only profile dir */ } };
+  stamp();
+  setInterval(stamp, 5000).unref();
+  app.on('will-quit', () => { try { const b = readBeat(); if (b?.pid === process.pid) fs.unlinkSync(beatFile); } catch { /* gone */ } });
+} else {
+  let b = readBeat();
+  let stale = !b || Date.now() - b.beat > 20_000;
+  if (stale && b) {
+    // a healthy instance just waking from sleep stamps again within 5 s: give it 7 s before judging
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 7000);
+    b = readBeat();
+    stale = !b || Date.now() - b.beat > 20_000;
+  }
+  if (stale && process.platform === 'win32' && !process.argv.includes('--owl-relaunched')) {
+    logLine('warn', `running instance unresponsive (beat=${b ? Date.now() - b.beat + 'ms ago' : 'missing'}); killing it and relaunching`);
+    try {
+      const { execFileSync } = require('child_process') as typeof import('child_process');
+      const img = path.basename(process.execPath);
+      const args = b && b.pid !== process.pid ? ['/F', '/PID', String(b.pid)] : ['/F', '/IM', img, '/FI', `PID ne ${process.pid}`];
+      try { execFileSync('taskkill', args, { windowsHide: true, timeout: 8000 }); } catch { /* already gone */ }
+      if (b) { try { execFileSync('taskkill', ['/F', '/IM', img, '/FI', `PID ne ${process.pid}`], { windowsHide: true, timeout: 8000 }); } catch { /* none left */ } }
+    } catch (e) { logLine('error', 'stale instance kill', e); }
+    app.relaunch({ args: [...process.argv.slice(1), '--owl-relaunched'] });
+  }
+  app.exit(0);
+}
 
 /** A web URL or an .html/.htm/.pdf path passed on the command line (shell "Open with", file association, default browser). */
 function launchArg(argv: string[]): string | undefined {
