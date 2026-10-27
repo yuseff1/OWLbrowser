@@ -6,6 +6,17 @@ const live = new Set<JsonStore<any>>();
 let quitHooked = false;
 /** Writes every store that still has a debounced write pending (also the ones main's quit sequence doesn't list). */
 export function flushPendingStores() { for (const s of live) s.flushIfPending(); }
+/**
+ * Drops every store whose file lives under `dir` (a removed profile's folder): pending writes are
+ * cancelled and later writes become no-ops, so nothing recreates the folder after it is deleted.
+ */
+export function disposeStoresUnder(dir: string): number {
+  const norm = (p: string) => (process.platform === 'linux' ? p : p.toLowerCase());
+  const prefix = norm(path.resolve(dir) + path.sep);
+  let n = 0;
+  for (const s of [...live]) if (norm(path.resolve(s.file)).startsWith(prefix)) { s.dispose(); n++; }
+  return n;
+}
 
 /** Synchronous short pause (used only between retries of a failed rename on Windows). */
 function pause(ms: number) { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* not available */ } }
@@ -14,6 +25,7 @@ function pause(ms: number) { try { Atomics.wait(new Int32Array(new SharedArrayBu
 export class JsonStore<T> {
   private data: T;
   private timer: NodeJS.Timeout | null = null;
+  private disposed = false;
   readonly file: string;
 
   constructor(name: string, defaults: T, dir?: string) {
@@ -40,6 +52,9 @@ export class JsonStore<T> {
     }
   }
 
+  /** stop writing this file for good (its folder is being deleted) */
+  dispose() { if (this.timer) { clearTimeout(this.timer); this.timer = null; } this.disposed = true; live.delete(this); }
+
   /** flush only if a debounced write is waiting */
   flushIfPending() { if (this.timer) this.flush(); }
 
@@ -54,12 +69,14 @@ export class JsonStore<T> {
   }
 
   private schedule() {
+    if (this.disposed) return;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => this.flush(), 400);
   }
 
   flush() {
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    if (this.disposed) return;
     try {
       const tmp = this.file + '.tmp';
       const json = JSON.stringify(this.data);

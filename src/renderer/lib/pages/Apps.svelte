@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../ui/Icon.svelte';
+  import { osName } from '$lib/env';
   import { onMount } from 'svelte';
   import type { TabState } from '$shared/types';
   import { owl, hostOf } from '$lib/api';
@@ -136,7 +137,7 @@
   function openMcp() { m = { name: '', transport: 'http', url: '', command: '', args: '', env: '', token: '' }; mcpError = ''; mcpOpen = true; }
 </script>
 
-<Page title="Apps" description="Connect the tools your companions can use. Tokens stay encrypted on this PC." width={980}>
+<Page title="Apps" description="Connect the tools your companions can use. Tokens stay encrypted on this computer." width={980}>
   {#snippet actions()}
     <Button variant="primary" icon="add" onclick={openMcp}>Add custom MCP</Button>
   {/snippet}
@@ -233,7 +234,7 @@
   {/snippet}
 </Dialog>
 
-<Dialog bind:open={mcpOpen} title="Add a custom MCP server" description="Any Model Context Protocol server: a remote URL, or a command that runs on this PC." width={560}>
+<Dialog bind:open={mcpOpen} title="Add a custom MCP server" description="Any Model Context Protocol server: a remote URL, or a command that runs on this computer." width={560}>
   <form id="mcp-form" class="flex flex-col gap-4" onsubmit={(e) => { e.preventDefault(); saveMcp(); }}>
     <div class="grid grid-cols-[1fr_auto] items-end gap-3">
       <Field label="Name" for="mcp-name"><Input id="mcp-name" bind:value={m.name} placeholder="My files" /></Field>
@@ -250,7 +251,7 @@
       <Field label="Environment (optional)" for="mcp-env" hint="One KEY=value per line.">
         <Textarea id="mcp-env" bind:value={m.env} placeholder="API_KEY=…" class="min-h-[64px] font-mono !text-[12.5px]" />
       </Field>
-      <Note kind="warn" text="Local commands run with your Windows permissions. Only add servers you trust." />
+      <Note kind="warn" text={`Local commands run with your ${osName} user’s permissions. Only add servers you trust.`} />
     {/if}
     {#if mcpError}<Note kind="error" text={mcpError} />{/if}
   </form>

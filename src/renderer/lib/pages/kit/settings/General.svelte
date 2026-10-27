@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../../../ui/Icon.svelte';
+  import { osSettingsName } from '$lib/env';
   import { onMount } from 'svelte';
   import { owl } from '$lib/api';
   import { store } from '$lib/stores.svelte';
@@ -16,7 +17,7 @@
 
   async function makeDefault() {
     setting = true;
-    try { isDefault = !!(await owl.setDefaultBrowser()); if (!isDefault) store.toast('Finish in Windows Settings', 'Pick OWL under “Web browser”, then come back.'); }
+    try { isDefault = !!(await owl.setDefaultBrowser()); if (!isDefault) store.toast(`Finish in ${osSettingsName}`, 'Pick OWL as the default web browser, then come back.'); }
     catch (e: any) { store.toast('Couldn’t set OWL as default', e?.message, 'error'); }
     setting = false;
   }

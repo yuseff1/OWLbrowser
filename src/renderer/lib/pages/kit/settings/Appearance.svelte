@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { osName } from '$lib/env';
   import { store } from '$lib/stores.svelte';
   import { prefs, BRAND_HUE } from '$lib/shell/prefs.svelte';
   import { Segmented } from '$lib/ui';
@@ -16,9 +17,9 @@
   ] as const;
 </script>
 
-<Section title="Appearance" description="How OWL looks on this PC.">
+<Section title="Appearance" description="How OWL looks on this computer.">
   <Group>
-    <Row title="Theme" description="System follows your Windows setting.">
+    <Row title="Theme" description={`System follows your ${osName} setting.`}>
       <Segmented value={s?.theme ?? 'system'} onValueChange={(v) => patch({ theme: v as any })} label="Theme" options={[{ value: 'system', label: 'System', icon: 'desktop' }, { value: 'light', label: 'Light', icon: 'weather-sunny' }, { value: 'dark', label: 'Dark', icon: 'weather-moon' }]} />
     </Row>
     <Row title="Profile colour" description="Tints focus rings, progress and a few highlights.">

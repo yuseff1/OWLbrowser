@@ -86,7 +86,7 @@
   {/snippet}
 </Dialog>
 
-<Dialog bind:open={delOpen} title="Delete “{del?.name}”?" description="Its history, passwords, companions, memory and routines are deleted from this PC. This can’t be undone." width={440}>
+<Dialog bind:open={delOpen} title="Delete “{del?.name}”?" description="Its history, passwords, companions, memory and routines are deleted from this computer. This can’t be undone." width={440}>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (delOpen = false)}>Keep it</Button>
     <Button variant="danger" icon="delete" onclick={remove}>Delete profile</Button>

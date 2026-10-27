@@ -42,13 +42,13 @@
   const OPTS = [{ k: 'bookmarks', l: 'Bookmarks' }, { k: 'history', l: 'History' }, { k: 'passwords', l: 'Saved passwords' }, { k: 'extensions', l: 'Extensions' }] as const;
 </script>
 
-<Section title="Import" description="Bring your bookmarks, history, passwords and extensions from another browser on this PC.">
+<Section title="Import" description="Bring your bookmarks, history, passwords and extensions from another browser on this computer.">
   {#if error}<Note kind="error" text={error} retry={load} />{/if}
   <Group label="From">
     {#if loading}
       {#each Array(2) as _, i (i)}<div class="flex items-center gap-3 px-4 py-3.5"><Skel w={16} h={16} r={99} /><Skel w={28} h={28} r={8} /><Skel w="35%" h={13} /></div>{/each}
     {:else if !sources.length}
-      <div class="px-4 py-4 text-[13px] text-ink-2">No other browsers found on this PC. You can still import passwords from a CSV file below.</div>
+      <div class="px-4 py-4 text-[13px] text-ink-2">No other browsers found on this computer. You can still import passwords from a CSV file below.</div>
     {:else}
       <div role="radiogroup" aria-label="Browser">
         {#each sources as src, i (src.path)}

@@ -55,7 +55,7 @@
 </script>
 
 <div bind:this={scroller} class="h-full overflow-y-auto overflow-x-hidden">
-  <div class="mx-auto grid w-full max-w-[1032px] grid-cols-[216px_minmax(0,1fr)] gap-10 px-8 pb-20 pt-10">
+  <div class="owl-col mx-auto grid w-full grid-cols-[216px_minmax(0,1fr)] gap-10 px-8 pb-20 pt-10">
     <aside class="sticky top-10 self-start">
       <div class="mb-3 px-1 text-[20px] font-semibold leading-7 tracking-[-0.015em]">Settings</div>
       <Input bind:value={q} icon="search" size="sm" pill placeholder="Find a setting" aria-label="Find a setting" type="search" class="mb-3"
@@ -72,7 +72,7 @@
         {/each}
       </nav>
     </aside>
-    <main class="min-w-0 max-w-[720px]">
+    <main class="min-w-0">
       {#key section}<Current />{/key}
     </main>
   </div>

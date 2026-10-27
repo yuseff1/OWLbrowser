@@ -47,11 +47,12 @@ const CORE_TOOLS: LlmTool[] = [
 ];
 
 type Pending = { resolve: (v: any) => void };
-type LiveRun = AgentRun & { profileId: string; startTab?: number | null };
+/** `incognito`: started from an incognito window — uses that window's in-memory session, never persisted or learned from */
+type LiveRun = AgentRun & { profileId: string; startTab?: number | null; incognito?: boolean };
 
 export interface RuntimeHooks {
-  host: (profileId: string) => BrowserHost;
-  openArtifact: (profileId: string, a: Artifact) => void;
+  host: (profileId: string, incognito?: boolean) => BrowserHost;
+  openArtifact: (profileId: string, a: Artifact, incognito?: boolean) => void;
   notify: (title: string, body: string) => void;
 }
 
@@ -94,18 +95,19 @@ export class AgentRuntime extends EventEmitter {
 
   constructor(private hooks: RuntimeHooks) { super(); }
 
-  list(profileId: string): AgentRun[] {
-    const live = [...this.runs.values()].filter((r) => r.profileId === profileId);
-    const old = dataFor(profileId).runs.get().filter((r) => !this.runs.has(r.id));
+  list(profileId: string, incognito = false): AgentRun[] {
+    const live = [...this.runs.values()].filter((r) => r.profileId === profileId && !!r.incognito === incognito);
+    const old = incognito ? [] : dataFor(profileId).runs.get().filter((r) => !this.runs.has(r.id));
     return [...live, ...old].sort((a, b) => b.startedAt - a.startedAt).slice(0, 200);
   }
 
   get(id: string) { return this.runs.get(id) || null; }
 
-  start(profileId: string, companionId: string, task: string, opts: { background?: boolean; routineId?: string; tabId?: number | null; parentRunId?: string } = {}): AgentRun {
+  start(profileId: string, companionId: string, task: string, opts: { background?: boolean; routineId?: string; tabId?: number | null; parentRunId?: string; incognito?: boolean } = {}): AgentRun {
     const run: LiveRun = {
       id: uid('run_'), companionId, task, status: 'queued', steps: [], tabIds: [], startedAt: Date.now(),
       routineId: opts.routineId, background: opts.background ?? true, tokens: 0, profileId, startTab: opts.tabId ?? null,
+      ...(opts.incognito ? { incognito: true } : {}),
     };
     this.runs.set(run.id, run);
     this.queue.push(run.id);
@@ -254,7 +256,7 @@ export class AgentRuntime extends EventEmitter {
     this.controllers.set(run.id, ctrl);
     run.status = this.takeover.has(run.id) ? 'paused' : 'running';
     this.emitUpdate(run);
-    const host = this.hooks.host(profileId);
+    const host = this.hooks.host(profileId, !!run.incognito);
     const hooked = new Set<number>();
 
     const ctx: ToolCtx = {
@@ -332,7 +334,7 @@ export class AgentRuntime extends EventEmitter {
           }
           if (name === 'finish') { run.result = String(args.answer || '').trim() || out.text; finished = true; }
           if (['open_tab', 'navigate', 'click', 'type', 'create_artifact', 'request_approval'].includes(name)) {
-            try { memory.observe(profileId, { sessionId: 'run:' + run.id, type: name === 'navigate' || name === 'open_tab' ? 'visit' : 'action', title: step.text, detail: this.scrub(run.id, out.text.slice(0, 300)), url: ctx.tabId != null ? host.getTab(ctx.tabId)?.url : undefined }); } catch {}
+            if (!run.incognito) try { memory.observe(profileId, { sessionId: 'run:' + run.id, type: name === 'navigate' || name === 'open_tab' ? 'visit' : 'action', title: step.text, detail: this.scrub(run.id, out.text.slice(0, 300)), url: ctx.tabId != null ? host.getTab(ctx.tabId)?.url : undefined }); } catch {}
           }
           const toolText = limitText(out.text, TOOL_TEXT_MAX);
           messages.push({ role: 'tool', tool_call_id: call.id, content: toolText });
@@ -433,12 +435,12 @@ export class AgentRuntime extends EventEmitter {
     // last pass: nothing secret leaves memory
     for (const s of run.steps) s.text = this.scrub(run.id, s.text);
     if (run.result) run.result = this.scrub(run.id, run.result);
-    const host = this.hooks.host(run.profileId);
+    const host = this.hooks.host(run.profileId, !!run.incognito);
     for (const id of run.tabIds) { const t = host.getTab(id); if (t && !t.wc.isDestroyed()) t.wc.executeJavaScript(OVERLAY_REMOVE).catch(() => {}); }
-    const store = dataFor(run.profileId).runs;
-    store.update((l) => {
+    // incognito runs live only in memory (dropped below after 10 min, like any finished live run)
+    if (!run.incognito) dataFor(run.profileId).runs.update((l) => {
       const slim = { ...run, steps: run.steps.map((s) => ({ ...s, image: undefined })) } as any;
-      delete slim.profileId; delete slim.startTab;
+      delete slim.profileId; delete slim.startTab; delete slim.incognito;
       const i = l.findIndex((x) => x.id === run.id); if (i >= 0) l[i] = slim; else l.unshift(slim);
       if (l.length > 300) l.length = 300;
     });
@@ -447,7 +449,7 @@ export class AgentRuntime extends EventEmitter {
     const transcript = `Task: ${run.task}\n` + run.steps.filter((s) => s.kind !== 'result').map((s) => `${s.kind}: ${s.text}`).join('\n');
     this.secrets.delete(run.id);
     this.chains.delete(run.id);
-    memory.distill(run.profileId, transcript, 'run:' + run.id).catch(() => {});
+    if (!run.incognito) memory.distill(run.profileId, transcript, 'run:' + run.id).catch(() => {});
     setTimeout(() => { if (this.runs.get(run.id)?.endedAt) { this.runs.delete(run.id); this.finalized.delete(run.id); } }, 10 * 60 * 1000);
     this.pump();
   }
@@ -494,7 +496,7 @@ export class AgentRuntime extends EventEmitter {
         const ok = await this.guard(run, String(args.action || 'Continue'), String(args.detail || ''));
         return { text: ok ? 'Approved. Go ahead.' : 'Denied. Do not do it.' };
       }
-      case 'remember': { memory.add(profileId, String(args.text), args.kind || 'fact', 'agent:' + c.id); return { text: 'Saved to memory.' }; }
+      case 'remember': { if (run.incognito) return { text: 'Not saved: memory is off in incognito windows.' }; memory.add(profileId, String(args.text), args.kind || 'fact', 'agent:' + c.id); return { text: 'Saved to memory.' }; }
       case 'recall': {
         const items = memory.recall(profileId, String(args.query), 10);
         return { text: items.length ? items.map((m) => `- ${m.text}`).join('\n') : 'Nothing relevant in memory.' };
@@ -506,11 +508,11 @@ export class AgentRuntime extends EventEmitter {
       case 'create_artifact': {
         const a: Artifact = { id: uid('art_'), title: String(args.title || 'Artifact'), html: String(args.html || ''), createdAt: Date.now(), companionId: c.id };
         dataFor(profileId).artifacts.update((l) => { l.unshift(a); if (l.length > 500) l.length = 500; });
-        this.hooks.openArtifact(profileId, a);
+        this.hooks.openArtifact(profileId, a, !!run.incognito);
         return { text: `Artifact "${a.title}" created and opened (id ${a.id}).` };
       }
       case 'spawn_agent': {
-        const sub = this.start(profileId, args.companion_id && companions.list(profileId).some((x) => x.id === args.companion_id) ? args.companion_id : c.id, String(args.task), { background: true, parentRunId: run.id });
+        const sub = this.start(profileId, args.companion_id && companions.list(profileId).some((x) => x.id === args.companion_id) ? args.companion_id : c.id, String(args.task), { background: true, parentRunId: run.id, incognito: run.incognito });
         return { text: `Started run ${sub.id}.` };
       }
       case 'wait_agent': {

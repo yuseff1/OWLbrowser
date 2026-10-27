@@ -1,11 +1,13 @@
 <script lang="ts">
   import Icon from '../../../ui/Icon.svelte';
+  import { keychainName } from '$lib/env';
   import { onMount } from 'svelte';
   import type { PasswordEntry } from '$shared/types';
   import { owl, hostOf, timeAgo } from '$lib/api';
   import { store } from '$lib/stores.svelte';
   import { Button, Input, Switch, Dialog, IconButton } from '$lib/ui';
   import Section from './Section.svelte';
+  import Sites from './Sites.svelte';
   import Group from './Group.svelte';
   import Row from '../Row.svelte';
   import Skel from '../Skel.svelte';
@@ -25,7 +27,8 @@
     try { pw = ((await owl.passwords()) as PasswordEntry[]) || []; } catch (e: any) { error = e?.message || 'Couldn’t load passwords.'; }
     loading = false;
   }
-  onMount(() => { load(); });
+  let vault = $state<{ encrypted: boolean } | null>(null);
+  onMount(() => { load(); owl.appInfo().then((i: any) => (vault = i?.secrets ?? null)).catch(() => {}); });
   const list = $derived(pw.filter((p) => !q.trim() || (p.origin + ' ' + p.username).toLowerCase().includes(q.trim().toLowerCase())).sort((a, b) => hostOf(a.origin).localeCompare(hostOf(b.origin))));
 
   async function reveal(p: PasswordEntry) {
@@ -64,7 +67,7 @@
   }
 </script>
 
-<Section title="Privacy & Security" description="Blocking, tracking and what OWL keeps on this PC.">
+<Section title="Privacy & Security" description="Blocking, tracking and what OWL keeps on this computer.">
   <Group>
     <Row title="Block ads and trackers" description="Pages load faster and fewer companies follow you around the web.">
       <Switch checked={s?.adblock ?? true} label="Block ads and trackers" onCheckedChange={(v) => patch({ adblock: v })} />
@@ -76,6 +79,8 @@
       <Button size="sm" variant="secondary" icon="eraser" onclick={() => (clearOpen = true)}>Clear…</Button>
     </Row>
   </Group>
+
+  <Sites />
 
   <section aria-labelledby="pw-h">
     <div class="mb-2 flex items-center gap-3">
@@ -107,11 +112,11 @@
         {/each}
       {/if}
     </div>
-    <p class="mt-2 px-0.5 text-[12px] text-ink-2">Passwords are encrypted with your Windows account. Showing one asks for confirmation first.</p>
+    <p class="mt-2 px-0.5 text-[12px] text-ink-2">{vault && !vault.encrypted ? `No system keyring was found, so passwords are only obfuscated on this computer, not encrypted.` : `Passwords are encrypted with ${keychainName}.`} Showing one asks for confirmation first.</p>
   </section>
 </Section>
 
-<Dialog bind:open={clearOpen} title="Clear browsing data" description="For this profile, on this PC." width={440}>
+<Dialog bind:open={clearOpen} title="Clear browsing data" description="For this profile, on this computer." width={440}>
   <div class="owl-sheet">
     {#each [{ k: 'history', l: 'Browsing history' }, { k: 'cookies', l: 'Cookies and site data', d: 'Signs you out of most sites' }, { k: 'cache', l: 'Cached images and files' }] as o (o.k)}
       <label class="flex items-center gap-3 px-4 py-3">

@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** favicons that failed to load: the row shows its type icon instead of a blank slot */
+  let favFailed = $state<Record<string, boolean>>({});
   /**
    * The popup layer renderer (`index.html?popup=1`), loaded by main into a transparent WebContentsView
    * stacked above page views. It draws what the UI describes (lib/ui/popup.ts) and reports back:
@@ -152,8 +154,8 @@
         onpointermove={() => hover(i)} onpointerdown={(e) => { if (e.button === 0) { e.preventDefault(); emit('select', i); } }}>
         {#if s.avatar}
           <img class="av" src={s.avatar} alt="" width="20" height="20" />
-        {:else if s.favicon}
-          <img class="fav" src={s.favicon} alt="" width="16" height="16" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = 'hidden')} />
+        {:else if s.favicon && !favFailed[s.favicon]}
+          <img class="fav" src={s.favicon} alt="" width="16" height="16" onerror={() => (favFailed[s.favicon!] = true)} />
         {:else}
           <span class="ic" aria-hidden="true">{@html s.icon ?? ''}</span>
         {/if}

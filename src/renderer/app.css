@@ -191,7 +191,8 @@ input, textarea, [contenteditable] { user-select: text; }
 }
 
 /* scrollbars */
-* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 18%, transparent) transparent; }
+/* in the base layer so utilities such as [scrollbar-width:none] can still override it */
+@layer base { * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 18%, transparent) transparent; } }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 16%, transparent); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
 
@@ -210,3 +211,8 @@ input, textarea, [contenteditable] { user-select: text; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* One content column for every internal page (Page.svelte, Settings, History…): same max width and
+   the same left edge, so switching pages never makes the layout jump. 968 + 2×32 padding = 1032. */
+:root { --owl-content-w: 968px; }
+.owl-col { max-width: calc(var(--owl-content-w) + 64px); }

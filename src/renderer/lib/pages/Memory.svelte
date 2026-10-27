@@ -152,7 +152,7 @@
     </div>
     <div class="flex items-center gap-2 border-t border-line bg-surface-2 px-5 py-2.5 text-[12.5px] text-ink-2">
       <Icon name="lock-closed" size={14} class="shrink-0" />
-      Stored only on this PC, inside your OWL profile. Companions get just the memories relevant to the task at hand, and you can change or delete any of them.
+      Stored only on this computer, inside your OWL profile. Companions get just the memories relevant to the task at hand, and you can change or delete any of them.
     </div>
   </section>
 

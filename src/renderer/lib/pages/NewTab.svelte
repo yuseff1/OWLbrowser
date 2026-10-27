@@ -125,7 +125,7 @@
     <div aria-hidden="true" class="pointer-events-none absolute inset-0" style="background: linear-gradient(180deg, color-mix(in srgb, #ffb38a 14%, transparent), transparent 45%, color-mix(in srgb, #e8a317 12%, transparent))"></div>
   {/if}
 
-  <main class="relative mx-auto flex min-h-full w-full max-w-[760px] flex-col items-center px-8 pb-14 pt-[6vh]">
+  <main class="nt-main relative mx-auto flex min-h-full w-full max-w-[760px] flex-col items-center px-8 pb-14 pt-[6vh]">
     <!-- companion switcher -->
     <div class="glass flex h-10 items-center gap-1 rounded-full p-1" role="radiogroup" aria-label="Companion">
       {#each (hired.length ? hired : store.companions.slice(0, 1)) as c (c.id)}
@@ -145,7 +145,7 @@
     <!-- companion stage -->
     <div class="relative mt-6">
       {#key active?.id}
-        <img src={art.companion(active?.id ?? 'hoot')} alt="{active?.name ?? 'Companion'}, {active?.role ?? ''}" class="animate-bob h-[112px] w-[112px] select-none object-contain drop-shadow-[0_10px_14px_rgba(20,19,23,.18)]" draggable="false" />
+        <img src={art.companion(active?.id ?? 'hoot')} alt="{active?.name ?? 'Companion'}, {active?.role ?? ''}" class="nt-hero animate-bob h-[112px] w-[112px] select-none object-contain drop-shadow-[0_10px_14px_rgba(20,19,23,.18)]" draggable="false" />
       {/key}
       <Tooltip text="Edit {active?.name ?? 'companion'}" side="right">
         {#snippet children(p)}
@@ -231,7 +231,7 @@
     {#if !sitesLoaded}
       <div class="mt-8 flex gap-5" aria-hidden="true">{#each Array(6) as _, i (i)}<div class="flex w-[68px] flex-col items-center gap-2"><span class="owl-skel size-11 rounded-xl"></span><span class="owl-skel h-2.5 w-12 rounded"></span></div>{/each}</div>
     {:else if sites.length}
-      <section class="mt-8 w-full" aria-label="Frequently visited">
+      <section class="nt-sec mt-8 w-full" aria-label="Frequently visited">
         <ul class="flex flex-wrap justify-center gap-x-3 gap-y-2">
           {#each sites as s (s.host)}
             <li>
@@ -249,7 +249,7 @@
     {/if}
 
     <!-- ideas -->
-    <section class="glass glass-sheen mt-8 w-full rounded-[22px] p-4 pb-3" aria-labelledby="nt-ideas">
+    <section class="nt-sec glass glass-sheen mt-8 w-full rounded-[22px] p-4 pb-3" aria-labelledby="nt-ideas">
       <div class="mb-3 flex items-center gap-2 px-1">
         <div class="min-w-0 flex-1">
           <h2 id="nt-ideas" class="text-[14px] font-semibold tracking-[-0.01em]">Some ideas for you</h2>
@@ -258,7 +258,7 @@
         <button type="button" aria-label="Previous ideas" onclick={() => scrollIdeas(-1)} class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><Icon name="chevron-left" size={16} /></button>
         <button type="button" aria-label="Next ideas" onclick={() => scrollIdeas(1)} class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><Icon name="chevron-right" size={16} /></button>
       </div>
-      <div bind:this={carousel} class="-mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-1 pb-2 [scrollbar-width:none]">
+      <div bind:this={carousel} class="nt-carousel -mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-1 pb-2 [scrollbar-width:none]">
         {#each ideas as it (it.title)}
           <button type="button" onclick={it.act} class="flex w-[228px] shrink-0 snap-start flex-col gap-2 rounded-2xl bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] p-3.5 text-left shadow-[0_0_0_1px_var(--line)] transition-[background-color,transform] hover:bg-surface active:scale-[.99]">
             <span class="text-ink-2"><Icon name={it.icon} size={20} /></span>
@@ -276,4 +276,18 @@
   .owl-send { background: var(--ink); color: var(--ground); }
   .owl-send:hover { background: color-mix(in srgb, var(--ink) 86%, var(--accent)); }
   .owl-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* the ideas row scrolls with its arrow buttons / trackpad; never a native scrollbar */
+  /* (app.css sets `* { scrollbar-width: thin }` unlayered, which beats the Tailwind [scrollbar-width:none] utility) */
+  .nt-carousel { scrollbar-width: none; }
+  .nt-carousel::-webkit-scrollbar { display: none; height: 0; }
+  /* short panes (e.g. 1376×880 → ~760 px of page): tighten the vertical rhythm so everything fits
+     without a page scrollbar */
+  @media (max-height: 900px) {
+    .nt-main { padding-top: 2.5vh; padding-bottom: 1.5rem; }
+    .nt-hero { width: 84px; height: 84px; }
+    .nt-sec { margin-top: 1.25rem; }
+  }
+  @media (max-height: 720px) {
+    .nt-hero { width: 64px; height: 64px; }
+  }
 </style>

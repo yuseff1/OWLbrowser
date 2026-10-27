@@ -58,6 +58,8 @@ const api = {
   clearBrowsingData: call('clearBrowsingData'), // ({cache, cookies, history})
 
   // ---- passwords
+  // ---- site settings: [{ site, origins, perms: { permission: allowed }, zoom? }], set/clear one decision, reset a site
+  siteSettings: call('siteSettings'), setSitePermission: call('setSitePermission'), resetSite: call('resetSite'),
   passwords: call('passwords'), removePassword: call('removePassword'), savePassword: call('savePassword'), revealPassword: call('revealPassword'),
 
   // ---- settings & models

@@ -114,7 +114,7 @@
   {/if}
 </Page>
 
-<Dialog bind:open={clearOpen} title="Clear browsing data" description="For this profile, on this PC." width={440}>
+<Dialog bind:open={clearOpen} title="Clear browsing data" description="For this profile, on this computer." width={440}>
   <div class="owl-sheet">
     {#each [{ k: 'history', l: 'Browsing history', d: 'Every page in the list above' }, { k: 'cookies', l: 'Cookies and site data', d: 'Signs you out of most sites' }, { k: 'cache', l: 'Cached images and files', d: 'Frees space; some sites load slower once' }] as o (o.k)}
       <label class="flex items-center gap-3 px-4 py-3">

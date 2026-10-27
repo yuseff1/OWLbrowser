@@ -6,7 +6,7 @@
  * main.ts calls `gateAgentDownload()` from its `will-download` handler; the agent runtime registers
  * the webContents of the tabs it drives with `agentDownloads.register()`.
  */
-import { app } from 'electron';
+import { app, webContents } from 'electron';
 import type { DownloadItem as ElectronDownloadItem, WebContents } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -25,6 +25,18 @@ export const agentDownloads = {
   /** the run ended: its tabs go back to normal download behaviour */
   unregisterRun(runId: string) { for (const [k, v] of byWc) if (v.runId === runId) byWc.delete(k); },
   isAgentTab(wcId: number) { return byWc.has(wcId); },
+  /**
+   * A window opened by an agent-driven page (window.open popup, OAuth window…) inherits the run's gate,
+   * so a download started inside the popup is quarantined like one from the tab itself.
+   */
+  inherit(childWcId: number, openerWcId: number) { const r = byWc.get(openerWcId); if (r && childWcId !== openerWcId) byWc.set(childWcId, r); },
+  /** true for a path inside the quarantine folder (never opened from the downloads list) */
+  isQuarantined(p: string): boolean {
+    if (!p) return false;
+    const dir = path.resolve(quarantineOverride ?? path.join(app.getPath('userData'), 'agent-downloads')) + path.sep;
+    const norm = (x: string) => (process.platform === 'linux' ? x : x.toLowerCase());
+    return norm(path.resolve(p)).startsWith(norm(dir));
+  },
   /** tests point this at a temp dir */
   setQuarantineDir(dir: string | null) { quarantineOverride = dir; },
   quarantineDir(): string {
@@ -67,13 +79,26 @@ function purgeOld(dir: string) {
   } catch {}
 }
 
+/** the gate for this webContents, or for the page that opened it (popups opened before inherit() ran) */
+function regFor(wc: WebContents): Reg | undefined {
+  let cur: WebContents | null | undefined = wc;
+  for (let hop = 0; cur && hop < 4; hop++) {
+    const r = byWc.get(cur.id);
+    if (r) return r;
+    let next: WebContents | null = null;
+    try { const op = (cur as any).opener as Electron.WebFrameMain | null | undefined; if (op) next = webContents.fromFrame(op) ?? null; } catch { /* opener gone */ }
+    cur = next && next !== cur ? next : null;
+  }
+  return undefined;
+}
+
 /**
- * If `wc` is a tab an agent is driving, takes over the download: sets a quarantine save path, pauses
+ * If `wc` is a tab an agent is driving (or a popup it opened), takes over the download: sets a quarantine save path, pauses
  * it, and asks the user. Returns null for normal (user) downloads; the caller then sets the save path.
  * Must be called synchronously inside `will-download`.
  */
 export function gateAgentDownload(item: ElectronDownloadItem, wc: WebContents | null | undefined, finalPath: string, uniquePath: (p: string) => string = (p) => p): DownloadGate | null {
-  const reg = wc && !wc.isDestroyed() ? byWc.get(wc.id) : undefined;
+  const reg = wc && !wc.isDestroyed() ? regFor(wc) : undefined;
   if (!reg) return null;
   const dir = agentDownloads.quarantineDir();
   purgeOld(dir);

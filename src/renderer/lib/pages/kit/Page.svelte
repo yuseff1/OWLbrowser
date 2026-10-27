@@ -4,7 +4,7 @@
   type Props = {
     title: string;
     description?: string;
-    /** content column width in px (Strawberry: ~880) */
+    /** @deprecated ignored: all pages share --owl-content-w (kit.css) */
     width?: number;
     actions?: Snippet;
     toolbar?: Snippet;
@@ -12,11 +12,13 @@
     class?: string;
     scroller?: HTMLElement | null;
   };
-  let { title, description, width = 880, actions, toolbar, children, class: cls = '', scroller = $bindable(null) }: Props = $props();
+  // `width` is kept for compatibility but ignored: every internal page (and Settings) shares one content
+  // column, --owl-content-w in kit.css, so switching pages never makes the layout jump.
+  let { title, description, width: _width, actions, toolbar, children, class: cls = '', scroller = $bindable(null) }: Props = $props();
 </script>
 
 <div bind:this={scroller} class="owl-page h-full overflow-y-auto overflow-x-hidden {cls}">
-  <div class="mx-auto w-full px-8 pb-20 pt-10" style:max-width="{width + 64}px">
+  <div class="owl-col mx-auto w-full px-8 pb-20 pt-10">
     <header class="flex flex-wrap items-start gap-x-6 gap-y-3">
       <div class="min-w-0 flex-1">
         <h1 class="text-[20px] font-semibold leading-7 tracking-[-0.015em] text-ink">{title}</h1>

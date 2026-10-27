@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../../../ui/Icon.svelte';
+  import { osName } from '$lib/env';
   import { onMount } from 'svelte';
   import { owl } from '$lib/api';
   import { store } from '$lib/stores.svelte';
@@ -44,10 +45,10 @@
         <span class="tnum w-5 text-right text-[14px] font-medium">{par}</span>
       </div>
     </Row>
-    <Row title="Computer use" description="Lets companions with this tool move the mouse and type in other Windows apps, not just in OWL.">
+    <Row title="Computer use" description={`Lets companions with this tool move the mouse and type in other ${osName} apps, not just in OWL.`}>
       {#snippet below()}
         {#if available === false}
-          <Note kind="info" text="Not available on this PC yet." />
+          <Note kind="info" text="Not available on this computer yet." />
         {:else if s?.computerUse}
           <Note kind="warn" text="A companion can now control your whole screen when you give it a task that needs it. Keep an eye on it; you can stop any run from Agents." />
         {/if}

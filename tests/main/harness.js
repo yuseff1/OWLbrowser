@@ -58,6 +58,11 @@ function pagesServer() {
       }
       return res.end(body);
     }
+    if (p === '/doc.pdf') {
+      const pdf = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF';
+      res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': Buffer.byteLength(pdf) });
+      return res.end(pdf);
+    }
     const pages = {
       '/a': wrap('Page A', '<h1>A page</h1><p>needle one needle two</p>'),
       '/b': wrap('Page B', '<h1>B page</h1>'),
@@ -616,7 +621,218 @@ async function main() {
     assert.strictEqual(passwords.list(work.id).length, 0);
     await sleep(600);
     assert.ok(!fs.readFileSync(path.join(USER_DATA, 'secrets.json'), 'utf8').includes('pw:' + work.id), 'secrets removed');
+    // its data folder (history.json…) and its extensions folder are deleted; the Chromium partition is
+    // deleted too, or (if still locked by the live session on this OS) queued for the next start
+    await until(() => !fs.existsSync(profDir(work.id)), 5000, 'profile data folder deleted');
+    assert.ok(!fs.existsSync(path.join(USER_DATA, 'extensions', work.id)), 'extensions folder deleted');
+    const part = path.join(USER_DATA, 'Partitions', 'owl-' + work.id);
+    const pending = fs.existsSync(path.join(USER_DATA, 'profiles-pending-delete.json')) ? readJson(path.join(USER_DATA, 'profiles-pending-delete.json')).ids : [];
+    assert.ok(!fs.existsSync(part) || pending.includes(work.id), 'partition deleted or queued');
+    await sleep(800); // a late debounced write must not recreate the folder
+    assert.ok(!fs.existsSync(path.join(profDir(work.id), 'history.json')), 'no store wrote into the removed folder');
     await assert.rejects(owl('removeProfile', 'default').then(() => owl('profiles')).then((r) => { if (!r.profiles.some((p) => p.id === 'default')) throw new Error('default removed'); throw new Error('ok'); }), /ok/);
+  });
+
+  // ---- secrets: OS encryption + migration of base64-only values ----
+  test('secrets: base64-only and legacy values are re-encrypted once OS encryption is available', () => {
+    const { secrets } = req('secrets');
+    const dir = path.join(tmp, 'secretstest'); fs.mkdirSync(dir, { recursive: true });
+    // what an older build wrote where no keychain was available, plus a legacy unprefixed value
+    fs.writeFileSync(path.join(dir, 'secrets.json'), JSON.stringify({ 'provider:a': 'p:' + Buffer.from('sk-alpha').toString('base64'), 'provider:b': 'legacy-beta' }));
+    const fake = (on) => ({ available: () => on, backend: () => 'fake', encrypt: (v) => Buffer.from('ENC' + Buffer.from(v).toString('hex')), decrypt: (b) => { const t = b.toString(); if (!t.startsWith('ENC')) throw new Error('bad'); return Buffer.from(t.slice(3), 'hex').toString(); } });
+    const restore = secrets.__test({ dir, cipher: fake(false) });
+    try {
+      assert.strictEqual(secrets.migrate(), 0, 'nothing to do without encryption');
+      assert.strictEqual(secrets.get('provider:a'), 'sk-alpha');
+      assert.strictEqual(secrets.status().encrypted, false);
+      secrets.set('provider:c', 'sk-gamma'); secrets.flush();
+      assert.ok(readJson(path.join(dir, 'secrets.json'))['provider:c'].startsWith('p:'), 'fallback is marked p:');
+      secrets.__test({ cipher: fake(true) });
+      assert.strictEqual(secrets.migrate(), 3);
+      const disk = readJson(path.join(dir, 'secrets.json'));
+      assert.ok(Object.values(disk).every((v) => v.startsWith('e:')), JSON.stringify(disk));
+      assert.ok(!JSON.stringify(disk).includes('sk-alpha') && !JSON.stringify(disk).includes(Buffer.from('sk-alpha').toString('base64')), 'no plaintext/base64 left');
+      assert.deepStrictEqual(['provider:a', 'provider:b', 'provider:c'].map((k) => secrets.get(k)), ['sk-alpha', 'legacy-beta', 'sk-gamma']);
+      assert.strictEqual(secrets.migrate(), 0, 'idempotent');
+      assert.deepStrictEqual(secrets.status(), { encrypted: true, backend: 'fake', plainCount: 0 });
+      // an undecryptable value (other OS user / broken keychain) is kept on disk, not deleted
+      secrets.__test({ cipher: { ...fake(true), decrypt: () => { throw new Error('locked'); } } });
+      assert.strictEqual(secrets.get('provider:a'), null);
+      secrets.set('provider:d', 'x'); secrets.flush();
+      assert.ok(readJson(path.join(dir, 'secrets.json'))['provider:a'].startsWith('e:'), 'kept');
+    } finally { restore(); }
+  });
+
+  test('secrets: appInfo reports whether secrets are really encrypted on this machine', async () => {
+    const i = await owl('appInfo');
+    assert.ok(i.secrets && typeof i.secrets.encrypted === 'boolean' && typeof i.secrets.backend === 'string', JSON.stringify(i.secrets));
+    if (process.platform === 'win32' || process.platform === 'darwin') assert.strictEqual(i.secrets.encrypted, true);
+  });
+
+  // ---- omnibox suggestions ----
+  test('suggest: rows are de-duplicated by normalised URL, typed URL not repeated, favicons borrowed', async () => {
+    const { history: hist, bookmarks: bms } = req('data');
+    hist.add('default', 'https://www.wikipedia.org/', 'Wikipedia', 'data:image/png;base64,AAAA');
+    hist.add('default', 'https://wikipedia.org', 'Wikipedia');
+    hist.add('default', 'http://wikipedia.org/#top', 'Wikipedia');
+    hist.add('default', 'https://wikipedia.org/wiki/Owl', 'Owl - Wikipedia');
+    bms.toggle('default', 'https://en.wikipedia.org/wiki/Owl', 'Owl (bookmark)');
+    const rows = await owl('suggest', 'wikipedia');
+    const keys = rows.filter((r) => r.type !== 'search' && r.type !== 'tab').map((r) => r.url.replace(/^https?:\/\/(www\.)?/, '').replace(/[/#].*$|\/$/, '') + new URL(r.url).pathname.replace(/\/$/, ''));
+    assert.strictEqual(new Set(keys).size, keys.length, 'no duplicate pages: ' + JSON.stringify(rows.map((r) => r.type + ' ' + r.url)));
+    const home = rows.filter((r) => /^https?:\/\/(www\.)?wikipedia\.org\/?(#.*)?$/.test(r.url));
+    assert.strictEqual(home.length, 1, 'one wikipedia.org row: ' + JSON.stringify(rows.map((r) => r.type + ' ' + r.url)));
+    const owlRow = rows.find((r) => r.url === 'https://wikipedia.org/wiki/Owl');
+    assert.ok(owlRow && owlRow.favicon === 'data:image/png;base64,AAAA', 'history row without favicon borrows the site favicon');
+    // inline autocomplete only when asked, never for searches with spaces
+    const inl = await owl('suggest', 'wikip', { inline: true });
+    assert.strictEqual(inl[0].type, 'url'); assert.strictEqual(inl[0].inline, 'wikipedia.org'); assert.strictEqual(inl[0].url, 'https://wikipedia.org');
+    assert.ok(!(await owl('suggest', 'wikip'))[0].inline, 'no inline unless requested');
+    assert.ok(!(await owl('suggest', 'wiki pedia', { inline: true }))[0].inline, 'no inline with spaces');
+  });
+
+  test('suggest: unit — urlKey / dedupeSuggestions / inlineCompletion', () => {
+    const { urlKey, dedupeSuggestions, inlineCompletion } = req('suggest');
+    assert.strictEqual(urlKey('https://www.Wikipedia.org/'), urlKey('http://wikipedia.org'));
+    assert.strictEqual(urlKey('https://a.com/x/#h'), urlKey('https://a.com/x'));
+    assert.notStrictEqual(urlKey('https://a.com/x?q=1'), urlKey('https://a.com/x?q=2'));
+    assert.strictEqual(urlKey('https://a.com:443/'), urlKey('https://a.com'));
+    assert.notStrictEqual(urlKey('http://localhost:3000/'), urlKey('http://localhost:4000/'));
+    const d = dedupeSuggestions([{ type: 'url', url: 'https://a.com', title: '' }, { type: 'search', url: 's', title: '' }, { type: 'tab', url: '3', title: '' }, { type: 'history', url: 'https://www.a.com/', title: '' }, { type: 'tab', url: '3', title: '' }]);
+    assert.deepStrictEqual(d.map((x) => x.type), ['url', 'search', 'tab']);
+    const v = [{ url: 'https://www.youtube.com/watch?v=1', visits: 9 }, { url: 'https://yourbank.com/', visits: 1 }, { url: 'https://github.com/yuseff1/OWLbrowser', visits: 3 }];
+    assert.strictEqual(inlineCompletion('you', v), 'youtube.com');
+    assert.strictEqual(inlineCompletion('www.yout', v), 'youtube.com');
+    assert.strictEqual(inlineCompletion('github.com/y', v), 'github.com/yuseff1');
+    assert.strictEqual(inlineCompletion('y', v), null, 'too short');
+    assert.strictEqual(inlineCompletion('youtube.com', v), null, 'already complete');
+    assert.strictEqual(inlineCompletion('how to', v), null);
+    assert.strictEqual(inlineCompletion('https://you', v), null, 'typed scheme');
+    assert.strictEqual(inlineCompletion('local', [{ url: 'http://localhost:5173/app', visits: 2 }]), 'localhost:5173', 'keeps the port');
+  });
+
+  // ---- downloads from popups / quarantined files ----
+  test('downloads: a popup opened by an agent tab is quarantined too; quarantined files never open', async () => {
+    const { id, wc } = await dlIn(main);
+    let asked = 0;
+    agentDownloads.register(wc.id, 'run_popup', async () => { asked++; return false; });
+    const before = BrowserWindow.getAllWindows().length;
+    await wc.executeJavaScript(`window.open(${JSON.stringify(PAGES + '/c?popup=1')}, 'p', 'popup,width=320,height=240'); 1`, true);
+    const pop = await until(() => webContents.getAllWebContents().find((w) => !w.isDestroyed() && w.getURL() === PAGES + '/c?popup=1'), 8000, 'popup window');
+    assert.ok(BrowserWindow.getAllWindows().length > before, 'opened as a real popup window');
+    pop.downloadURL(PAGES + '/dl/from-popup.txt');
+    await until(() => asked > 0, 8000, 'popup download asked for approval');
+    await sleep(500);
+    assert.ok(!fs.existsSync(path.join(DOWNLOADS, 'from-popup.txt')), 'denied popup download not saved');
+    agentDownloads.unregisterRun('run_popup');
+    try { BrowserWindow.fromWebContents(pop)?.destroy(); } catch {}
+    // a pending (unapproved) agent download is listed but refuses to open
+    let release;
+    agentDownloads.register(wc.id, 'run_pending', () => new Promise((r) => { release = r; }));
+    wc.downloadURL(PAGES + '/dl/pending.txt');
+    const d = await until(async () => (await owl('downloads')).find((x) => x.filename.includes('pending')), 8000, 'pending download listed');
+    assert.ok(agentDownloads.isQuarantined(d.path), 'sits in quarantine');
+    assert.strictEqual(await owl('openDownload', d.id), false, 'quarantined download does not open');
+    release(false);
+    agentDownloads.unregisterRun('run_pending');
+    await owl('closeTab', id);
+  });
+
+  // ---- incognito agents ----
+  test('incognito: agent runs started there use the incognito session and are never persisted', async () => {
+    const mainMod = require(path.join(DIST, 'main', 'main.js'));
+    const w = await getInc();
+    const io = owlOf(w);
+    const host = mainMod.__hostForTests('default', true);
+    const t = await host.openTab(PAGES + '/a?agent-incog=1', { background: true, agentId: 'hoot', runId: 'run_x' });
+    await until(() => t.wc.getURL().includes('agent-incog=1'), 8000, 'agent tab loaded');
+    assert.ok(!t.wc.session.isPersistent(), 'agent tab is in the in-memory incognito session');
+    assert.notStrictEqual(t.wc.session, defaultSes());
+    assert.ok(host.listTabs().some((x) => x.id === t.id), 'listed by the incognito host');
+    assert.ok(!mainMod.__hostForTests('default', false).listTabs().some((x) => x.id === t.id), 'invisible to normal runs');
+    host.closeTab(t.id);
+    // a run started from the incognito window (it fails fast: no model) is listed only there and not saved
+    const r = await io('startRun', 'hoot', 'incognito secret task', {});
+    await until(async () => (await io('runs')).some((x) => x.id === r.id), 4000, 'run listed in incognito');
+    assert.ok(!(await owl('runs')).some((x) => x.id === r.id), 'not listed in the normal window');
+    await until(async () => ['failed', 'done', 'stopped'].includes((await io('runs')).find((x) => x.id === r.id)?.status), 8000, 'run ended');
+    await sleep(700);
+    const disk = fs.existsSync(path.join(profDir('default'), 'runs.json')) ? fs.readFileSync(path.join(profDir('default'), 'runs.json'), 'utf8') : '';
+    assert.ok(!disk.includes('incognito secret task'), 'incognito run not written to runs.json');
+  });
+
+  // ---- daily-browser features ----
+  test('pdf: a PDF opens in the tab (built-in viewer), it is not downloaded', async () => {
+    const before = (await owl('downloads')).length;
+    const id = await owl('newTab', PAGES + '/doc.pdf');
+    await loaded(id, PAGES + '/doc.pdf');
+    await sleep(800);
+    assert.strictEqual((await owl('downloads')).length, before, 'no download started');
+    assert.ok(wcForUrl(PAGES + '/doc.pdf'), 'tab shows the PDF URL');
+    await owl('closeTab', id);
+  });
+
+  test('zoom: remembered per site, applied when the site is opened again, reset clears it', async () => {
+    const id = await owl('newTab', PAGES + '/a');
+    await loaded(id, PAGES + '/a');
+    await owl('zoom', id, 0.25);
+    await owl('zoom', id, 0.25);
+    assert.strictEqual((await tabState(id)).zoom, 1.5);
+    await sleep(600);
+    const prefs = readJson(path.join(profDir('default'), 'site-prefs.json'));
+    assert.strictEqual(prefs.zoom['127.0.0.1'], 1.5, JSON.stringify(prefs));
+    const id2 = await owl('newTab', PAGES + '/b');
+    await loaded(id2, PAGES + '/b');
+    await until(async () => (await tabState(id2)).zoom === 1.5, 3000, 'new tab on the same site gets 1.5');
+    assert.ok(Math.abs(wcForUrl(PAGES + '/b').getZoomFactor() - 1.5) < 0.01);
+    const sites = await owl('siteSettings');
+    assert.ok(sites.some((x) => x.site === '127.0.0.1' && x.zoom === 1.5), JSON.stringify(sites));
+    await owl('zoom', id2, 'reset');
+    await sleep(600);
+    assert.ok(!readJson(path.join(profDir('default'), 'site-prefs.json')).zoom['127.0.0.1'], 'reset forgets the site zoom');
+    await owl('closeTab', id); await owl('closeTab', id2);
+  });
+
+  test('site settings: list decided permissions, change one, reset a site', async () => {
+    assert.strictEqual(await owl('setSitePermission', 'https://perm.example', 'geolocation', true), true);
+    assert.strictEqual(await owl('setSitePermission', 'https://perm.example', 'notifications', false), true);
+    assert.strictEqual(await owl('setSitePermission', 'javascript:alert(1)', 'geolocation', true), false, 'only web origins');
+    let s = (await owl('siteSettings')).find((x) => x.site === 'perm.example');
+    assert.deepStrictEqual(s.perms, { geolocation: true, notifications: false });
+    await owl('setSitePermission', 'https://perm.example', 'notifications', null);
+    s = (await owl('siteSettings')).find((x) => x.site === 'perm.example');
+    assert.deepStrictEqual(s.perms, { geolocation: true });
+    assert.strictEqual(await owl('resetSite', 'perm.example'), true);
+    assert.ok(!(await owl('siteSettings')).some((x) => x.site === 'perm.example'));
+    assert.strictEqual(await owl('resetSite', '../../etc'), false);
+  });
+
+  test('reopen: Ctrl+Shift+T reopens a closed window when it was closed last, then tabs', async () => {
+    await owl('newWindow', {});
+    const w2 = await until(() => uiWindows().find((w) => w !== main && new URL(w.webContents.getURL()).searchParams.get('incognito') === '0' && new URL(w.webContents.getURL()).searchParams.get('profile') === 'default'), 8000, 'second window');
+    await waitUi((q) => true, 'ui ready');
+    const o2 = owlOf(w2);
+    await until(() => w2.webContents.executeJavaScript('typeof window.owl === "object"'), 8000, 'w2 api');
+    const t1 = await o2('newTab', PAGES + '/a?win=1'); await until(async () => (await o2('getState')).tabs.find((x) => x.id === t1 && x.url.includes('win=1') && !x.loading), 8000, 'w2 tab1');
+    const t2 = await o2('newTab', PAGES + '/b?win=2'); await until(async () => (await o2('getState')).tabs.find((x) => x.id === t2 && x.url.includes('win=2') && !x.loading), 8000, 'w2 tab2');
+    // a tab closed earlier in the main window, then the whole second window
+    const tc = await owl('newTab', PAGES + '/c?closed-tab=1'); await loaded(tc, PAGES + '/c?closed-tab=1');
+    await owl('closeTab', tc);
+    await sleep(50);
+    w2.close();
+    await until(() => w2.isDestroyed(), 5000, 'w2 closed');
+    const known = new Set(uiWindows());
+    await owl('command', 'reopen-tab');
+    const w3 = await until(() => uiWindows().find((w) => !known.has(w) && new URL(w.webContents.getURL()).searchParams.get('incognito') === '0'), 8000, 'window reopened');
+    const o3 = owlOf(w3);
+    await until(() => w3.webContents.executeJavaScript('typeof window.owl === "object"'), 8000, 'w3 api');
+    const urls = await until(async () => { const u = (await o3('getState')).tabs.map((t) => t.url); return u.some((x) => x.includes('win=1')) && u.some((x) => x.includes('win=2')) ? u : null; }, 8000, 'reopened window has both tabs');
+    assert.ok(urls);
+    // next Ctrl+Shift+T brings back the tab closed before the window
+    await owl('command', 'reopen-tab');
+    await until(async () => (await state()).tabs.some((t) => t.url.includes('closed-tab=1')), 8000, 'tab reopened');
+    w3.close();
+    for (const t of (await state()).tabs.filter((t) => t.url.includes('closed-tab=1'))) await owl('closeTab', t.id);
   });
 
   // ---- robustness: garbage input never kills main ----

@@ -26,7 +26,9 @@ import { isTrustedUiFrame } from './ui-protocol';
 import { artifactUrl } from './artifact-protocol';
 import { threads } from './threads';
 import { isWebUrl, isPrivateHost } from './net-guard';
-import { gateAgentDownload } from './downloads';
+import { gateAgentDownload, agentDownloads } from './downloads';
+import { sitePrefs, zoomKey as zoomKeyOf } from './site-prefs';
+import { dedupeSuggestions, inlineCompletion, urlKey, type Suggestion } from './suggest';
 import { companionChat } from './agents/companion-chat';
 import { updater } from './updater';
 import { restoreTabs, snapshotWindow, sleepTab, sampleScroll, installScrollRestore, type SavedWindow } from './session-restore';
@@ -49,6 +51,10 @@ const pendingPasswords = new Map<string, { profileId: string; origin: string; us
 const incognitoDownloads = new Map<string, DownloadItem[]>();
 /** recently closed incognito tabs (per profile, memory only): never offered by "reopen closed tab" in a normal window */
 const incognitoClosed = new Map<string, string[]>();
+/** recently closed normal windows (per profile, memory only) for Ctrl+Shift+T, newest last */
+const closedWindows = new Map<string, Array<{ at: number; saved: SavedWindow }>>();
+/** when each entry of a closed-tabs list was closed (parallel array), to pick tab vs window on reopen */
+const closedAt = new WeakMap<string[], number[]>();
 function closedTabsFor(w: OwlWindow): string[] {
   if (!w.incognito) return dataFor(w.profileId).closedTabs;
   let l = incognitoClosed.get(w.profileId);
@@ -142,7 +148,11 @@ function knownProfile(id: unknown): string {
 }
 
 // Defence in depth for every renderer: no <webview> tags anywhere.
-app.on('web-contents-created', (_e, wc) => { wc.on('will-attach-webview', (ev) => ev.preventDefault()); });
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('will-attach-webview', (ev) => ev.preventDefault());
+  // popups opened by an agent-driven page keep its download quarantine (see downloads.ts)
+  wc.on('did-create-window', (child) => { try { agentDownloads.inherit(child.webContents.id, wc.id); } catch { /* closed */ } });
+});
 function windowsForProfile(pid: string) { return [...windows].filter((w) => w.profileId === pid && !w.incognito); }
 function broadcast(profileId: string | null, type: string, payload?: any) {
   for (const w of windows) if (!profileId || w.profileId === profileId) w.send(type, payload);
@@ -262,14 +272,23 @@ function uniquePath(p: string) {
 }
 
 // ---------- windows ----------
-function createWindow(profileId: string, incognito = false, urls?: string[]): OwlWindow {
+function createWindow(profileId: string, incognito = false, urls?: string[], reopen?: SavedWindow): OwlWindow {
   prepareSession(profileId, incognito);
   const w = new OwlWindow(profileId, incognito, {
     onState: () => {},
     onClosed: (ow) => {
       saveSession(ow.profileId);
       windows.delete(ow);
-      if (ow.incognito && ![...windows].some((x) => x.incognito && x.profileId === ow.profileId)) { incognitoDownloads.delete(ow.profileId); incognitoClosed.delete(ow.profileId); }
+      if (!ow.incognito && !quitting) {
+        try {
+          const saved = snapshotWindow(ow);
+          if (saved.urls.some((u) => /^(https?|file):/i.test(u))) {
+            let l = closedWindows.get(ow.profileId); if (!l) closedWindows.set(ow.profileId, (l = []));
+            l.push({ at: Date.now(), saved }); if (l.length > 10) l.shift();
+          }
+        } catch (e) { logLine('warn', 'closed window snapshot', e); }
+      }
+      if (ow.incognito && ![...windows].some((x) => x.incognito && x.profileId === ow.profileId)) { incognitoDownloads.delete(ow.profileId); incognitoClosed.delete(ow.profileId); sitePrefs.dropIncognito(ow.profileId); }
     },
     onCommand: (ow, cmd, arg) => runCommand(ow, cmd, arg),
     onPasswordSubmit: (ow, _tab, data) => {
@@ -285,7 +304,7 @@ function createWindow(profileId: string, incognito = false, urls?: string[]): Ow
   });
   windows.add(w);
   profiles.setLastUsed(profileId);
-  const restore = (!incognito && !urls?.length && settings.get().restoreSession ? dataFor(profileId).session.get().windows?.[0] : null) as SavedWindow | null;
+  const restore = (reopen ?? (!incognito && !urls?.length && settings.get().restoreSession ? dataFor(profileId).session.get().windows?.[0] : null)) as SavedWindow | null;
   // restored background tabs are created asleep (no renderer) and load on first activation
   if (restore?.urls?.length) restoreTabs(w, restore);
   else (urls?.length ? urls : ['owl://newtab']).forEach((u, i) => w.newTab(u, { background: i > 0 }));
@@ -299,9 +318,14 @@ function saveSession(profileId: string) {
 }
 
 // ---------- browser host for agents ----------
-function hostFor(profileId: string): BrowserHost {
-  const pickWindow = () => windowsForProfile(profileId)[0] || createWindow(profileId);
-  const allTabs = () => windowsForProfile(profileId).flatMap((w) => w.tabs);
+/**
+ * The tabs an agent may use. A run started in an incognito window works only in that profile's incognito
+ * windows (in-memory session, no history, no cookies of the normal profile); a normal run never sees them.
+ */
+function hostFor(profileId: string, incognito = false): BrowserHost {
+  const scope = () => (incognito ? [...windows].filter((w) => w.profileId === profileId && w.incognito && !w.win.isDestroyed()) : windowsForProfile(profileId));
+  const pickWindow = () => scope()[0] || createWindow(profileId, incognito);
+  const allTabs = () => scope().flatMap((w) => w.tabs);
   return {
     async openTab(url, opts) {
       const w = pickWindow();
@@ -309,8 +333,8 @@ function hostFor(profileId: string): BrowserHost {
       const agentTabs = allTabs().filter((t) => t.agentId);
       const mine = agentTabs.filter((t) => t.agentRunId === opts.runId).sort((a, b) => a.lastActive - b.lastActive);
       if (mine.length >= MAX_AGENT_TABS_PER_RUN) {
-        const victim = mine.find((t) => !windowsForProfile(profileId).some((x) => x.activeId === t.id || x.splitId === t.id));
-        if (victim) { for (const x of windowsForProfile(profileId)) if (x.tab(victim.id)) x.close(victim.id); }
+        const victim = mine.find((t) => !scope().some((x) => x.activeId === t.id || x.splitId === t.id));
+        if (victim) { for (const x of scope()) if (x.tab(victim.id)) x.close(victim.id); }
         else throw new Error(`This task already has ${mine.length} tabs open. Close one with close_tab or reuse one with navigate.`);
       } else if (agentTabs.length >= MAX_AGENT_TABS) {
         throw new Error(`Agents already have ${agentTabs.length} tabs open. Close one with close_tab or reuse one with navigate.`);
@@ -326,10 +350,10 @@ function hostFor(profileId: string): BrowserHost {
       return { id: t.id, wc: t.wc, url: t.wc.getURL(), title: t.title };
     },
     listTabs() { return allTabs().filter((t) => !t.internal).map((t) => ({ id: t.id, url: t.wc?.getURL() || t.url, title: t.title, agentId: t.agentId })); },
-    closeTab(id) { for (const w of windowsForProfile(profileId)) if (w.tab(id)) w.close(id); },
-    focusTab(id) { for (const w of windowsForProfile(profileId)) if (w.tab(id)) { w.activate(id); w.win.focus(); } },
+    closeTab(id) { for (const w of scope()) if (w.tab(id)) w.close(id); },
+    focusTab(id) { for (const w of scope()) if (w.tab(id)) { w.activate(id); w.win.focus(); } },
     async fetchText(url) {
-      const ses = prepareSession(profileId, false);
+      const ses = prepareSession(profileId, incognito);
       if (!isWebUrl(url)) throw new Error('Only http(s) URLs can be fetched');
       const startPrivate = isPrivateHost(new URL(url).hostname); // caller already approved a local address
       let cur = url;
@@ -349,8 +373,8 @@ function hostFor(profileId: string): BrowserHost {
 
 const runtime = new AgentRuntime({
   host: hostFor,
-  openArtifact: (profileId, a) => {
-    const w = windowsForProfile(profileId)[0];
+  openArtifact: (profileId, a, incognito) => {
+    const w = incognito ? [...windows].find((x) => x.profileId === profileId && x.incognito) : windowsForProfile(profileId)[0];
     w?.newTab('owl://artifact', { artifactId: a.id, background: false });
   },
   notify: (title, body) => {
@@ -359,7 +383,9 @@ const runtime = new AgentRuntime({
 });
 runtime.on('update', (run) => {
   const pid = (run as any).profileId || [...windows][0]?.profileId;
-  broadcast(pid, 'run', { ...run, profileId: undefined, startTab: undefined });
+  const payload = { ...run, profileId: undefined, startTab: undefined, incognito: undefined };
+  // incognito runs are shown only in that profile's incognito windows; normal runs never reach them
+  for (const w of windows) if (w.profileId === pid && w.incognito === !!(run as any).incognito) w.send('run', payload);
   // reflect agent ownership on tabs
   for (const w of windows) {
     let changed = false;
@@ -411,8 +437,25 @@ function runCommand(w: OwlWindow, cmd: string, arg?: any) {
   switch (cmd) {
     case 'new-tab': w.newTab('owl://newtab'); w.send('command', { cmd: 'focus-omnibox' }); break;
     case 'close-tab': if (t) w.close(t.id); break;
-    case 'reopen-tab': { const u = closedTabsFor(w).pop(); if (u) w.newTab(u); break; }
-    case '__closed': { const l = closedTabsFor(w); l.push(arg); if (l.length > 50) l.shift(); break; }
+    case 'focus-page': if (wc && !wc.isDestroyed() && !w.overlay) wc.focus(); break; // Escape in the omnibox hands keys back to the page
+    case 'reopen-tab': {
+      // Chrome: reopens whatever was closed last, a tab or a whole window
+      const l = closedTabsFor(w);
+      const times = closedAt.get(l) || [];
+      const cw = w.incognito ? undefined : closedWindows.get(w.profileId);
+      const lastWin = cw?.[cw.length - 1];
+      if (lastWin && lastWin.at >= (times[times.length - 1] ?? 0)) { cw!.pop(); createWindow(w.profileId, false, undefined, lastWin.saved); break; }
+      const u = l.pop(); times.pop();
+      if (u) w.newTab(u);
+      break;
+    }
+    case '__closed': {
+      const l = closedTabsFor(w);
+      let times = closedAt.get(l); if (!times) closedAt.set(l, (times = []));
+      l.push(arg); times.push(Date.now());
+      if (l.length > 50) { l.shift(); times.shift(); }
+      break;
+    }
     case 'new-window': createWindow(w.profileId); break;
     case 'incognito': createWindow(w.profileId, true); break;
     case 'reload': wc?.reload(); break;
@@ -499,19 +542,27 @@ const api: Record<string, Handler> = {
   command: (w, cmd, arg) => runCommand(w, cmd, arg),
   windowControl: (w, a: string) => { if (a === 'minimize') w.win.minimize(); else if (a === 'maximize') w.win.isMaximized() ? w.win.unmaximize() : w.win.maximize(); else if (a === 'close') w.win.close(); else if (a === 'fullscreen') w.win.setFullScreen(!w.win.isFullScreen()); },
   newWindow: (w, opts: any = {}) => { createWindow(opts?.profileId ? knownProfile(opts.profileId) : w.profileId, !!opts?.incognito); },
-  suggest: (w, text: string) => suggest(w, text),
+  suggest: (w, text: string, opts?: { inline?: boolean }) => suggest(w, text, !!(opts && typeof opts === 'object' && opts.inline === true)),
   pageInfo: (w, id) => { const t = w.tab(id); const url = t?.wc?.getURL() || t?.url || ''; return { url, title: t?.title, secure: url.startsWith('https:') }; },
 
   profiles: (w) => ({ profiles: profiles.list(), current: w.profileId }),
   createProfile: (_w, name: string, color?: string) => { const p = profiles.create(String(name ?? '').slice(0, 64), typeof color === 'string' ? color : undefined); createWindow(p.id); return p; },
   renameProfile: (_w, id, name, color) => profiles.rename(knownProfile(id), String(name ?? '').slice(0, 64), typeof color === 'string' ? color : undefined),
-  removeProfile: (_w, id) => {
+  removeProfile: async (_w, id) => {
     knownProfile(id);
     if (id === 'default') return; // profiles.remove refuses it too; keep its secrets
-    for (const w of [...windows]) if (w.profileId === id) w.win.close(); // incognito windows too
+    for (const r of runtime.list(id).concat(runtime.list(id, true))) if (!['done', 'failed', 'stopped'].includes(r.status)) runtime.stop(r.id);
+    const mine = () => [...windows].filter((w) => w.profileId === id);
+    for (const w of mine()) w.win.close(); // incognito windows too
+    // wait for its windows (and their page webContents) to go, so the partition files can be released
+    for (let i = 0; i < 50 && mine().length; i++) await new Promise((r) => setTimeout(r, 100));
+    for (const w of mine()) { try { w.win.destroy(); } catch { /* gone */ } }
     for (const p of passwords.list(id)) passwords.remove(id, p.id);
     for (const a of mcp.list(id)) mcp.remove(id, a.id);
-    profiles.remove(id);
+    for (const k of [...secrets.keys(`pw:${id}:`), ...secrets.keys(`mcp:${id}:`)]) secrets.set(k, null);
+    secrets.flush();
+    preparedSessions.delete(id); preparedSessions.delete(id + ':inc');
+    await profiles.remove(id);
   },
   openProfile: (_w, id) => { knownProfile(id); const ex = windowsForProfile(id)[0]; if (ex) ex.win.focus(); else createWindow(id); },
 
@@ -520,11 +571,16 @@ const api: Record<string, Handler> = {
   removeBookmark: (w, id) => bookmarks.remove(w.profileId, id),
   renameBookmark: (w, id: string, title: string) => bookmarks.rename(w.profileId, String(id), String(title ?? '').slice(0, 500)),
   isBookmarked: (w, url) => bookmarks.has(w.profileId, url),
-  history: (w, q = '', offset = 0, limit = 200) => history.list(w.profileId, offset, limit, q),
+  history: (w, q = '', offset = 0, limit = 200) => history.list(w.profileId, Number.isFinite(offset) ? Math.max(0, offset | 0) : 0, Number.isFinite(limit) ? Math.min(5000, Math.max(1, limit | 0)) : 200, typeof q === 'string' ? q : ''),
   removeHistory: (w, url) => history.remove(w.profileId, url),
   clearHistory: (w) => history.clear(w.profileId),
   downloads: (w) => downloadStore(w.profileId, w.incognito).get(),
-  openDownload: (w, id) => { const d = downloadStore(w.profileId, w.incognito).get().find((x) => x.id === id); if (d) shell.openPath(d.path); },
+  openDownload: (w, id) => {
+    const d = downloadStore(w.profileId, w.incognito).get().find((x) => x.id === id);
+    // never open a file still waiting for approval in quarantine, or one that did not finish
+    if (!d || d.state !== 'completed' || agentDownloads.isQuarantined(d.path)) return false;
+    return shell.openPath(d.path).then((err) => !err);
+  },
   showDownload: (w, id) => { const d = downloadStore(w.profileId, w.incognito).get().find((x) => x.id === id); if (d) shell.showItemInFolder(d.path); },
   cancelDownload: (w, id) => { if (downloadStore(w.profileId, w.incognito).get().some((x) => x.id === id)) downloads.get(id)?.cancel(); },
   clearDownloads: (w) => downloadStore(w.profileId, w.incognito).update((l) => l.filter((d) => d.state === 'progressing')),
@@ -533,6 +589,52 @@ const api: Record<string, Handler> = {
     if (o.cache) await ses.clearCache();
     if (o.cookies) await ses.clearStorageData();
     if (o.history) history.clear(w.profileId);
+    return true;
+  },
+
+  // ---- site settings (per origin): permissions the user decided, remembered zoom, stored data
+  siteSettings: (w) => {
+    const perms: Record<string, boolean> = (dataFor(w.profileId).session.get() as any).perms || {};
+    const zoom = w.incognito ? {} : sitePrefs.zoomAll(w.profileId);
+    const sites = new Map<string, { site: string; origins: string[]; perms: Record<string, boolean>; zoom?: number }>();
+    const get = (host: string) => { let x = sites.get(host); if (!x) sites.set(host, (x = { site: host, origins: [], perms: {} })); return x; };
+    for (const [k, v] of Object.entries(perms)) {
+      const i = k.lastIndexOf('|'); if (i < 0) continue;
+      const origin = k.slice(0, i), perm = k.slice(i + 1);
+      let host = ''; try { host = new URL(origin).hostname.replace(/^www\./, ''); } catch { continue; }
+      const x = get(host); x.perms[perm] = !!v; if (!x.origins.includes(origin)) x.origins.push(origin);
+    }
+    for (const [host, z] of Object.entries(zoom)) get(host).zoom = z;
+    return [...sites.values()].sort((a, b) => a.site.localeCompare(b.site));
+  },
+  setSitePermission: (w, origin: string, permission: string, value: boolean | null) => {
+    if (w.incognito || typeof origin !== 'string' || typeof permission !== 'string' || !/^[a-z-]{2,40}$/.test(permission)) return false;
+    let o = ''; try { const u = new URL(origin); if (u.protocol !== 'https:' && u.protocol !== 'http:') return false; o = u.origin; } catch { return false; }
+    const store = dataFor(w.profileId).session as any;
+    const cur = store.get();
+    cur.perms ||= {};
+    if (value === null || value === undefined) delete cur.perms[o + '|' + permission]; else cur.perms[o + '|' + permission] = value === true;
+    store.set(cur);
+    return true;
+  },
+  /** forget everything about a site: decided permissions, zoom, cookies/storage/cache for its origins */
+  resetSite: async (w, site: string) => {
+    if (typeof site !== 'string' || !/^[a-z0-9.-]{1,253}$/i.test(site)) return false;
+    const host = site.toLowerCase().replace(/^www\./, '');
+    const matches = (origin: string) => { try { return new URL(origin).hostname.replace(/^www\./, '') === host; } catch { return false; } };
+    const store = dataFor(w.profileId).session as any;
+    if (!w.incognito) {
+      const cur = store.get();
+      for (const k of Object.keys(cur.perms || {})) if (matches(k.slice(0, k.lastIndexOf('|')))) delete cur.perms[k];
+      store.set(cur);
+      sitePrefs.clearZoom(w.profileId, host);
+    }
+    const ses = sessionFor(w.profileId, w.incognito);
+    const origins = [`https://${host}`, `https://www.${host}`, `http://${host}`, `http://www.${host}`];
+    try { await ses.clearData({ origins, dataTypes: ['cache', 'cookies', 'localStorage', 'indexedDB', 'serviceWorkers', 'fileSystems', 'webSQL', 'backgroundFetch'] }); }
+    catch { for (const origin of origins) { try { await ses.clearStorageData({ origin }); } catch { /* not stored */ } } }
+    for (const t of w.tabs) if (t.wc && zoomKeyOf(t.wc.getURL()) === host) { t.zoom = 1; t.wc.setZoomFactor(1); }
+    w.pushState();
     return true;
   },
 
@@ -580,7 +682,7 @@ const api: Record<string, Handler> = {
     const totalMB = Math.round(metrics.reduce((a, m) => a + (m.memory.workingSetSize || 0), 0) / 1024);
     return { totalMB, tabs };
   },
-  appInfo: () => ({ version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, platform: process.platform, userData: app.getPath('userData'), computerUse: computer.available() }),
+  appInfo: () => ({ version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, platform: process.platform, userData: app.getPath('userData'), computerUse: computer.available(), secrets: (() => { const s = secrets.status(); return { encrypted: s.encrypted, backend: s.backend }; })() }),
 
   importSources: () => detectSources(),
   importFrom: async (w, src, what) => {
@@ -621,11 +723,11 @@ const api: Record<string, Handler> = {
   companions: (w) => companions.list(w.profileId),
   saveCompanion: (w, c) => companions.save(w.profileId, c),
   removeCompanion: (w, id) => companions.remove(w.profileId, id),
-  runs: (w) => runtime.list(w.profileId),
+  runs: (w) => runtime.list(w.profileId, w.incognito),
   startRun: (w, companionId, task, opts: any = {}) => {
     const tabId = opts.useCurrentTab && w.active && !w.active.internal ? w.active.id : null;
     if (tabId != null) { const t = w.active!; t.agentId = companionId; w.pushState(); }
-    const r = runtime.start(w.profileId, companionId, task, { background: opts.background ?? !tabId, tabId });
+    const r = runtime.start(w.profileId, companionId, task, { background: opts.background ?? !tabId, tabId, incognito: w.incognito });
     if (tabId != null) w.active!.agentRunId = r.id;
     return r;
   },
@@ -702,18 +804,32 @@ const api: Record<string, Handler> = {
 
 function hostOfUrl(u: string) { try { return new URL(u).hostname; } catch { return u; } }
 
-function suggest(w: OwlWindow, text: string) {
+function suggest(w: OwlWindow, text: string, allowInline = false) {
   const q = typeof text === 'string' ? text.trim() : '';
-  const out: Array<{ type: string; title: string; url: string; favicon?: string }> = [];
+  const out: Suggestion[] = [];
   if (!q) return out;
-  const asUrl = normalizeInput(q);
-  if (!asUrl.startsWith(searchUrl(''))) out.push({ type: 'url', title: asUrl, url: asUrl });
-  for (const t of w.tabs) if (!t.internal && (t.title.toLowerCase().includes(q.toLowerCase()) || (t.wc?.getURL() || '').includes(q))) out.push({ type: 'tab', title: t.title, url: String(t.id), favicon: t.favicon });
-  for (const b of bookmarks.list(w.profileId)) if ((b.title + b.url).toLowerCase().includes(q.toLowerCase())) out.push({ type: 'bookmark', title: b.title, url: b.url, favicon: b.favicon });
-  if (!w.incognito) for (const h of history.search(w.profileId, q, 6)) out.push({ type: 'history', title: h.title, url: h.url, favicon: h.favicon });
+  const ql = q.toLowerCase();
+  const hist = w.incognito ? [] : history.search(w.profileId, q, 8);
+  // inline autocomplete ("wik" → wikipedia.org) from this profile's history (never in incognito)
+  const inline = w.incognito || !allowInline ? null : inlineCompletion(q, history.search(w.profileId, q, 40));
+  const asUrl = normalizeInput(inline ? inline : q);
+  if (!asUrl.startsWith(searchUrl(''))) out.push({ type: 'url', title: asUrl, url: asUrl, ...(inline ? { inline } : {}) });
+  for (const t of w.tabs) if (!t.internal && (t.title.toLowerCase().includes(ql) || (t.wc?.getURL() || '').toLowerCase().includes(ql))) out.push({ type: 'tab', title: t.title, url: String(t.id), favicon: t.favicon });
+  for (const b of bookmarks.list(w.profileId)) if ((b.title + ' ' + b.url).toLowerCase().includes(ql)) out.push({ type: 'bookmark', title: b.title, url: b.url, favicon: b.favicon });
+  for (const h of hist) out.push({ type: 'history', title: h.title || h.url, url: h.url, favicon: h.favicon });
   out.splice(1, 0, { type: 'search', title: q, url: searchUrl(q) });
-  const seen = new Set<string>();
-  return out.filter((x) => (seen.has(x.type + x.url) ? false : (seen.add(x.type + x.url), true))).slice(0, 9);
+  // a typed URL that is also a bookmark/history row shows once (as the richer row); tab/search rows stay
+  const typed = out[0]?.type === 'url' ? urlKey(out[0].url) : null;
+  const rows = typed && out.slice(1).some((x) => (x.type === 'bookmark' || x.type === 'history') && urlKey(x.url) === typed) && !inline ? out.slice(1) : out;
+  const list = dedupeSuggestions(rows).slice(0, 9);
+  // rows without a favicon borrow one this profile already saw for the same site
+  if (!w.incognito && list.some((x) => !x.favicon && x.type !== 'search' && x.type !== 'tab')) {
+    const byHost = new Map<string, string>();
+    for (const b of bookmarks.list(w.profileId)) if (b.favicon) byHost.set(hostOfUrl(b.url).replace(/^www\./, ''), b.favicon);
+    for (const h of history.search(w.profileId, '', 400)) if (h.favicon && !byHost.has(hostOfUrl(h.url).replace(/^www\./, ''))) byHost.set(hostOfUrl(h.url).replace(/^www\./, ''), h.favicon);
+    for (const x of list) if (!x.favicon && x.type !== 'search' && x.type !== 'tab') { const f = byHost.get(hostOfUrl(x.url).replace(/^www\./, '')); if (f) x.favicon = f; }
+  }
+  return list;
 }
 
 for (const [name, fn] of Object.entries(api)) {
@@ -747,6 +863,8 @@ ipcMain.handle('owl-web:credentials', (e) => {
 app.whenReady().then(async () => {
   if (!gotLock) return;
   logLine('info', `starting OWL ${app.getVersion()} (electron ${process.versions.electron}, ${process.platform}) packaged=${app.isPackaged}`);
+  try { profiles.purgePending(); } catch (e) { logLine('warn', 'profiles.purgePending', e); }
+  try { secrets.migrate(); } catch (e) { logLine('warn', 'secrets.migrate', e); }
   try { nativeTheme.themeSource = settings.get().theme; } catch (e) { logLine('warn', 'themeSource', e); }
   try {
     // first launch from a file association / "Open with" gets the file too, not just http(s) links
@@ -790,6 +908,7 @@ app.on('before-quit', () => {
   step('threads', () => threads.flush());
   step('settings', () => settings.flush());
   step('secrets', () => secrets.flush());
+  step('site-prefs', () => sitePrefs.flush());
   step('app', () => appState.flush());
   step('scheduler', () => scheduler.stop());
   step('updater', () => updater.stop());
@@ -800,3 +919,5 @@ app.on('before-quit', () => {
   setTimeout(() => { logLine('warn', 'quit watchdog fired; forcing exit'); app.exit(0); }, 6000).unref();
 });
 export { webContents, net, protocol, htmlToText };
+/** tests only (tests/main): the agent browser host for a profile / incognito */
+export { hostFor as __hostForTests };

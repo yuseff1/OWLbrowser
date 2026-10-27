@@ -113,7 +113,7 @@
     </Row>
   </Group>
   {#if !loading && !hasAnyModel}
-    <Note kind="warn">Companions need at least one model. Add a provider: <strong>OpenRouter</strong> gives you every major model with one key, or <strong>Ollama</strong> / <strong>LM Studio</strong> run models on this PC for free.</Note>
+    <Note kind="warn">Companions need at least one model. Add a provider: <strong>OpenRouter</strong> gives you every major model with one key, or <strong>Ollama</strong> / <strong>LM Studio</strong> run models on this computer for free.</Note>
   {/if}
 
   <Group label="Providers">
@@ -166,9 +166,9 @@
   </Group>
 </Section>
 
-<Dialog bind:open title={step === 'pick' ? 'Add a model provider' : f.id ? `Edit ${f.name}` : `Connect ${preset?.name ?? f.kind}`} description={step === 'pick' ? 'Cloud providers need an API key. Local ones run on this PC and stay private.' : undefined} width={step === 'pick' ? 620 : 480}>
+<Dialog bind:open title={step === 'pick' ? 'Add a model provider' : f.id ? `Edit ${f.name}` : `Connect ${preset?.name ?? f.kind}`} description={step === 'pick' ? 'Cloud providers need an API key. Local ones run on this computer and stay private.' : undefined} width={step === 'pick' ? 620 : 480}>
   {#if step === 'pick'}
-    {#each [{ l: 'Cloud', kinds: CLOUD }, { l: 'On this PC', kinds: LOCAL }] as g (g.l)}
+    {#each [{ l: 'Cloud', kinds: CLOUD }, { l: 'On this computer', kinds: LOCAL }] as g (g.l)}
       <h3 class="owl-group-label mt-1">{g.l}</h3>
       <div class="mb-4 grid grid-cols-3 gap-2">
         {#each g.kinds as k (k)}
@@ -189,7 +189,7 @@
         <Input id="pv-url" bind:value={f.baseUrl} class="font-mono" spellcheck="false" />
       </Field>
       {#if needsKey || f.kind === 'custom'}
-        <Field label={f.kind === 'custom' ? 'API key (if the server needs one)' : 'API key'} for="pv-key" hint={f.hasKey ? 'A key is saved. Leave empty to keep it.' : 'Stored encrypted on this PC; never shown again.'}>
+        <Field label={f.kind === 'custom' ? 'API key (if the server needs one)' : 'API key'} for="pv-key" hint={f.hasKey ? 'A key is saved. Leave empty to keep it.' : 'Stored encrypted on this computer; never shown again.'}>
           <Input id="pv-key" type="password" bind:value={f.apiKey} placeholder={f.hasKey ? '••••••••••••' : 'sk-…'} autocomplete="off" />
         </Field>
         {#if preset?.keyUrl}<button type="button" class="owl-link self-start" onclick={() => owl.newTab(preset.keyUrl!)}>Get a key on {hostOf(preset.keyUrl)} <Icon name="open" size={12} /></button>{/if}

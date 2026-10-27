@@ -3,6 +3,7 @@ import * as path from 'path';
 import { sessionFor } from './profiles';
 import { settings } from './settings';
 import { history, bookmarks } from './data';
+import { sitePrefs, zoomKey } from './site-prefs';
 import { uiUrl, isTrustedUiFrame } from './ui-protocol';
 import { logLine, crashLogPath } from './crash';
 import type { TabState, WindowState } from '../shared/types';
@@ -17,6 +18,8 @@ export class Tab {
   url: string;
   title = 'New Tab';
   favicon?: string;
+  /** the site (zoomKey) whose remembered zoom this tab last applied */
+  zoomSite?: string;
   loading = false;
   pinned = false;
   muted = false;
@@ -63,6 +66,7 @@ export class Tab {
         backgroundThrottling: !this.agentId,
         safeDialogs: true,
         autoplayPolicy: 'document-user-activation-required',
+        plugins: true, // Chromium's built-in PDF viewer; without it every PDF link turned into a download
       },
     });
     view.setBackgroundColor('#ffffff');
@@ -505,6 +509,14 @@ export class OwlWindow {
     wc.on('did-start-loading', () => { t.loading = true; update(); });
     wc.on('did-stop-loading', () => { t.loading = false; t.url = wc.getURL(); update(); });
     wc.on('did-navigate', (_e, url) => {
+      // zoom is remembered per site (Chrome): entering another host applies that host's saved level
+      const site = zoomKey(url) ?? '';
+      if (site !== t.zoomSite) {
+        t.zoomSite = site;
+        const z = site ? sitePrefs.zoomFor(this.profileId, this.incognito, url) : 1;
+        t.zoom = z;
+        if (Math.abs(wc.getZoomFactor() - z) > 0.001) wc.setZoomFactor(z);
+      }
       t.url = url; t.favicon = undefined;
       if (!this.incognito) history.add(this.profileId, url, wc.getTitle(), t.favicon);
       update();
@@ -556,6 +568,10 @@ export class OwlWindow {
     if (delta !== 'reset' && !(typeof delta === 'number' && Number.isFinite(delta))) return; // NaN would reach setZoomFactor and the state JSON
     t.zoom = delta === 'reset' ? 1 : Math.max(0.25, Math.min(5, Math.round((t.zoom + delta) * 100) / 100));
     t.wc.setZoomFactor(t.zoom);
+    sitePrefs.setZoom(this.profileId, this.incognito, t.wc.getURL() || t.url, t.zoom);
+    // other tabs on the same site follow (Chromium already does this for same-origin views)
+    const k = zoomKey(t.wc.getURL() || t.url);
+    for (const o of this.tabs) if (o !== t && o.wc && k && zoomKey(o.wc.getURL()) === k) o.zoom = t.zoom;
     this.pushState();
   }
 
@@ -592,7 +608,21 @@ export class OwlWindow {
         { label: 'Ask companion about this image', enabled: /^https?:/i.test(src), click: () => ask(`Look at this image from ${wc.getURL()} and describe what it shows: ${src}\n\n`) },
       );
       sep();
-    } else if ((p.mediaType === 'video' || p.mediaType === 'audio') && p.srcURL && /^https?:/i.test(p.srcURL)) {
+    } else if (p.mediaType === 'video' || p.mediaType === 'audio') {
+      const at = `document.elementFromPoint(${Math.round(p.x)}, ${Math.round(p.y)})`;
+      const media = `(() => { let e = ${at}; while (e && !(e instanceof HTMLMediaElement)) e = e.parentElement; return e || [...document.querySelectorAll('${p.mediaType}')].find((v) => { const r = v.getBoundingClientRect(); return ${Math.round(p.x)} >= r.left && ${Math.round(p.x)} <= r.right && ${Math.round(p.y)} >= r.top && ${Math.round(p.y)} <= r.bottom; }) || null; })()`;
+      const run = (body: string) => wc.executeJavaScript(`(() => { const m = ${media}; if (!m) return false; ${body}; return true; })()`, true).catch(() => false);
+      const playing = !!(p.mediaFlags && !p.mediaFlags.isPaused);
+      items.push(
+        { label: playing ? 'Pause' : 'Play', click: () => run(playing ? 'm.pause()' : 'm.play()') },
+        { label: p.mediaFlags?.isMuted ? 'Unmute' : 'Mute', click: () => run('m.muted = !m.muted') },
+        { label: 'Loop', type: 'checkbox', checked: !!p.mediaFlags?.isLooping, click: () => run('m.loop = !m.loop') },
+        { label: 'Show controls', type: 'checkbox', checked: !!p.mediaFlags?.isControlsVisible, click: () => run('m.controls = !m.controls') },
+      );
+      if (p.mediaType === 'video') items.push({ label: 'Picture in picture', enabled: p.mediaFlags?.canShowPictureInPicture !== false, click: () => run('document.pictureInPictureElement === m ? document.exitPictureInPicture() : m.requestPictureInPicture()') });
+      sep();
+    }
+    if ((p.mediaType === 'video' || p.mediaType === 'audio') && p.srcURL && /^https?:/i.test(p.srcURL)) {
       const src = p.srcURL;
       items.push(
         { label: `Open ${p.mediaType} in new tab`, click: () => this.newTab(src, { background: true, openerId: t.id }) },

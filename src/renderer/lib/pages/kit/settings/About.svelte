@@ -10,7 +10,7 @@
   type Info = { version: string; electron: string; chrome: string; platform: string; userData: string };
   let info = $state<Info | null>(null);
   onMount(() => { owl.appInfo().then((i: any) => (info = i)).catch(() => {}); });
-  const rows = $derived(info ? [{ l: 'Version', v: info.version }, { l: 'Chromium', v: info.chrome }, { l: 'Electron', v: info.electron }, { l: 'Platform', v: info.platform === 'win32' ? 'Windows' : info.platform }, { l: 'Data folder', v: info.userData, mono: true }] : []);
+  const rows = $derived(info ? [{ l: 'Version', v: info.version }, { l: 'Chromium', v: info.chrome }, { l: 'Electron', v: info.electron }, { l: 'Platform', v: info.platform === 'win32' ? 'Windows' : info.platform === 'darwin' ? 'macOS' : info.platform === 'linux' ? 'Linux' : info.platform }, { l: 'Data folder', v: info.userData, mono: true }] : []);
   async function copy() {
     if (!info) return;
     await navigator.clipboard.writeText(`OWL ${info.version} · Chromium ${info.chrome} · Electron ${info.electron} · ${info.platform}`);

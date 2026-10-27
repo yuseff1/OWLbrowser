@@ -1,19 +1,24 @@
 <script lang="ts">
   import type { IconName } from '../ui/icons';
   import Icon from '../ui/Icon.svelte';
+  import { tick } from 'svelte';
   import { owl, hostOf, faviconFor } from '../api';
   import { store } from '../stores.svelte';
   import { CompanionAvatar, Badge } from '../ui';
   import { art } from '../api';
   import { hasPopupLayer, showPopup, iconMarkup, type PopupHandle, type PopupSuggestItem } from '../ui/popup';
 
-  type Sugg = { type: 'history' | 'bookmark' | 'search' | 'url' | 'tab' | 'command' | 'ask'; title: string; url: string; favicon?: string };
+  type Sugg = { type: 'history' | 'bookmark' | 'search' | 'url' | 'tab' | 'command' | 'ask'; title: string; url: string; favicon?: string; inline?: string };
 
   let input = $state<HTMLInputElement | null>(null);
   let wrap = $state<HTMLDivElement | null>(null);
   let focused = $state(false);
   let dirty = $state(false);
   let text = $state('');
+  /** what the user actually typed (text may also hold an inline completion after it, selected) */
+  let typed = $state('');
+  /** the last edit deleted text: don't inline-complete again (Chrome) */
+  let noInline = false;
   let sugg = $state<Sugg[]>([]);
   let sel = $state(0);
   let starred = $state(false);
@@ -39,11 +44,14 @@
   // suggestions (debounced)
   let timer: any;
   $effect(() => {
-    const q = text.trim();
+    const q = typed.trim();
     if (!focused || !dirty || !q) { sugg = []; return; }
     clearTimeout(timer);
+    const wantInline = !noInline;
     timer = setTimeout(async () => {
-      const res = ((await owl.suggest(q)) as Sugg[] | null) || [];
+      const res = ((await owl.suggest(q, { inline: wantInline })) as Sugg[] | null) || [];
+      if (typed.trim() !== q) return; // stale answer: the user kept typing
+      applyInline(res[0]?.inline);
       const ask: Sugg = { type: 'ask', title: q, url: '' };
       const list = res.slice(0, 7);
       // "Ask <companion>" sits right after the top hit
@@ -51,6 +59,18 @@
       sel = 0;
     }, 50);
   });
+
+  /** Chrome-style inline autocomplete: "wik" shows "wik[ipedia.org]" with the completion selected */
+  function applyInline(done?: string) {
+    if (!done || !input || input.value !== typed || input.selectionEnd !== typed.length) return;
+    const tl = typed.toLowerCase();
+    const full = tl.startsWith('www.') && !done.startsWith('www.') ? 'www.' + done : done;
+    if (!full.startsWith(tl) || full.length <= typed.length) return;
+    const shownText = typed + full.slice(typed.length);
+    text = shownText;
+    const from = typed.length;
+    tick().then(() => { if (input && input.value === shownText) input.setSelectionRange(from, shownText.length, 'backward'); });
+  }
 
   const open = $derived(focused && dirty && sugg.length > 0);
   const engine = $derived(({ google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing', brave: 'Brave', perplexity: 'Perplexity', kagi: 'Kagi' } as Record<string, string>)[store.settings?.searchEngine ?? 'google'] ?? 'Google');
@@ -67,7 +87,7 @@
       if (s.type === 'ask') return { title: s.title, prefix: `Ask ${comp?.name ?? 'Hoot'}: `, avatar: art.face(comp?.id ?? 'hoot'), trail: iconMarkup('sparkle', 14) };
       const u = urlOf(s);
       const fav = (s.type === 'history' || s.type === 'bookmark' || s.type === 'tab') && u ? faviconFor(u, s.favicon ?? tabOf(s)?.favicon) : '';
-      return { title: s.title, meta: metaOf(s) || undefined, favicon: fav || undefined, icon: fav ? undefined : iconMarkup(iconFor[s.type] ?? 'globe') };
+      return { title: s.title, meta: metaOf(s) || undefined, favicon: fav || undefined, icon: iconMarkup(iconFor[s.type] ?? 'globe') };
     });
   }
   $effect(() => {
@@ -119,7 +139,14 @@
       go(open ? sugg[sel] : undefined);
     }
     else if (e.key === 'Escape') {
-      if (open) { sugg = []; dirty = false; text = shown; input?.select(); } else input?.blur();
+      e.preventDefault();
+      // 1st Escape closes the suggestions and restores the address; the next one (or the first, when
+      // nothing was open) also gives the keyboard back to the page, like Chrome
+      const wasOpen = open || (dirty && text !== shown);
+      sugg = []; dirty = false; typed = ''; text = shown;
+      if (wasOpen) { queueMicrotask(() => input?.select()); return; }
+      input?.blur();
+      if (tab && !tab.internal) owl.command('focus-page');
     }
   }
   async function toggleStar() {
@@ -148,7 +175,7 @@
       placeholder="Search or enter URL…"
       onfocus={() => { focused = true; text = shown; queueMicrotask(() => input?.select()); }}
       onblur={() => setTimeout(() => { focused = false; dirty = false; }, 120)}
-      oninput={() => (dirty = true)} onkeydown={onKey}
+      oninput={(e) => { dirty = true; noInline = !!(e as unknown as InputEvent).inputType?.startsWith('delete'); typed = text; }} onkeydown={onKey}
       class:pretty={!focused} />
     {#if hasPopupLayer}<span class="sr-only" aria-live="polite">{open && sugg[sel] ? (sugg[sel].type === 'ask' ? `Ask ${comp?.name ?? 'Hoot'}: ` : '') + sugg[sel].title + (metaOf(sugg[sel]) ? `, ${metaOf(sugg[sel])}` : '') : ''}</span>{/if}
     {#if run && !focused}
@@ -181,7 +208,7 @@
           {:else}
             {@const ic = iconFor[s.type] ?? 'globe'}
             {#if (s.type === 'history' || s.type === 'bookmark' || s.type === 'tab') && urlOf(s)}
-              <img src={faviconFor(urlOf(s), s.favicon)} alt="" width="16" height="16" class="rounded-[4px]" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = 'hidden')} />
+              <img src={faviconFor(urlOf(s), s.favicon)} alt="" width="16" height="16" class="rounded-[4px]" onerror={(e) => { const el = e.currentTarget as HTMLImageElement; const fb = faviconFor(urlOf(s)); if (fb && el.src !== fb) el.src = fb; else el.style.visibility = 'hidden'; }} />
             {:else}
               <span class="ic"><Icon name={ic} size={16} /></span>
             {/if}
