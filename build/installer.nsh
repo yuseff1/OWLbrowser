@@ -31,6 +31,9 @@
 
 !macro customInit
   !insertmacro owlStopRunningApp
+  ; a stale old uninstaller (run in place by uninstallOldVersion) locks "Uninstall OWL.exe"
+  nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /F /T /IM "Uninstall ${PRODUCT_FILENAME}.exe"`
+  Pop $0
 !macroend
 
 !macro customUnInit
