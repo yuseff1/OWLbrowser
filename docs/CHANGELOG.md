@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-28 (night) — tab groups
+- Tab groups, Chrome-style: tab menu › *Add tab to new group* / *Add to “…”* / *Remove from group*. The chip before a group collapses / expands it on click; right-click (or Enter / F2) opens the editor: name, nine muted colours (amber `#E8A317` included), new tab in group, collapse, ungroup, close group. A coloured underline runs from the chip under the group's tabs (horizontal strip); vertical tabs show the chip as a header with a colour rail.
+- Main keeps groups contiguous: grouping moves tabs next to each other, a tab dropped between two grouped tabs joins the group, one dragged out leaves it, a tab opened from a grouped opener joins it, pinning ungroups, empty groups disappear. Collapsing the active tab's group moves to the nearest tab outside it; activating a hidden tab expands its group.
+- Groups (and pinned tabs) are saved with the session and with a closed window, and come back on restore / Ctrl+Shift+T.
+- IPC `groupTabs(ids, groupId?, {title,color}) / ungroupTabs(ids) / updateGroup(id, {title,color,collapsed}) / closeGroup(id)`; `WindowState.groups`, `TabState.groupId` (replaces the unused `groupColor`).
+- Tests: tab-group test in `test:main`, reopen-window test checks the group comes back.
+
 ## 2026-10-27 (night) — bug sweep + daily-browser features
 Fixes (from the UI QA and main-process audits):
 - Secrets: everything goes through Electron safeStorage (DPAPI / Keychain / libsecret). Values an older build stored as base64 only (`p:`) or as legacy plaintext are re-encrypted at start-up once OS encryption is available; an undecryptable value is kept, never deleted. Linux's `basic_text` backend counts as "not encrypted" and Settings › Privacy says so honestly. `appInfo().secrets = { encrypted, backend }`.

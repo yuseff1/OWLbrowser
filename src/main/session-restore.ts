@@ -14,6 +14,7 @@
 import { app, type WebContents } from 'electron';
 import { Tab, parseInternal, type OwlWindow } from './window';
 import { isWebUrl } from './net-guard';
+import type { TabGroup } from '../shared/types';
 
 export interface Scroll { url: string; x: number; y: number }
 export interface SavedWindow {
@@ -22,6 +23,10 @@ export interface SavedWindow {
   /** optional, parallel to urls (older sessions don't have them) */
   titles?: string[];
   scroll?: Array<{ x: number; y: number } | null>;
+  /** pinned flags and tab-group ids, parallel to urls; groups of the window (since 0.1.15) */
+  pinned?: boolean[];
+  group?: Array<string | null>;
+  groups?: TabGroup[];
 }
 
 /** scroll to re-apply after the next load of `url` (set when a tab sleeps or is restored) */
@@ -102,15 +107,18 @@ function sameDoc(a: string, b: string) {
 /** Snapshot of one window for the session store (visible, non-agent tabs only). */
 export function snapshotWindow(w: OwlWindow): SavedWindow {
   const visible = w.tabs.filter((t) => !t.hidden && !t.agentId);
-  const urls: string[] = [], titles: string[] = [], scroll: SavedWindow['scroll'] = [];
+  const urls: string[] = [], titles: string[] = [], scroll: SavedWindow['scroll'] = [], pinned: boolean[] = [], group: Array<string | null> = [];
   for (const t of visible) {
+    pinned.push(!!t.pinned);
+    group.push(t.groupId ?? null);
     const url = t.internal ? `owl://${t.internal}${t.hash || ''}` : t.wc?.getURL() || t.url;
     urls.push(url);
     titles.push(t.title || '');
     const s = pending.get(t) || sampled.get(t);
     scroll.push(s && s.url === url && (s.x || s.y) ? { x: s.x, y: s.y } : null);
   }
-  return { urls, active: Math.max(0, visible.findIndex((t) => t.id === w.activeId)), titles, scroll };
+  const groups = w.groups.filter((g) => group.includes(g.id)).map((g) => ({ ...g }));
+  return { urls, active: Math.max(0, visible.findIndex((t) => t.id === w.activeId)), titles, scroll, pinned, group, groups };
 }
 
 /**
@@ -118,9 +126,14 @@ export function snapshotWindow(w: OwlWindow): SavedWindow {
  * tab gets a renderer, via activate(). Internal pages (owl://…) never have a renderer anyway.
  */
 export function restoreTabs(w: OwlWindow, saved: SavedWindow) {
-  const urls = saved.urls.filter((u) => typeof u === 'string' && u);
+  // keep indexes aligned with the parallel arrays (titles/scroll/pinned/group) while skipping bad entries
+  const idx = saved.urls.map((u, i) => (typeof u === 'string' && u ? i : -1)).filter((i) => i >= 0);
+  const urls = idx.map((i) => saved.urls[i]);
   const now = Date.now();
-  urls.forEach((url, i) => {
+  const groupIds = new Set((Array.isArray(saved.groups) ? saved.groups : []).filter((g) => g && typeof g.id === 'string').map((g) => g.id));
+  w.groups = (Array.isArray(saved.groups) ? saved.groups : []).filter((g) => g && typeof g.id === 'string').map((g) => ({ id: g.id, title: String(g.title ?? '').slice(0, 60), color: g.color || 'grey', collapsed: !!g.collapsed }));
+  urls.forEach((url, j) => {
+    const i = idx[j];
     let t: Tab;
     if (parseInternal(url)) {
       t = w.newTab(url, { background: true });
@@ -131,8 +144,13 @@ export function restoreTabs(w: OwlWindow, saved: SavedWindow) {
       const s = saved.scroll?.[i];
       if (s && (s.x || s.y)) pending.set(t, { url, x: s.x, y: s.y });
     }
-    t.lastActive = now - (urls.length - i) * 1000; // keep strip order as LRU order for the memory saver
+    t.lastActive = now - (urls.length - j) * 1000; // keep strip order as LRU order for the memory saver
+    if (saved.pinned?.[i]) t.pinned = true;
+    const g = saved.group?.[i];
+    if (g && groupIds.has(g) && !t.pinned) t.groupId = g;
   });
+  // pinned tabs first (as the strip always shows them)
+  w.tabs.sort((a, b) => Number(b.pinned) - Number(a.pinned));
   const active = w.tabs[Math.min(Math.max(0, saved.active | 0), w.tabs.length - 1)];
   if (active) w.activate(active.id);
   else { w.layout(); w.pushState(); }

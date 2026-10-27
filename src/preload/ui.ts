@@ -31,6 +31,7 @@ const api = {
   closeTab: call('closeTab'),
   activateTab: call('activateTab'),
   moveTab: call('moveTab'), // (id, index)
+  groupTabs: call('groupTabs'), ungroupTabs: call('ungroupTabs'), updateGroup: call('updateGroup'), closeGroup: call('closeGroup'), // tab groups (WindowState.groups)
   navigate: call('navigate'), // (tabId, input) input = url or search text
   back: call('back'), forward: call('forward'), reload: call('reload'), stop: call('stop'),
   pinTab: call('pinTab'), muteTab: call('muteTab'), duplicateTab: call('duplicateTab'),

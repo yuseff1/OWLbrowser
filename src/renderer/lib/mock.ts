@@ -36,12 +36,13 @@ function install() {
       tab(2, 'https://github.com/varsen/owl', 'varsen/owl: An agentic Chromium browser'),
       tab(3, 'https://www.skyscanner.es/transport/flights/vlc/lis/', 'Valencia → Lisbon · Skyscanner', { agentId: 'hoot', agentRunId: 'r1', loading: true }),
       tab(4, 'https://www.linkedin.com/search/results/people/', 'Founders in Valencia | LinkedIn', { agentId: 'nova', agentRunId: 'r2' }),
-      tab(5, 'https://open.spotify.com/playlist/lofi', 'Lo-fi beats to build to', { audible: true }),
-      tab(6, 'https://news.ycombinator.com/', 'Hacker News', { sleeping: true }),
+      tab(5, 'https://open.spotify.com/playlist/lofi', 'Lo-fi beats to build to', { audible: true, groupId: q.get('groups') === '0' ? undefined : 'gread' }),
+      tab(6, 'https://news.ycombinator.com/', 'Hacker News', { sleeping: true, groupId: q.get('groups') === '0' ? undefined : 'gread' }),
       tab(7, page ? `owl://${page}` : 'owl://newtab', page ? page[0].toUpperCase() + page.slice(1) : 'New Tab', { internal: page || 'newtab', canGoBack: false }),
     ],
     activeTabId: q.get('internal') === '0' ? 2 : 7,
     splitTabId: null,
+    groups: q.get('groups') === '0' ? [] : [{ id: 'gread', title: 'Reading', color: 'yellow', collapsed: q.get('collapsed') === '1' }],
   };
   if (q.get('active')) win.activeTabId = +q.get('active')!;
   if (q.get('split')) win.splitTabId = +q.get('split')!;
@@ -137,6 +138,21 @@ function install() {
     sleepTab: (id: number) => { const t = win.tabs.find((x) => x.id === id); if (t) t.sleeping = true; push(); },
     duplicateTab: (id: number) => { const t = win.tabs.find((x) => x.id === id); if (t) impl.newTab(t.url); },
     setSplit: (id: number | null) => { win.splitTabId = id; push(); },
+    // tab groups (same rules as window.ts, minus edge cases)
+    groupTabs: (ids: number[], groupId?: string, opts: any = {}) => {
+      let g = win.groups.find((x) => x.id === groupId);
+      if (!g) { const used = new Set(win.groups.map((x) => x.color)); g = { id: 'g' + nextId++, title: opts.title ?? '', color: opts.color || (['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange', 'grey'] as const).find((c) => !used.has(c)) || 'grey', collapsed: false }; win.groups.push(g); }
+      const members = win.tabs.filter((t) => t.groupId === g!.id);
+      const moving = win.tabs.filter((t) => ids.includes(t.id) && !t.pinned);
+      const anchor = members[members.length - 1] ?? moving[0];
+      for (const t of moving) if (t !== anchor) win.tabs.splice(win.tabs.indexOf(t), 1);
+      let at = win.tabs.indexOf(anchor) + 1;
+      for (const t of moving) { if (t !== anchor) win.tabs.splice(at++, 0, t); t.groupId = g.id; }
+      g.collapsed = false; push(); return g.id;
+    },
+    ungroupTabs: (ids: number[]) => { for (const t of win.tabs) if (ids.includes(t.id)) t.groupId = undefined; win.groups = win.groups.filter((g) => win.tabs.some((t) => t.groupId === g.id)); push(); },
+    updateGroup: (id: string, patch: any) => { const g = win.groups.find((x) => x.id === id); if (g) Object.assign(g, patch); push(); },
+    closeGroup: (id: string) => { for (const t of win.tabs.filter((x) => x.groupId === id)) impl.closeTab(t.id); win.groups = win.groups.filter((g) => g.id !== id); push(); },
     suggest: (text: string) => {
       if (!text) return [];
       return [

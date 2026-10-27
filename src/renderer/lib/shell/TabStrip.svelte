@@ -6,16 +6,21 @@
   import { IconButton, ContextMenu } from '../ui';
   import TabIcon from './TabIcon.svelte';
   import { tabMenu, drag, dropTab } from './tabActions';
+  import GroupChip from './GroupChip.svelte';
+  import { stripItems, groupStyle } from './groups';
   import type { TabState } from '$shared/types';
 
   const mac = owl.platform === 'darwin';
   const linux = owl.platform === 'linux';
   let over = $state<{ id: number; after: boolean } | null>(null);
 
+  const items = $derived(stripItems(store.win.tabs, store.win.groups ?? []));
+  /** tabs actually drawn (collapsed groups hide theirs) */
+  const shown = $derived(items.flatMap((x) => (x.kind === 'tab' ? [x.tab] : [])));
   let tabsEl = $state<HTMLDivElement | null>(null);
   let stripW = $state(800);
   // narrow tabs (many open): drop the title on inactive ones and keep the close button on the active tab only
-  const narrow = $derived(store.win.tabs.filter((t) => !t.pinned).length > 0 && (stripW - store.win.tabs.filter((t) => t.pinned).length * 40 - 40) / Math.max(1, store.win.tabs.filter((t) => !t.pinned).length) < 72);
+  const narrow = $derived(shown.filter((t) => !t.pinned).length > 0 && (stripW - shown.filter((t) => t.pinned).length * 40 - (store.win.groups?.length ?? 0) * 60 - 40) / Math.max(1, shown.filter((t) => !t.pinned).length) < 72);
   $effect(() => {
     if (!tabsEl) return;
     const ro = new ResizeObserver(() => (stripW = tabsEl!.clientWidth));
@@ -49,7 +54,7 @@
   }
   /** roving focus: ←/→ move between tabs, Home/End jump, Enter/Space activate, Delete closes */
   function onKey(e: KeyboardEvent, t: TabState) {
-    const tabs = store.win.tabs, i = tabs.findIndex((x) => x.id === t.id);
+    const tabs = shown, i = tabs.findIndex((x) => x.id === t.id);
     const focusAt = (j: number) => { const n = tabs[(j + tabs.length) % tabs.length]; if (n) tabsEl?.querySelector<HTMLElement>(`[data-tab-id="${n.id}"]`)?.focus(); };
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); owl.activateTab(t.id); }
     else if (e.key === 'Delete') owl.closeTab(t.id);
@@ -69,13 +74,17 @@
 
   <!-- svelte-ignore a11y_interactive_supports_focus -->
   <div class="tabs" class:narrow role="tablist" aria-label="Tabs" bind:this={tabsEl} onwheel={onWheel} ondragleave={() => (over = null)}>
-    {#each store.win.tabs as t (t.id)}
+    {#each items as it (it.kind === 'chip' ? 'g:' + it.group.id : it.tab.id)}
+      {#if it.kind === 'chip'}
+        <GroupChip group={it.group} count={it.count} />
+      {:else}
+      {@const t = it.tab}
       {@const active = t.id === store.win.activeTabId}
       {@const split = t.id === store.win.splitTabId}
       <ContextMenu items={() => tabMenu(t)}>
         {#snippet children(cp)}
           <div {...cp} role="tab" tabindex={active ? 0 : -1} aria-selected={active} title={label(t)} data-tab-id={t.id}
-            class="tab no-drag" class:active class:split class:pinned={t.pinned} class:sleeping={t.sleeping} class:agent={!!t.agentId}
+            class="tab no-drag" class:grouped={!!it.group} class:group-last={it.last} style={it.group ? groupStyle(it.group.color) : undefined} class:active class:split class:pinned={t.pinned} class:sleeping={t.sleeping} class:agent={!!t.agentId}
             class:drop-before={over?.id === t.id && !over.after} class:drop-after={over?.id === t.id && over.after}
             draggable="true" ondragstart={(e) => onDragStart(e, t)} ondragover={(e) => onDragOver(e, t)} ondrop={onDrop} ondragend={() => { drag.id = -1; over = null; }}
             onmousedown={(e) => { if (e.button === 0) owl.activateTab(t.id); else if (e.button === 1) e.preventDefault(); }} onauxclick={(e) => onAux(e, t)} onkeydown={(e) => onKey(e, t)}>
@@ -99,6 +108,7 @@
           </div>
         {/snippet}
       </ContextMenu>
+      {/if}
     {/each}
     <div class="no-drag flex items-center pl-0.5">
       <IconButton icon="add" label="New tab" kbd="Ctrl+T" size="sm" onclick={() => owl.newTab()} />
@@ -142,6 +152,11 @@
   .mini:hover { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); }
   .close { opacity: 0; }
   .tab:hover .close, .tab.active .close, .close:focus-visible { opacity: 1; }
+  /* group underline (continues the chip's) */
+  .tab.grouped { --gc: var(--gc-l); }
+  :global(.dark) .tab.grouped { --gc: var(--gc-d); }
+  .tab.grouped::before { content: ''; position: absolute; left: -2px; right: -2px; bottom: -3px; height: 2px; background: var(--gc); pointer-events: none; }
+  .tab.grouped.group-last::before { right: 4px; border-radius: 0 2px 2px 0; }
   .drop-before::after, .drop-after::after { content: ''; position: absolute; top: 6px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--accent); }
   .drop-before::after { left: -2px; }
   .drop-after::after { right: -2px; }

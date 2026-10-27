@@ -2,6 +2,7 @@ import type { TabState } from '$shared/types';
 import type { MenuItem } from '../ui/Menu.svelte';
 import { owl } from '../api';
 import { store } from '../stores.svelte';
+import { groupLabel } from './groups';
 
 export function tabMenu(t: TabState): MenuItem[] {
   const idx = store.win.tabs.findIndex((x) => x.id === t.id);
@@ -16,6 +17,14 @@ export function tabMenu(t: TabState): MenuItem[] {
     { label: 'Sleep tab (free memory)', icon: 'weather-moon', disabled: t.sleeping || t.id === store.win.activeTabId || !!t.internal, onSelect: () => owl.sleepTab(t.id) },
     { label: isSplit ? 'Close split view' : 'Split view with this tab', icon: 'split-vertical', disabled: t.id === store.win.activeTabId && !isSplit, onSelect: () => owl.setSplit(isSplit ? null : t.id) },
   ];
+  // tab groups: new group / add to an existing one / remove (pinned tabs can't be grouped, like Chrome)
+  if (!t.pinned) {
+    const groups = (store.win.groups ?? []).filter((g) => g.id !== t.groupId);
+    const count = (id: string) => store.win.tabs.filter((x) => x.groupId === id).length;
+    items.push({ separator: true }, { label: 'Add tab to new group', icon: 'tag', onSelect: () => owl.groupTabs([t.id]) });
+    for (const g of groups.slice(0, 6)) items.push({ label: `Add to “${groupLabel(g, count(g.id))}”`, icon: 'folder-arrow-right', onSelect: () => owl.groupTabs([t.id], g.id) });
+    if (t.groupId) items.push({ label: 'Remove from group', icon: 'subtract', onSelect: () => owl.ungroupTabs([t.id]) });
+  }
   if (t.agentRunId) items.push({ separator: true }, { label: 'Stop agent in this tab', icon: 'bot', onSelect: () => owl.stopRun(t.agentRunId) });
   const right = store.win.tabs.slice(idx + 1).filter((x) => !x.pinned);
   const others = store.win.tabs.filter((x) => x.id !== t.id && !x.pinned);

@@ -7,11 +7,14 @@
   import { tabMenu, drag, runFor, dropTab } from './tabActions';
   import { hostOf } from '../api';
   import { statusLabel, runWaiting } from './prefs.svelte';
-  import type { TabState } from '$shared/types';
+  import type { TabState, TabGroup } from '$shared/types';
+  import GroupChip from './GroupChip.svelte';
+  import { stripItems, groupStyle } from './groups';
 
   const pinned = $derived(store.win.tabs.filter((t) => t.pinned));
   const agentTabs = $derived(store.win.tabs.filter((t) => !t.pinned && t.agentId));
   const normal = $derived(store.win.tabs.filter((t) => !t.pinned && !t.agentId));
+  const items = $derived(stripItems(normal, store.win.groups ?? []));
   let over = $state<{ id: number; after: boolean } | null>(null);
 
   function onDrop(e: DragEvent) {
@@ -28,13 +31,13 @@
   }
 </script>
 
-{#snippet row(t: TabState)}
+{#snippet row(t: TabState, g: TabGroup | null = null)}
   {@const active = t.id === store.win.activeTabId}
   {@const run = runFor(t)}
   <ContextMenu items={() => tabMenu(t)}>
     {#snippet children(cp)}
       <div {...cp} role="tab" tabindex={active ? 0 : -1} aria-selected={active} title={t.internal ? t.title : `${t.title}\n${hostOf(t.url)}`}
-        class="vt" class:active class:sleeping={t.sleeping} class:split={t.id === store.win.splitTabId}
+        class="vt" class:grouped={!!g} style={g ? groupStyle(g.color) : undefined} class:active class:sleeping={t.sleeping} class:split={t.id === store.win.splitTabId}
         class:drop-before={over?.id === t.id && !over.after} class:drop-after={over?.id === t.id && over.after}
         draggable="true" ondragstart={() => (drag.id = t.id)} ondragover={(e) => onOver(e, t)} ondrop={onDrop} ondragend={() => { drag.id = -1; over = null; }}
         onmousedown={(e) => { if (e.button === 0) owl.activateTab(t.id); else if (e.button === 1) e.preventDefault(); }}
@@ -72,7 +75,9 @@
     {#each agentTabs as t (t.id)}{@render row(t)}{/each}
     <div class="grp">Tabs</div>
   {/if}
-  {#each normal as t (t.id)}{@render row(t)}{/each}
+  {#each items as it (it.kind === 'chip' ? 'g:' + it.group.id : it.tab.id)}
+    {#if it.kind === 'chip'}<GroupChip group={it.group} count={it.count} vertical />{:else}{@render row(it.tab, it.group)}{/if}
+  {/each}
 </div>
 
 <style>
@@ -89,6 +94,10 @@
   .vt.active { background: var(--tab-active) var(--glass-sheen); color: var(--ink); box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(0,0,0,.05); }
   .vt.split:not(.active) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent); }
   .vt.sleeping { opacity: .5; }
+  /* grouped rows: indented under the chip with the group's colour as a rail */
+  .vt.grouped { --gc: var(--gc-l); margin-left: 12px; }
+  :global(.dark) .vt.grouped { --gc: var(--gc-d); }
+  .vt.grouped::after { content: ''; position: absolute; left: -8px; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: var(--gc); }
   .live { width: 7px; height: 7px; margin-right: 6px; border-radius: 99px; background: var(--cc, var(--accent)); flex: none; animation: owl-pulse 1.6s ease-in-out infinite; }
   .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mini { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; border: 0; background: transparent; color: var(--ink-2); flex: none; }

@@ -509,6 +509,11 @@ const api: Record<string, Handler> = {
   closeTab: (w, id) => w.close(id),
   activateTab: (w, id) => w.activate(id),
   moveTab: (w, id, i) => w.move(id, i),
+  // tab groups: ids → group (new when groupId missing); patch { title?, color?, collapsed? }
+  groupTabs: (w, ids: number[], groupId?: string, opts?: any) => w.groupTabs((Array.isArray(ids) ? ids : [ids]).filter((x) => typeof x === 'number'), typeof groupId === 'string' ? groupId : undefined, opts && typeof opts === 'object' ? { title: typeof opts.title === 'string' ? opts.title : undefined, color: opts.color } : {}),
+  ungroupTabs: (w, ids: number[]) => w.ungroupTabs((Array.isArray(ids) ? ids : [ids]).filter((x) => typeof x === 'number')),
+  updateGroup: (w, id: string, patch: any) => { if (typeof id === 'string') w.updateGroup(id, patch); },
+  closeGroup: (w, id: string) => { if (typeof id === 'string') w.closeGroup(id); },
   navigate: (w, id, input: string) => {
     const t = w.tab(id) || w.active;
     if (!t) return;
@@ -528,7 +533,7 @@ const api: Record<string, Handler> = {
   forward: (w, id) => w.tab(id)?.wc?.navigationHistory.goForward(),
   reload: (w, id) => { const t = w.tab(id); if (t?.sleeping) t.wake(); else t?.wc?.reload(); },
   stop: (w, id) => w.tab(id)?.wc?.stop(),
-  pinTab: (w, id) => { const t = w.tab(id); if (t) { t.pinned = !t.pinned; const i = w.tabs.indexOf(t); w.tabs.splice(i, 1); const lastPinned = w.tabs.filter((x) => x.pinned).length; w.tabs.splice(t.pinned ? lastPinned : lastPinned, 0, t); w.pushState(); } },
+  pinTab: (w, id) => { const t = w.tab(id); if (t) { t.pinned = !t.pinned; if (t.pinned && t.groupId) { t.groupId = undefined; w.pruneGroups(); } const i = w.tabs.indexOf(t); w.tabs.splice(i, 1); const lastPinned = w.tabs.filter((x) => x.pinned).length; w.tabs.splice(t.pinned ? lastPinned : lastPinned, 0, t); w.pushState(); } },
   muteTab: (w, id) => { const t = w.tab(id); if (t) { t.muted = !t.muted; t.wc?.setAudioMuted(t.muted); w.pushState(); } },
   duplicateTab: (w, id) => { const t = w.tab(id); if (t) w.newTab(t.internal ? `owl://${t.internal}` : t.wc?.getURL() || t.url, { index: w.tabs.indexOf(t) + 1 }); },
   sleepTab: async (w, id) => { const t = w.tab(id); if (t && t.id !== w.activeId) await sleepTab(t, () => t.id !== w.activeId); w.pushState(); },

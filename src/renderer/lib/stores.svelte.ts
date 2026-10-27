@@ -3,7 +3,7 @@ import type { WindowState, AgentRun, Settings, Companion, TabState } from '$shar
 
 /** Global reactive UI state (Svelte 5 runes, shared module state). */
 class OwlStore {
-  win = $state<WindowState>({ windowId: 0, profileId: PROFILE_ID, incognito: false, tabs: [], activeTabId: null, splitTabId: null });
+  win = $state<WindowState>({ windowId: 0, profileId: PROFILE_ID, incognito: false, tabs: [], activeTabId: null, splitTabId: null, groups: [] });
   runs = $state<AgentRun[]>([]);
   settings = $state<Settings | null>(null);
   companions = $state<Companion[]>([]);
@@ -79,7 +79,7 @@ class OwlStore {
 
   async init() {
     owl.on((type, payload) => {
-      if (type === 'state') this.win = payload;
+      if (type === 'state') this.win = { ...payload, groups: payload?.groups ?? [] };
       else if (type === 'run') {
         const i = this.runs.findIndex((r) => r.id === payload.id);
         if (i >= 0) this.runs[i] = payload; else this.runs.unshift(payload);
@@ -89,7 +89,7 @@ class OwlStore {
       else if (type === 'command') this.onCommand(payload.cmd, payload.arg);
     });
     const [st, s] = await Promise.all([owl.getState(), owl.settings()]);
-    if (st) this.win = st as WindowState;
+    if (st) this.win = { ...(st as WindowState), groups: (st as WindowState).groups ?? [] };
     if (s) this.settings = s as Settings;
     await Promise.all([this.refreshCompanions(), this.refreshRuns()]);
   }

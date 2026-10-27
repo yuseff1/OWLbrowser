@@ -6,7 +6,7 @@ import { history, bookmarks } from './data';
 import { sitePrefs, zoomKey } from './site-prefs';
 import { uiUrl, isTrustedUiFrame } from './ui-protocol';
 import { logLine, crashLogPath } from './crash';
-import type { TabState, WindowState } from '../shared/types';
+import type { TabState, WindowState, TabGroup, TabGroupColor } from '../shared/types';
 
 export type InternalPage = NonNullable<TabState['internal']>;
 
@@ -31,7 +31,7 @@ export class Tab {
   artifactId?: string;
   /** '#section' of an internal URL (owl://settings#models), kept so deep links survive state round-trips */
   hash?: string;
-  groupColor?: string;
+  groupId?: string;
   /** tabs created by agents in the background are hidden from the strip until opened */
   hidden = false;
 
@@ -116,7 +116,7 @@ export class Tab {
       agentRunId: this.agentRunId,
       internal: this.internal,
       artifactId: this.artifactId,
-      groupColor: this.groupColor,
+      groupId: this.groupId,
     };
   }
 }
@@ -378,7 +378,86 @@ export class OwlWindow {
       tabs: this.tabs.filter((t) => !t.hidden).map((t) => t.state()),
       activeTabId: this.activeId,
       splitTabId: this.splitId,
+      groups: this.groups.filter((g) => this.tabs.some((t) => t.groupId === g.id && !t.hidden)).map((g) => ({ ...g })),
     };
+  }
+
+  // ---------- tab groups (Chrome-style; grouped tabs stay contiguous) ----------
+  groups: TabGroup[] = [];
+  private static readonly GROUP_COLORS: TabGroupColor[] = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange', 'grey'];
+
+  /** puts tabs into a group (a new one when groupId is missing/unknown); returns the group id */
+  groupTabs(ids: number[], groupId?: string, opts: { title?: string; color?: TabGroupColor } = {}): string | null {
+    const tabs = ids.map((id) => this.tab(id)).filter((t): t is Tab => !!t && !t.pinned && !t.hidden);
+    if (!tabs.length) return null;
+    let g = groupId ? this.groups.find((x) => x.id === groupId) : undefined;
+    if (!g) {
+      const used = new Set(this.groups.map((x) => x.color));
+      const color = opts.color && OwlWindow.GROUP_COLORS.includes(opts.color) ? opts.color : OwlWindow.GROUP_COLORS.find((c) => !used.has(c)) ?? 'grey';
+      g = { id: 'g' + Math.random().toString(36).slice(2, 9), title: (opts.title ?? '').slice(0, 60), color, collapsed: false };
+      this.groups.push(g);
+    }
+    const gid = g.id;
+    // anchor: after the group's last tab, or where the first chosen tab is
+    const members = this.tabs.filter((t) => t.groupId === gid && !tabs.includes(t));
+    const anchor = members.length ? members[members.length - 1] : tabs[0];
+    const moving = tabs.filter((t) => t !== anchor);
+    for (const t of moving) this.tabs.splice(this.tabs.indexOf(t), 1);
+    let at = this.tabs.indexOf(anchor) + 1;
+    for (const t of moving) this.tabs.splice(at++, 0, t);
+    for (const t of tabs) t.groupId = gid;
+    g.collapsed = false;
+    this.pruneGroups();
+    this.pushState();
+    return gid;
+  }
+
+  /** takes tabs out of their group; they move to just after the group, like Chrome */
+  ungroupTabs(ids: number[]) {
+    // right-to-left so ungrouping a whole group (or its tail) keeps the strip order
+    const order = ids.map((id) => this.tab(id)).filter((t): t is Tab => !!t?.groupId).sort((a, b) => this.tabs.indexOf(b) - this.tabs.indexOf(a));
+    for (const t of order) {
+      if (!t.groupId) continue;
+      const gid = t.groupId;
+      t.groupId = undefined;
+      const rest = this.tabs.filter((x) => x.groupId === gid);
+      if (rest.length) { this.tabs.splice(this.tabs.indexOf(t), 1); this.tabs.splice(this.tabs.indexOf(rest[rest.length - 1]) + 1, 0, t); }
+    }
+    this.pruneGroups();
+    this.pushState();
+  }
+
+  updateGroup(id: string, patch: { title?: string; color?: TabGroupColor; collapsed?: boolean }) {
+    const g = this.groups.find((x) => x.id === id);
+    if (!g || !patch || typeof patch !== 'object') return;
+    if (typeof patch.title === 'string') g.title = patch.title.slice(0, 60);
+    if (patch.color && OwlWindow.GROUP_COLORS.includes(patch.color)) g.color = patch.color;
+    if (typeof patch.collapsed === 'boolean' && patch.collapsed !== g.collapsed) {
+      if (patch.collapsed) {
+        // the active tab can't hide inside a collapsed group: move to the nearest tab outside it (or refuse)
+        const act = this.active;
+        if (act?.groupId === id) {
+          const vis = this.tabs.filter((t) => !t.hidden);
+          const i = vis.indexOf(act);
+          const next = vis.slice(i + 1).find((t) => t.groupId !== id) ?? vis.slice(0, i).reverse().find((t) => t.groupId !== id);
+          if (!next) { this.pushState(); return; }
+          this.activate(next.id);
+        }
+      }
+      g.collapsed = patch.collapsed;
+    }
+    this.pushState();
+  }
+
+  closeGroup(id: string) {
+    for (const t of this.tabs.filter((x) => x.groupId === id)) this.close(t.id);
+    this.pruneGroups();
+    this.pushState();
+  }
+
+  /** drops empty groups; keeps every group contiguous after moves */
+  pruneGroups() {
+    this.groups = this.groups.filter((g) => this.tabs.some((t) => t.groupId === g.id));
   }
 
   newTab(url = 'owl://newtab', opts: { background?: boolean; index?: number; agentId?: string; runId?: string; hidden?: boolean; artifactId?: string; openerId?: number } = {}): Tab {
@@ -392,6 +471,13 @@ export class OwlWindow {
       if (oi >= 0) index = oi + 1;
     }
     this.tabs.splice(index, 0, t);
+    // groups stay contiguous: a tab opened inside a group (or right after a grouped opener) joins it, like Chrome
+    if (!t.hidden && !opts.agentId) {
+      const prev = this.tabs[index - 1], next = this.tabs[index + 1];
+      const opener = opts.openerId != null ? this.tab(opts.openerId) : undefined;
+      if (prev?.groupId && prev.groupId === next?.groupId) t.groupId = prev.groupId;
+      else if (opener?.groupId && prev?.groupId === opener.groupId) t.groupId = opener.groupId;
+    }
     if (!internal) t.wake();
     if (!opts.background) this.activate(t.id);
     else this.layout();
@@ -403,6 +489,7 @@ export class OwlWindow {
     const t = this.tab(id);
     if (!t) return;
     t.hidden = false;
+    if (t.groupId) { const g = this.groups.find((x) => x.id === t.groupId); if (g?.collapsed) g.collapsed = false; }
     this.activeId = id;
     t.lastActive = Date.now();
     if (t.sleeping) t.wake();
@@ -420,6 +507,7 @@ export class OwlWindow {
     if (!t.internal && t.url !== 'about:blank') this.hooks.onCommand(this, '__closed', t.wc?.getURL() || t.url);
     t.destroy();
     this.tabs.splice(i, 1);
+    if (t.groupId && !this.tabs.some((x) => x.groupId === t.groupId)) this.groups = this.groups.filter((g) => g.id !== t.groupId);
     if (this.splitId === id) this.splitId = null;
     if (this.activeId === id) {
       const visible = this.tabs.filter((x) => !x.hidden);
@@ -435,7 +523,13 @@ export class OwlWindow {
     const i = this.tabs.findIndex((t) => t.id === id);
     if (i < 0) return;
     const [t] = this.tabs.splice(i, 1);
-    this.tabs.splice(Math.max(0, Math.min(toIndex, this.tabs.length)), 0, t);
+    const at = Math.max(0, Math.min(toIndex, this.tabs.length));
+    this.tabs.splice(at, 0, t);
+    // dropped between two tabs of one group → joins it; dropped outside its own group → leaves it
+    const prev = this.tabs[at - 1], next = this.tabs[at + 1];
+    if (prev?.groupId && prev.groupId === next?.groupId) t.groupId = prev.groupId;
+    else if (t.groupId && prev?.groupId !== t.groupId && next?.groupId !== t.groupId && this.tabs.some((x) => x !== t && x.groupId === t.groupId)) t.groupId = undefined;
+    this.pruneGroups();
     this.pushState();
   }
 

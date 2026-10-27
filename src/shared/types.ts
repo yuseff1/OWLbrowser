@@ -18,8 +18,13 @@ export type TabState = {
   agentRunId?: string;
   internal?: 'newtab' | 'settings' | 'companions' | 'history' | 'downloads' | 'bookmarks' | 'memory' | 'routines' | 'artifact' | 'skills' | 'apps' | 'library' | 'chats' | 'agents';
   artifactId?: string;
-  groupColor?: string;
+  /** tab group this tab belongs to (WindowState.groups) */
+  groupId?: string;
 };
+
+export type TabGroupColor = 'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange';
+/** Chrome-style tab group: grouped tabs are always contiguous in the strip */
+export type TabGroup = { id: string; title: string; color: TabGroupColor; collapsed: boolean };
 
 export type WindowState = {
   windowId: number;
@@ -28,6 +33,7 @@ export type WindowState = {
   tabs: TabState[];
   activeTabId: number | null;
   splitTabId: number | null;
+  groups: TabGroup[];
 };
 
 export type Profile = {

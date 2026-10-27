@@ -40,7 +40,7 @@ Source of truth for the overnight build loop. Tick only after verification.
 - [x] Site settings page (permissions per origin, zoom, reset/clear data)
 - [x] Reopen closed window (Ctrl+Shift+T)
 - [x] Media context menu: PiP, loop, controls, mute (any player)
-- [ ] Tab groups (named, coloured, collapsible) — next
+- [x] Tab groups (named, coloured, collapsible; restored with the session)
 - [ ] Reader mode
 - [ ] Download shelf / bubble with progress per file
 - [ ] Permission prompt as an in-page bubble (not a modal dialog), with a "prompt" state

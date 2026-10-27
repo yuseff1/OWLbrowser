@@ -237,6 +237,62 @@ async function main() {
     assert.strictEqual(nativeTheme.listenerCount('updated'), themeBefore);
   });
 
+  test('tab groups: group / add / move / collapse / ungroup / close keep groups contiguous', async () => {
+    const ids = [];
+    for (const q of ['g1', 'g2', 'g3', 'g4']) ids.push(await owl('newTab', PAGES + '/c?' + q, { background: true }));
+    const order = async () => (await state()).tabs.map((t) => t.id).filter((id) => ids.includes(id));
+    const grp = async (id) => (await tabState(id)).groupId;
+    // new group from tabs 1 and 3: 3 moves next to 1
+    const gid = await owl('groupTabs', [ids[0], ids[2]], undefined, { title: 'Research', color: 'yellow' });
+    assert.ok(typeof gid === 'string', 'group id returned');
+    let st = await state();
+    assert.deepStrictEqual(st.groups.find((g) => g.id === gid), { id: gid, title: 'Research', color: 'yellow', collapsed: false });
+    assert.deepStrictEqual(await order(), [ids[0], ids[2], ids[1], ids[3]], 'grouped tabs are contiguous');
+    // add to existing group: lands after its last tab
+    await owl('groupTabs', [ids[3]], gid);
+    assert.deepStrictEqual(await order(), [ids[0], ids[2], ids[3], ids[1]]);
+    // a second group gets the next unused colour
+    const gid2 = await owl('groupTabs', [ids[1]]);
+    st = await state();
+    assert.notStrictEqual(st.groups.find((g) => g.id === gid2).color, 'yellow', 'auto colour avoids used ones');
+    // rename / recolour / bad patch ignored
+    await owl('updateGroup', gid, { title: 'x'.repeat(200), color: 'neon' });
+    st = await state();
+    assert.strictEqual(st.groups.find((g) => g.id === gid).title.length, 60, 'title capped');
+    assert.strictEqual(st.groups.find((g) => g.id === gid).color, 'yellow', 'unknown colour rejected');
+    // collapsing the group of the active tab moves focus outside it; activating a hidden tab expands it
+    await owl('activateTab', ids[2]);
+    await owl('updateGroup', gid, { collapsed: true });
+    st = await state();
+    assert.ok(st.groups.find((g) => g.id === gid).collapsed, 'collapsed');
+    assert.ok(![ids[0], ids[2], ids[3]].includes(st.activeTabId), 'active tab left the collapsed group');
+    await owl('activateTab', ids[0]);
+    assert.strictEqual((await state()).groups.find((g) => g.id === gid).collapsed, false, 'activating expands');
+    // a tab opened from a grouped opener / inside a group joins it
+    const inner = await owl('newTab', PAGES + '/c?inner', { background: true });
+    await owl('moveTab', inner, (await state()).tabs.findIndex((t) => t.id === ids[2]));
+    assert.strictEqual(await grp(inner), gid, 'dropped between two grouped tabs joins the group');
+    await owl('moveTab', inner, (await state()).tabs.length - 1);
+    assert.strictEqual(await grp(inner), undefined, 'dragged out of the group leaves it');
+    // pinning removes a tab from its group
+    await owl('pinTab', ids[3]);
+    assert.strictEqual(await grp(ids[3]), undefined, 'pinned tab ungrouped');
+    assert.strictEqual(await owl('groupTabs', [ids[3]]), null, 'pinned tabs cannot be grouped');
+    await owl('pinTab', ids[3]);
+    // ungroup the whole group keeps strip order; empty group disappears
+    const before = (await order()).filter((id) => [ids[0], ids[2]].includes(id));
+    await owl('ungroupTabs', [ids[0], ids[2]]);
+    assert.deepStrictEqual((await order()).filter((id) => [ids[0], ids[2]].includes(id)), before, 'order kept');
+    assert.ok(!(await state()).groups.some((g) => g.id === gid), 'empty group pruned');
+    // closing a group closes its tabs
+    await owl('closeGroup', gid2);
+    assert.ok(!(await tabState(ids[1])), 'group tab closed');
+    assert.ok(!(await state()).groups.some((g) => g.id === gid2));
+    // garbage never throws
+    await owl('groupTabs', 'nope'); await owl('updateGroup', 'nope', null); await owl('ungroupTabs', [9e9]); await owl('closeGroup', 42);
+    for (const id of [ids[0], ids[2], ids[3], inner]) await owl('closeTab', id);
+  });
+
   // ---- history ----
   test('history: add (by navigation) / search / remove / clear', async () => {
     const id = await owl('newTab', PAGES + '/a');
@@ -815,6 +871,7 @@ async function main() {
     await until(() => w2.webContents.executeJavaScript('typeof window.owl === "object"'), 8000, 'w2 api');
     const t1 = await o2('newTab', PAGES + '/a?win=1'); await until(async () => (await o2('getState')).tabs.find((x) => x.id === t1 && x.url.includes('win=1') && !x.loading), 8000, 'w2 tab1');
     const t2 = await o2('newTab', PAGES + '/b?win=2'); await until(async () => (await o2('getState')).tabs.find((x) => x.id === t2 && x.url.includes('win=2') && !x.loading), 8000, 'w2 tab2');
+    await o2('groupTabs', [t1, t2], undefined, { title: 'Trip', color: 'green' });
     // a tab closed earlier in the main window, then the whole second window
     const tc = await owl('newTab', PAGES + '/c?closed-tab=1'); await loaded(tc, PAGES + '/c?closed-tab=1');
     await owl('closeTab', tc);
@@ -828,6 +885,11 @@ async function main() {
     await until(() => w3.webContents.executeJavaScript('typeof window.owl === "object"'), 8000, 'w3 api');
     const urls = await until(async () => { const u = (await o3('getState')).tabs.map((t) => t.url); return u.some((x) => x.includes('win=1')) && u.some((x) => x.includes('win=2')) ? u : null; }, 8000, 'reopened window has both tabs');
     assert.ok(urls);
+    // the window's tab group comes back with it
+    const st3 = await o3('getState');
+    const g3 = st3.groups.find((g) => g.title === 'Trip');
+    assert.ok(g3 && g3.color === 'green', 'group restored with its name and colour');
+    assert.strictEqual(st3.tabs.filter((t) => t.groupId === g3.id).length, 2, 'both tabs back in the group');
     // next Ctrl+Shift+T brings back the tab closed before the window
     await owl('command', 'reopen-tab');
     await until(async () => (await state()).tabs.some((t) => t.url.includes('closed-tab=1')), 8000, 'tab reopened');
