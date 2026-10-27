@@ -81,7 +81,7 @@ const dark: Theme = {
   scrim: 'rgba(0,0,0,0.45)',
   glass: {
     tint: 'rgba(24,22,20,0.38)',
-    tintAndroid: 'rgba(22,20,18,0.42)',
+    tintAndroid: 'rgba(22,20,18,0.6)',
     androidBlurTint: 'systemUltraThinMaterialDark',
     ink2: 'rgba(245,242,238,0.78)',
     fallback: 'rgba(28,26,24,0.96)',
@@ -113,7 +113,7 @@ const light: Theme = {
   scrim: 'rgba(20,19,23,0.18)',
   glass: {
     tint: 'rgba(252,250,246,0.4)',
-    tintAndroid: 'rgba(252,250,246,0.25)',
+    tintAndroid: 'rgba(252,250,246,0.5)',
     androidBlurTint: 'light',
     ink2: 'rgba(20,19,23,0.78)',
     fallback: 'rgba(252,251,249,0.97)',

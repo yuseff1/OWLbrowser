@@ -1,4 +1,4 @@
-import React, { createContext, memo, useCallback, useContext, useRef, type RefObject } from 'react';
+import React, { createContext, memo, useCallback, useContext, useEffect, useRef, useState, type RefObject } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type PressableProps, type StyleProp, type TextProps, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,7 +37,18 @@ export const Glass = memo(function Glass({ style, children, intensity = 90, roun
   const t = useTheme();
   const target = useContext(BlurTargetContext);
   const liveBlur = useLiveBlur();
-  const blur = live && liveBlur && (Platform.OS === 'ios' || !!target);
+  // expo-blur resolves the Android target once, on mount (findNodeHandle), and never retries while the ref object
+  // stays the same. Mounting the BlurView a frame after the target's native view exists makes that lookup land;
+  // otherwise it silently falls back to "no blur" and the page shows through unblurred.
+  const [targetReady, setTargetReady] = useState(Platform.OS === 'ios');
+  useEffect(() => {
+    if (Platform.OS === 'ios' || !target) return;
+    let raf = 0; let tries = 0;
+    const check = () => { if (target.current) setTargetReady(true); else if (tries++ < 60) raf = requestAnimationFrame(check); };
+    raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  const blur = live && liveBlur && (Platform.OS === 'ios' || (!!target && targetReady));
   const flat = StyleSheet.flatten(style) || {};
   // Corners can be overridden per side (RunSheet squares its bottom); the blur and clip layers follow them.
   const corners = {
@@ -56,7 +67,7 @@ export const Glass = memo(function Glass({ style, children, intensity = 90, roun
             tint={Platform.OS === 'ios' ? t.glass.blurTint : t.glass.androidBlurTint}
             intensity={intensity}
             blurMethod="dimezisBlurViewSdk31Plus"
-            blurReductionFactor={3}
+            blurReductionFactor={4}
             blurTarget={Platform.OS === 'android' ? target ?? undefined : undefined}
             style={[StyleSheet.absoluteFill, corners]}
           />

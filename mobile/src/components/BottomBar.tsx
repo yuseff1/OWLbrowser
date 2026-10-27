@@ -51,8 +51,10 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
   const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const c = companionById(companionId);
   const url = tab?.url || '';
+  const squeeze = useSqueeze({ origin: position === 'top' ? 'top' : 'bottom' });
 
   const startEdit = () => {
+    squeeze.handlers.onTouchEnd(); // release any press so the dock is square before it turns into the text field
     setText(url);
     setEditing(true);
     setTimeout(() => inputRef.current?.focus(), 30);
@@ -102,7 +104,6 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
   }, [position, slide]);
   const away = top ? -(DOCK_H + insets.top + DOCK_GAP + 24) : DOCK_H + bottomPad + 24;
   const translateY = top ? Animated.multiply(slide, away) : Animated.add(Animated.multiply(liftAnim, -1), Animated.multiply(slide, away));
-  const squeeze = useSqueeze({ origin: top ? 'top' : 'bottom' });
 
   return (
     <>
@@ -124,9 +125,11 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
         style={[styles.wrap, top ? { top: insets.top + DOCK_GAP } : { bottom: 0, paddingBottom: bottomPad }, { opacity: slide.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY }] }]}
         pointerEvents="box-none"
       >
-        <Animated.View style={squeeze.style} {...squeeze.handlers}>
-          <Glass style={styles.glass} rounded={DOCK_RADIUS}>
-            <View style={[styles.address, { backgroundColor: t.glass.well }]}>
+        {/* While typing: no squeeze (a stuck press would skew the capsule inside the dock) and a dense dock, so the
+            page behind never ghosts through the text field; the dock is then one clean capsule with no inner well. */}
+        <Animated.View style={editing ? undefined : squeeze.style} {...(editing ? {} : squeeze.handlers)}>
+          <Glass style={styles.glass} rounded={DOCK_RADIUS} live={!editing} intensity={100}>
+            <View style={[styles.address, { backgroundColor: editing ? 'transparent' : t.glass.well }]}>
               {editing ? (
                 <>
                   <View style={styles.lead}><Search size={icon.sm} color={t.glass.ink2} /></View>
