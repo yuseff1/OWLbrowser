@@ -15,6 +15,14 @@ const api = {
     return () => ipcRenderer.removeListener('owl:event', h);
   },
 
+  // ---- popup layer (menus / omnibox dropdown drawn above native page views; see lib/ui/popup.ts)
+  // UI → main: show/replace the popup ({ id, kind, rect?, focus?, ... }) or hide it. Answers arrive as event 'popup-event' { id, type, index? }.
+  popupShow: (spec: unknown) => ipcRenderer.send('owl-popup:show', spec),
+  popupHide: (id?: number) => ipcRenderer.send('owl-popup:hide', id),
+  // used only by the popup renderer itself (?popup=1): it receives event 'popup' (spec | null)
+  popupReady: () => ipcRenderer.send('owl-popup:ready'),
+  popupEmit: (evt: unknown) => ipcRenderer.send('owl-popup:event', evt),
+
   // ---- window / tabs
   getState: call('getState'),
   setBounds: call('setBounds'), // (bounds, splitBounds|null)
@@ -83,6 +91,11 @@ const api = {
 
   // ---- onboarding
   onboarding: call('onboarding'), completeOnboarding: call('completeOnboarding'), // ({ userName?, companionId?, companionName?, look?, defaultModel?: { providerId, model } })
+
+  // ---- auto-update (electron-updater; status changes also arrive as event 'update' → UpdateStatus)
+  getUpdateStatus: call('getUpdateStatus'), // → UpdateStatus
+  checkForUpdates: call('checkForUpdates'), // → UpdateStatus after the check (errors in .error, never throws)
+  installUpdate: call('installUpdate'), // → boolean (true: OWL restarts into the downloaded update)
 };
 
 contextBridge.exposeInMainWorld('owl', api);

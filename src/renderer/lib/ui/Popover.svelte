@@ -19,10 +19,18 @@
   let { open = $bindable(false), side = 'bottom', align = 'end', sideOffset = 8, overlay = true, width = 320, class: cls = '', trigger, children, onOpenChange }: Props = $props();
 
   let pushed = false;
+  let contentEl = $state<HTMLElement | null>(null);
   $effect(() => {
     if (!overlay) return;
-    if (open && !pushed) { pushed = true; store.pushOverlay(); }
-    else if (!open && pushed) { pushed = false; store.popOverlay(); }
+    if (open && !pushed && contentEl) {
+      // wait for positioning, then freeze the page only if the popover actually overlaps it
+      const el = contentEl;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (!open || pushed) return;
+        pushed = true;
+        store.pushOverlay(el.getBoundingClientRect());
+      }));
+    } else if (!open && pushed) { pushed = false; store.popOverlay(); }
   });
   $effect(() => () => { if (pushed) { pushed = false; store.popOverlay(); } });
   const close = () => (open = false);
@@ -33,7 +41,7 @@
     {#snippet child({ props })}{@render trigger(props)}{/snippet}
   </Popover.Trigger>
   <Popover.Portal>
-    <Popover.Content {side} {align} {sideOffset} collisionPadding={10} onOpenAutoFocus={(e) => e.preventDefault()}
+    <Popover.Content bind:ref={contentEl} {side} {align} {sideOffset} collisionPadding={10} onOpenAutoFocus={(e) => e.preventDefault()}
       class="owl-pop glass-strong z-[60] animate-in {cls}" style="width:{typeof width === 'number' ? width + 'px' : width}">
       {@render children({ close })}
     </Popover.Content>

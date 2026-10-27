@@ -61,14 +61,14 @@
   </div>
 
   {#if run.status === 'waiting-approval' && run.pendingApproval}
-    <div class="mx-4 mb-3 ml-[60px] flex items-center gap-3 rounded-xl bg-[color-mix(in_srgb,#f5a524_10%,transparent)] px-3 py-2.5">
+    <div class="mx-4 mb-3 ml-[60px] flex items-center gap-3 rounded-xl bg-[color-mix(in_srgb,#e8742a_10%,transparent)] px-3 py-2.5">
       <ShieldQuestion size={16} class="shrink-0 text-[#b7740b]" />
       <div class="min-w-0 flex-1 text-[13px]"><span class="font-medium">{run.pendingApproval.action}</span> <span class="text-ink-2">{run.pendingApproval.detail}</span></div>
       <Button size="sm" variant="ghost" icon={X} disabled={busy} onclick={() => approve(false)}>Deny</Button>
       <Button size="sm" variant="primary" icon={Check} disabled={busy} onclick={() => approve(true)}>Allow</Button>
     </div>
   {:else if run.status === 'waiting-user' && run.pendingQuestion}
-    <form class="mx-4 mb-3 ml-[60px] rounded-xl bg-[color-mix(in_srgb,#f5a524_10%,transparent)] p-3" onsubmit={(e) => { e.preventDefault(); sendAnswer(); }}>
+    <form class="mx-4 mb-3 ml-[60px] rounded-xl bg-[color-mix(in_srgb,#e8742a_10%,transparent)] p-3" onsubmit={(e) => { e.preventDefault(); sendAnswer(); }}>
       <p class="mb-2 text-[13px]">{run.pendingQuestion.question}</p>
       <div class="flex gap-2"><Input bind:value={answer} size="sm" placeholder="Your answer" class="flex-1" aria-label="Answer" /><Button size="sm" variant="primary" type="submit" disabled={busy || !answer.trim()}>Reply</Button></div>
     </form>

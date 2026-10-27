@@ -31,6 +31,7 @@
     const root = document.documentElement;
     root.classList.toggle('dark', dark);
     root.style.setProperty('--accent', prefs.accent(dark));
+    root.style.setProperty('--accent-ink', prefs.accentInk());
   });
   onMount(() => {
     const mq = matchMedia('(prefers-color-scheme: dark)');
@@ -109,6 +110,7 @@
       else if (store.fullscreen) b = { x: 0, y: 0, width: innerWidth, height: innerHeight };
       else if (mainEl) { b = rectOf(mainEl); if (splitEl) s = rectOf(splitEl); }
       if (!b) return;
+      store.pageRects = [b, s].filter((r) => r && r.width > 0 && r.height > 0);
       const key = JSON.stringify([b, s]);
       if (key === last) return;
       last = key;
@@ -151,7 +153,7 @@
     if (!isMock || !ctrl) return;
     const k = e.key.toLowerCase();
     const map: Record<string, () => void> = {
-      k: () => store.onCommand('palette'), j: () => store.onCommand('toggle-companion'), l: () => store.onCommand('focus-omnibox'),
+      k: () => store.onCommand('palette'), j: () => store.onCommand(e.shiftKey ? 'toggle-companion' : 'downloads'), l: () => store.onCommand('focus-omnibox'),
       '\\': () => store.onCommand('toggle-sidebar'), f: () => store.onCommand('find'), t: () => owl.newTab(),
       w: () => active && owl.closeTab(active.id),
     };

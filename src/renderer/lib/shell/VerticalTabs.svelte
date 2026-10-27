@@ -4,7 +4,8 @@
   import { ContextMenu, Badge } from '../ui';
   import { Plus, X, Volume2, VolumeX } from '@lucide/svelte';
   import TabIcon from './TabIcon.svelte';
-  import { tabMenu, drag, runFor } from './tabActions';
+  import { tabMenu, drag, runFor, dropTab } from './tabActions';
+  import { hostOf } from '../api';
   import { statusLabel, runWaiting } from './prefs.svelte';
   import type { TabState } from '$shared/types';
 
@@ -16,11 +17,7 @@
   function onDrop(e: DragEvent) {
     e.preventDefault();
     if (drag.id < 0 || !over) return;
-    const tabs = store.win.tabs;
-    const from = tabs.findIndex((x) => x.id === drag.id);
-    let to = tabs.findIndex((x) => x.id === over!.id) + (over.after ? 1 : 0);
-    if (from < to) to--;
-    if (from !== to) owl.moveTab(drag.id, to);
+    dropTab(over.id, over.after);
     drag.id = -1; over = null;
   }
   function onOver(e: DragEvent, t: TabState) {
@@ -36,11 +33,11 @@
   {@const run = runFor(t)}
   <ContextMenu items={() => tabMenu(t)}>
     {#snippet children(cp)}
-      <div {...cp} role="tab" tabindex={active ? 0 : -1} aria-selected={active} title={t.title}
+      <div {...cp} role="tab" tabindex={active ? 0 : -1} aria-selected={active} title={t.internal ? t.title : `${t.title}\n${hostOf(t.url)}`}
         class="vt" class:active class:sleeping={t.sleeping} class:split={t.id === store.win.splitTabId}
         class:drop-before={over?.id === t.id && !over.after} class:drop-after={over?.id === t.id && over.after}
         draggable="true" ondragstart={() => (drag.id = t.id)} ondragover={(e) => onOver(e, t)} ondrop={onDrop} ondragend={() => { drag.id = -1; over = null; }}
-        onmousedown={(e) => { if (e.button === 0) owl.activateTab(t.id); }}
+        onmousedown={(e) => { if (e.button === 0) owl.activateTab(t.id); else if (e.button === 1) e.preventDefault(); }}
         onauxclick={(e) => { if (e.button === 1) owl.closeTab(t.id); }}
         onkeydown={(e) => { if (e.key === 'Enter') owl.activateTab(t.id); }}>
         <TabIcon tab={t} size={15} />

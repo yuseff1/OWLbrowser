@@ -1,4 +1,4 @@
-import { owl, INCOGNITO } from './api';
+import { owl, INCOGNITO, IS_POPUP } from './api';
 
 /**
  * Companion panel chat threads. Main persists them per profile (owl.chats / saveChat / removeChat);
@@ -47,7 +47,7 @@ class Threads {
 
   /** load threads from main; push any local-only threads (one-time migration from localStorage) */
   private async hydrate() {
-    if (INCOGNITO) return;
+    if (INCOGNITO || IS_POPUP) return; // the popup layer document never owns chat data
     try {
       const remote = (await owl.chats()) as Thread[] | null;
       if (!Array.isArray(remote)) return;

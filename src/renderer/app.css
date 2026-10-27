@@ -25,7 +25,7 @@
   --color-accent-ink: var(--accent-ink);
   --color-danger: #e5484d;
   --color-ok: #30a46c;
-  --color-warn: #f5a524;
+  --color-warn: #e8742a;
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -39,32 +39,32 @@
 
 :root {
   color-scheme: light;
-  --ground: #f3f2f6;
+  --ground: #f4f3f2;
   --surface: #ffffff;
-  --surface-2: #f7f6fa;
-  --ink: #1d1b22;
-  --ink-2: #5d5966;
-  --ink-3: #9a96a3;
-  --line: rgba(20, 16, 30, 0.08);
-  --accent: #6d5efc; /* profile colour, overridden at runtime */
-  --accent-ink: #ffffff;
+  --surface-2: #f8f7f6;
+  --ink: #141317;
+  --ink-2: #5b5960;
+  --ink-3: #78757e;
+  --line: rgba(20, 19, 23, 0.085);
+  --accent: #e8a317; /* Tangent Owl amber; profile colour, overridden at runtime */
+  --accent-ink: #141317;
 
   /* liquid glass */
   --glass-bg: rgba(255, 255, 255, 0.58);
   --glass-bg-strong: rgba(255, 255, 255, 0.8);
   --glass-border: rgba(255, 255, 255, 0.7);
   --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04);
-  --glass-shadow: 0 10px 30px -10px rgba(24, 18, 46, 0.25), 0 2px 6px rgba(24, 18, 46, 0.06);
+  --glass-shadow: 0 10px 30px -10px rgba(20, 19, 23, 0.24), 0 2px 6px rgba(20, 19, 23, 0.06);
   --glass-blur: saturate(180%) blur(22px);
 
   /* soft neumorphic (used sparingly) */
-  --neu-bg: #eeedf3;
-  --neu-out: 6px 6px 14px rgba(163, 158, 180, 0.45), -6px -6px 14px rgba(255, 255, 255, 0.95);
-  --neu-in: inset 3px 3px 7px rgba(163, 158, 180, 0.45), inset -3px -3px 7px rgba(255, 255, 255, 0.9);
+  --neu-bg: #efeeec;
+  --neu-out: 6px 6px 14px rgba(160, 156, 150, 0.42), -6px -6px 14px rgba(255, 255, 255, 0.95);
+  --neu-in: inset 3px 3px 7px rgba(160, 156, 150, 0.42), inset -3px -3px 7px rgba(255, 255, 255, 0.9);
 
-  --chrome: rgba(243, 242, 246, 0.72);
+  --chrome: rgba(244, 243, 242, 0.72);
   --tab-active: rgba(255, 255, 255, 0.92);
-  --halftone: rgba(110, 100, 150, 0.07);
+  --halftone: rgba(20, 19, 23, 0.06);
 }
 
 .dark {
@@ -74,9 +74,8 @@
   --surface-2: #232126;
   --ink: #eeecf2;
   --ink-2: #a9a4b2;
-  --ink-3: #6d6875;
+  --ink-3: #858090;
   --line: rgba(255, 255, 255, 0.07);
-  --accent-ink: #ffffff;
 
   --glass-bg: rgba(38, 35, 42, 0.55);
   --glass-bg-strong: rgba(34, 32, 38, 0.84);
@@ -149,7 +148,8 @@ input, textarea, [contenteditable] { user-select: text; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 16%, transparent); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
 
 /* focus */
-:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 72%, var(--ink)); outline-offset: 2px; border-radius: 6px; }
+.dark :focus-visible { outline-color: var(--accent); }
 
 @keyframes owl-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
 @keyframes owl-blink { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(0.1) } }

@@ -4,10 +4,12 @@
   import { CompanionAvatar, Badge } from '../ui';
   import { Lock, Info, Star, Search, Clock, AppWindow, Globe, CornerDownLeft, Sparkles } from '@lucide/svelte';
   import { art } from '../api';
+  import { hasPopupLayer, showPopup, iconMarkup, type PopupHandle, type PopupSuggestItem } from '../ui/popup';
 
   type Sugg = { type: 'history' | 'bookmark' | 'search' | 'url' | 'tab' | 'command' | 'ask'; title: string; url: string; favicon?: string };
 
   let input = $state<HTMLInputElement | null>(null);
+  let wrap = $state<HTMLDivElement | null>(null);
   let focused = $state(false);
   let dirty = $state(false);
   let text = $state('');
@@ -50,8 +52,42 @@
   });
 
   const open = $derived(focused && dirty && sugg.length > 0);
+  const engine = $derived(({ google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing', brave: 'Brave', perplexity: 'Perplexity', kagi: 'Kagi' } as Record<string, string>)[store.settings?.searchEngine ?? 'google'] ?? 'Google');
+  /** 'tab' suggestions carry the tab id in `url` */
+  const tabOf = (s: Sugg) => (s.type === 'tab' ? store.win.tabs.find((x) => String(x.id) === s.url) ?? null : null);
+  const urlOf = (s: Sugg) => tabOf(s)?.url ?? s.url;
+  const metaOf = (s: Sugg) => (s.type === 'tab' ? 'Switch to tab' : s.type === 'search' ? `${engine} Search` : s.url && s.type !== 'url' ? hostOf(s.url) : '');
+
+  // ---- Electron: draw the dropdown in the popup layer so it shows over the live page
+  const ROW = 36, PAD = 6, INSET = 20, TOP = 4;
+  let handle: PopupHandle | null = null;
+  function popupItems(): PopupSuggestItem[] {
+    return sugg.map((s) => {
+      if (s.type === 'ask') return { title: s.title, prefix: `Ask ${comp?.name ?? 'Hoot'}: `, avatar: art.face(comp?.id ?? 'hoot'), trail: iconMarkup(Sparkles, 13, 1.8) };
+      const u = urlOf(s);
+      const fav = (s.type === 'history' || s.type === 'bookmark' || s.type === 'tab') && u ? faviconFor(u, s.favicon ?? tabOf(s)?.favicon) : '';
+      return { title: s.title, meta: metaOf(s) || undefined, favicon: fav || undefined, icon: fav ? undefined : iconMarkup(iconFor[s.type] ?? Globe) };
+    });
+  }
+  $effect(() => {
+    if (!hasPopupLayer) return;
+    if (!open || !wrap) { handle?.close(); handle = null; return; }
+    const r = wrap.getBoundingClientRect();
+    const boxTop = r.top + 40, boxH = PAD * 2 + sugg.length * ROW;
+    const spec = { kind: 'suggest' as const, inset: INSET, insetTop: TOP, sel, items: popupItems(), label: 'Suggestions',
+      rect: { x: r.left - INSET, y: boxTop - TOP, width: r.width + INSET * 2, height: boxH + TOP + INSET } };
+    if (handle?.open) handle.update(spec);
+    else handle = showPopup(spec, (e) => {
+      if (e.type === 'hover' && typeof e.index === 'number' && e.index >= 0) sel = e.index;
+      else if (e.type === 'select' && typeof e.index === 'number' && sugg[e.index]) { handle = null; go(sugg[e.index]); }
+      else if (e.type === 'dismiss') handle = null;
+    });
+  });
+  $effect(() => () => { handle?.close(); handle = null; });
+
   let pushed = false;
   $effect(() => {
+    if (hasPopupLayer) return;
     if (open && !pushed) { pushed = true; store.pushOverlay(); }
     else if (!open && pushed) { pushed = false; store.popOverlay(); }
   });
@@ -61,8 +97,8 @@
     if (!s && !q) return;
     if (s?.type === 'ask') { store.panelOpen = true; store.panelPrefill = q; }
     else if (s?.type === 'tab') {
-      const t = store.win.tabs.find((x) => x.url === s.url);
-      if (t) owl.activateTab(t.id); else nav(s.url);
+      const t = tabOf(s);
+      if (t) owl.activateTab(t.id); else nav(s.title);
     } else nav(s ? s.url || s.title : q);
     dirty = false; sugg = [];
     input?.blur();
@@ -73,7 +109,14 @@
   function onKey(e: KeyboardEvent) {
     if (e.key === 'ArrowDown' && open) { e.preventDefault(); sel = (sel + 1) % sugg.length; }
     else if (e.key === 'ArrowUp' && open) { e.preventDefault(); sel = (sel - 1 + sugg.length) % sugg.length; }
-    else if (e.key === 'Enter') { e.preventDefault(); go(open ? sugg[sel] : undefined); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = text.trim();
+      // Ctrl+Enter: "owl" → https://www.owl.com (Chrome) ; Alt+Enter: open in a new tab
+      if ((e.ctrlKey || e.metaKey) && q && /^[\w-]+$/.test(q)) { nav(`https://www.${q}.com`); dirty = false; sugg = []; input?.blur(); return; }
+      if (e.altKey && q) { const s = open ? sugg[sel] : undefined; owl.newTab(s && s.type !== 'ask' && s.type !== 'tab' ? s.url || s.title : q); dirty = false; sugg = []; input?.blur(); return; }
+      go(open ? sugg[sel] : undefined);
+    }
     else if (e.key === 'Escape') {
       if (open) { sugg = []; dirty = false; text = shown; input?.select(); } else input?.blur();
     }
@@ -86,7 +129,7 @@
   const iconFor = { history: Clock, bookmark: Star, search: Search, url: Globe, tab: AppWindow, command: CornerDownLeft } as Record<string, any>;
 </script>
 
-<div class="omni-wrap no-drag">
+<div class="omni-wrap no-drag" bind:this={wrap}>
   <div class="omni" class:focused class:agent={!!run}>
     <span class="lead" title={tab?.internal ? 'OWL page' : secure ? 'Connection is secure' : 'Site information'}>
       {#if tab?.internal}
@@ -100,12 +143,13 @@
       {/if}
     </span>
     <input bind:this={input} bind:value={text} spellcheck="false" autocomplete="off" aria-label="Search or enter address"
-      role="combobox" aria-expanded={open} aria-controls="omni-list" aria-autocomplete="list"
+      role="combobox" aria-expanded={open} aria-controls={hasPopupLayer ? undefined : 'omni-list'} aria-autocomplete="list"
       placeholder="Search or enter URL…"
       onfocus={() => { focused = true; text = shown; queueMicrotask(() => input?.select()); }}
       onblur={() => setTimeout(() => { focused = false; dirty = false; }, 120)}
       oninput={() => (dirty = true)} onkeydown={onKey}
       class:pretty={!focused} />
+    {#if hasPopupLayer}<span class="sr-only" aria-live="polite">{open && sugg[sel] ? (sugg[sel].type === 'ask' ? `Ask ${comp?.name ?? 'Hoot'}: ` : '') + sugg[sel].title + (metaOf(sugg[sel]) ? `, ${metaOf(sugg[sel])}` : '') : ''}</span>{/if}
     {#if run && !focused}
       <span class="agent-chip" title="{comp?.name ?? ''} is working in this tab">
         <CompanionAvatar companion={run.companionId} size={18} />
@@ -124,7 +168,7 @@
     {/if}
   </div>
 
-  {#if open}
+  {#if open && !hasPopupLayer}
     <div id="omni-list" class="sugg glass-strong animate-in" role="listbox" aria-label="Suggestions">
       {#each sugg as s, i (s.type + s.url + s.title + i)}
         <button role="option" aria-selected={i === sel} class="row" class:sel={i === sel}
@@ -135,14 +179,13 @@
             <Sparkles size={13} strokeWidth={1.8} class="text-ink-3" />
           {:else}
             {@const Ico = iconFor[s.type] ?? Globe}
-            {#if (s.type === 'history' || s.type === 'bookmark' || s.type === 'tab') && s.url}
-              <img src={faviconFor(s.url, s.favicon)} alt="" width="16" height="16" class="rounded-[4px]" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = 'hidden')} />
+            {#if (s.type === 'history' || s.type === 'bookmark' || s.type === 'tab') && urlOf(s)}
+              <img src={faviconFor(urlOf(s), s.favicon)} alt="" width="16" height="16" class="rounded-[4px]" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = 'hidden')} />
             {:else}
               <span class="ic"><Ico size={15} strokeWidth={1.8} /></span>
             {/if}
             <span class="t">{s.title}</span>
-            {#if s.type === 'tab'}<span class="meta">Switch to tab</span>
-            {:else if s.url && s.type !== 'search'}<span class="meta">{hostOf(s.url)}</span>{/if}
+            {#if metaOf(s)}<span class="meta">{metaOf(s)}</span>{/if}
           {/if}
         </button>
       {/each}

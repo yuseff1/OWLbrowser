@@ -84,7 +84,7 @@
   .faces { display: inline-flex; }
   .faces :global(.face) { box-shadow: 0 0 0 2px var(--ground); border-radius: 99px; }
   .faces :global(.face + .face) { margin-left: -7px; }
-  .dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 99px; background: #f5a524; box-shadow: 0 0 0 2px var(--ground); }
+  .dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 99px; background: #e8742a; box-shadow: 0 0 0 2px var(--ground); }
   .run { display: flex; gap: 10px; padding: 10px; border-radius: 12px; }
   .run:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
   .task { margin-top: 2px; font-size: 12.5px; color: var(--ink-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

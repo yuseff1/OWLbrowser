@@ -116,7 +116,7 @@
         {/each}
       </div>
     {:else}
-      <div class="rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--ink)_16%,transparent)] px-4 py-5 text-center text-[13px] text-ink-2">No bots running. Give one a task above, or press Ctrl+J on any page.</div>
+      <div class="rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--ink)_16%,transparent)] px-4 py-5 text-center text-[13px] text-ink-2">No bots running. Give one a task above, or press Ctrl+Shift+J on any page.</div>
     {/if}
   </section>
 

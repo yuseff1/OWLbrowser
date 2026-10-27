@@ -9,7 +9,9 @@
   let input = $state<HTMLInputElement | null>(null);
   const tab = $derived(store.activeTab);
 
-  $effect(() => { if (store.findOpen) queueMicrotask(() => { input?.focus(); input?.select(); }); });
+  $effect(() => { store.findFocus; if (store.findOpen) queueMicrotask(() => { input?.focus(); input?.select(); }); });
+  let stepSeen = store.findStep.n;
+  $effect(() => { const s = store.findStep; if (s.n !== stepSeen) { stepSeen = s.n; step(s.forward); } });
   $effect(() => owl.on((type, p) => { if (type === 'find-result' && p?.tabId === tab?.id) res = { active: p.active, total: p.total }; }));
 
   let last = '';

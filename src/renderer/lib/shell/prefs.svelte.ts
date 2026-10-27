@@ -1,9 +1,18 @@
 /** UI-only preferences kept in localStorage (profile colour). */
+/** Tangent Owl amber (#E8A317) is the default profile colour. */
+export const BRAND_HUE = 75;
 class Prefs {
-  hue = $state<number>(Number(localStorage.getItem('owl.hue') ?? 248));
+  hue = $state<number>(Number(localStorage.getItem('owl.hue') ?? BRAND_HUE));
   setHue(h: number) { this.hue = Math.round(h); localStorage.setItem('owl.hue', String(this.hue)); }
+  /** warm hues (amber → lime) are light: they take dark ink and a higher lightness */
+  private get warm() { return this.hue >= 40 && this.hue <= 125; }
   /** accent for the current theme; tuned to stay readable on both grounds */
-  accent(dark: boolean) { return `oklch(${dark ? 0.7 : 0.6} 0.17 ${this.hue})`; }
+  accent(dark: boolean) {
+    if (this.hue === BRAND_HUE) return dark ? '#F0B13A' : '#E8A317';
+    return this.warm ? `oklch(${dark ? 0.8 : 0.76} 0.16 ${this.hue})` : `oklch(${dark ? 0.7 : 0.6} 0.17 ${this.hue})`;
+  }
+  /** text/icon colour on top of the accent */
+  accentInk() { return this.warm ? '#141317' : '#ffffff'; }
 }
 export const prefs = new Prefs();
 

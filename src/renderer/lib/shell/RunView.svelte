@@ -154,7 +154,7 @@
   .more { margin-left: 28px; font-size: 12px; color: var(--ink-3); background: transparent; border: 0; padding: 2px 0; }
   .more:hover { color: var(--ink); }
   .card { padding: 12px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 4px 14px -6px rgba(0,0,0,.12); }
-  .card.warn { box-shadow: 0 0 0 1px color-mix(in srgb, #f5a524 45%, transparent), 0 4px 14px -6px rgba(0,0,0,.12); }
+  .card.warn { box-shadow: 0 0 0 1px color-mix(in srgb, #e8742a 45%, transparent), 0 4px 14px -6px rgba(0,0,0,.12); }
   .ct { display: flex; align-items: flex-start; gap: 7px; font-size: 13px; font-weight: 500; color: var(--ink); }
   .ct :global(svg) { margin-top: 2px; flex: none; color: #c27c0e; }
   .cd { margin-top: 6px; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }

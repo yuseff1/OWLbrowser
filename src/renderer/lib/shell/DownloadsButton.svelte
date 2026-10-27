@@ -1,5 +1,6 @@
 <script lang="ts">
   import { owl } from '../api';
+  import { store } from '../stores.svelte';
   import { Popover, IconButton, Button, Empty } from '../ui';
   import { Download, FolderOpen, X, FileDown } from '@lucide/svelte';
   import type { DownloadItem } from '$shared/types';
@@ -10,7 +11,8 @@
   $effect(() => owl.on((type, d: DownloadItem) => {
     if (type !== 'download') return;
     const i = items.findIndex((x) => x.id === d.id);
-    if (i >= 0) items[i] = d; else { items.unshift(d); }
+    if (i >= 0) items[i] = d;
+    else { items.unshift(d); if (d.state === 'progressing') store.toast('Downloading', d.filename); }
   }));
   const active = $derived(items.filter((d) => d.state === 'progressing'));
   const pct = $derived(active.length ? Math.round((active.reduce((a, d) => a + d.received, 0) / Math.max(1, active.reduce((a, d) => a + d.total, 0))) * 100) : 0);
@@ -21,7 +23,7 @@
   <Popover bind:open width={340} align="end">
     {#snippet trigger(p)}
       <span class="relative inline-flex no-drag">
-        <IconButton icon={Download} label="Downloads" kbd="Ctrl+Shift+J" {...p} />
+        <IconButton icon={Download} label="Downloads" kbd="Ctrl+J" {...p} />
         {#if active.length}
           <svg class="dlring" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="16" pathLength="100" stroke-dasharray="{pct} 100" /></svg>
         {/if}

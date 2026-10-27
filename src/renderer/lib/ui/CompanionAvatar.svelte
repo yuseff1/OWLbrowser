@@ -44,6 +44,6 @@
   .cring { position: absolute; inset: -2px; border-radius: 999px; box-shadow: 0 0 0 1.5px var(--cc); pointer-events: none; }
   .st { position: absolute; right: -1px; bottom: -1px; width: 32%; height: 32%; max-width: 10px; max-height: 10px; min-width: 6px; min-height: 6px; border-radius: 99px; box-shadow: 0 0 0 2px var(--ground); }
   .st.running { background: var(--cc); }
-  .st.waiting { background: #f5a524; }
+  .st.waiting { background: #e8742a; }
   .st.idle { background: var(--ink-3); }
 </style>

@@ -17,9 +17,11 @@
     font-variant-numeric: tabular-nums;
   }
   .d { width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
-  .accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: color-mix(in srgb, var(--accent) 80%, var(--ink)); }
+  .accent { background: color-mix(in srgb, var(--accent) 16%, transparent); color: color-mix(in srgb, var(--accent) 42%, var(--ink)); }
+  :global(.dark) .accent { color: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
   .ok { background: color-mix(in srgb, #30a46c 14%, transparent); color: color-mix(in srgb, #30a46c 70%, var(--ink)); }
-  .warn { background: color-mix(in srgb, #f5a524 16%, transparent); color: color-mix(in srgb, #c27c0e 80%, var(--ink)); }
+  .warn { background: color-mix(in srgb, #e5622a 13%, transparent); color: color-mix(in srgb, #c9501a 85%, var(--ink)); }
+  :global(.dark) .warn { color: color-mix(in srgb, #f07a45 90%, var(--ink)); }
   .danger { background: color-mix(in srgb, #e5484d 13%, transparent); color: color-mix(in srgb, #e5484d 80%, var(--ink)); }
   .outline { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 </style>

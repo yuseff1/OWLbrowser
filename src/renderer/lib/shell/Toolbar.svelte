@@ -2,7 +2,7 @@
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { IconButton, Menu, Popover, CompanionAvatar, Tooltip, type MenuItem } from '../ui';
-  import { ArrowLeft, ArrowRight, RotateCw, X, PanelLeft, Ellipsis, Plus, AppWindow, EyeOff, Clock, Download, Bookmark, Search, Printer, Columns2, Settings, ZoomIn, ZoomOut, Code } from '@lucide/svelte';
+  import { ArrowLeft, ArrowRight, RotateCw, X, PanelLeft, Ellipsis, Plus, AppWindow, EyeOff, Clock, Download, Bookmark, Search, Printer, Columns2, Settings, ZoomIn, ZoomOut, Code, Maximize } from '@lucide/svelte';
   import Omnibox from './Omnibox.svelte';
   import AgentsIndicator from './AgentsIndicator.svelte';
   import DownloadsButton from './DownloadsButton.svelte';
@@ -21,13 +21,14 @@
     { label: 'New incognito window', icon: EyeOff, kbd: 'Ctrl+Shift+N', onSelect: () => owl.newWindow({ incognito: true }) },
     { separator: true },
     { label: 'History', icon: Clock, kbd: 'Ctrl+H', onSelect: () => owl.newTab('owl://history') },
-    { label: 'Downloads', icon: Download, onSelect: () => owl.newTab('owl://downloads') },
+    { label: 'Downloads', icon: Download, kbd: 'Ctrl+J', onSelect: () => owl.newTab('owl://downloads') },
     { label: 'Bookmarks', icon: Bookmark, kbd: 'Ctrl+Shift+O', onSelect: () => owl.newTab('owl://bookmarks') },
     { separator: true },
     { label: 'Find in page', icon: Search, kbd: 'Ctrl+F', disabled: !tab || !!tab.internal, onSelect: () => (store.findOpen = true) },
     { label: 'Zoom in', icon: ZoomIn, kbd: 'Ctrl+=', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.zoom(tab.id, 0.1) },
     { label: 'Zoom out', icon: ZoomOut, kbd: 'Ctrl+-', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.zoom(tab.id, -0.1) },
     { label: store.win.splitTabId ? 'Exit split view' : 'Split view', icon: Columns2, kbd: 'Ctrl+Shift+S', disabled: store.win.tabs.length < 2 && !store.win.splitTabId, onSelect: splitToggle },
+    { label: 'Full screen', icon: Maximize, kbd: 'F11', onSelect: () => owl.windowControl('fullscreen') },
     { label: 'Print…', icon: Printer, kbd: 'Ctrl+P', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.print(tab.id) },
     { label: 'Developer tools', icon: Code, kbd: 'F12', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.devtools(tab.id) },
     { separator: true },
@@ -59,7 +60,7 @@
   <div class="right no-drag">
     <AgentsIndicator />
     <DownloadsButton />
-    <Tooltip text={store.panelOpen ? `Hide ${comp?.name ?? 'companion'}` : `Ask ${comp?.name ?? 'companion'}`} kbd="Ctrl+J">
+    <Tooltip text={store.panelOpen ? `Hide ${comp?.name ?? 'companion'}` : `Ask ${comp?.name ?? 'companion'}`} kbd="Ctrl+Shift+J">
       {#snippet children(p)}
         <button {...p} class="comp" class:on={store.panelOpen} aria-pressed={store.panelOpen} aria-label="Toggle companion panel"
           onclick={() => (store.panelOpen = !store.panelOpen)}>
@@ -68,7 +69,7 @@
         </button>
       {/snippet}
     </Tooltip>
-    <Menu items={more} overlay width={240}>
+    <Menu items={more} bind:open={store.appMenuOpen} overlay width={240}>
       {#snippet trigger(p)}<IconButton icon={Ellipsis} label="More" {...p} />{/snippet}
     </Menu>
     {#if !store.sidebarOpen}

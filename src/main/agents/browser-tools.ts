@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron';
 import type { LlmTool } from './llm';
-import { SNAPSHOT_SCRIPT, LOCATE_SCRIPT, SELECT_OPTION_SCRIPT, CLEAR_SCRIPT, READ_SCRIPT, CURSOR_SCRIPT } from './page-scripts';
+import { SNAPSHOT_SCRIPT, LOCATE_SCRIPT, FOCUS_SCRIPT, SELECT_OPTION_SCRIPT, CLEAR_SCRIPT, READ_SCRIPT, CURSOR_SCRIPT } from './page-scripts';
 import { isWebUrl, resolvesToPrivate } from '../net-guard';
 
 /** What the agent runtime needs from the browser to drive tabs. Implemented by the window/tab manager. */
@@ -22,11 +22,21 @@ export type ToolCtx = {
   setTab(id: number): void;
   background: boolean;
   signal: AbortSignal;
-  /** asks the user before consequential actions; resolves false when denied */
-  guard?: (action: string, detail: string) => Promise<boolean>;
+  /**
+   * Asks the user before consequential actions; resolves false when denied.
+   * `always: true` marks actions that need a human even in autonomous mode (secrets, payments, LAN).
+   */
+  guard?: (action: string, detail: string, opts?: GuardOpts) => Promise<boolean>;
 };
 
+export type GuardOpts = { always?: boolean };
+
+/** What a browser tool hands back to the runner. `sensitive` = the typed text must not be shown or stored. */
+export type ToolResult = { text: string; image?: string; sensitive?: boolean };
+
 const RISKY = /\b(buy|pay|purchase|place order|order now|checkout|check out|send|post|publish|tweet|reply|submit|delete|remove|confirm|transfer|subscribe|book now|reserve|sign up|apply)\b/i;
+/** Clicks that spend money. These always need the user's OK, also in autonomous mode. */
+const PAY_CLICK = /\b(pay( now)?|place (your |my )?order|complete (your )?(purchase|order|payment|checkout)|confirm (and pay|purchase|order|payment)|buy( it)? now|purchase|submit (order|payment)|proceed to payment|order now|start (free )?trial|subscribe)\b/i;
 
 const fn = (name: string, description: string, properties: any = {}, required: string[] = []): LlmTool => ({
   type: 'function',
@@ -53,8 +63,11 @@ export const BROWSER_TOOLS: LlmTool[] = [
   fn('fetch_url', 'Fetch a URL and return its readable text without opening a tab (fast research on public pages).', { url: { type: 'string' } }, ['url']),
 ];
 
-function toUrl(input: string): string {
+export function toUrl(input: string): string {
   const s = input.trim();
+  if (!s) return '';
+  // localhost:3000, 192.168.1.1:8080/x, [::1]:5000 — not a scheme
+  if (/^(localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?(\/.*)?$/i.test(s)) return 'http://' + s;
   if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^[\w-]+(\.[\w-]+)+:\d+/.test(s)) return s; // explicit scheme (checked by gateUrl)
   if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/.test(s) && !s.includes(' ')) return 'https://' + s;
   return 'https://www.google.com/search?q=' + encodeURIComponent(s);
@@ -66,12 +79,13 @@ function toUrl(input: string): string {
  * hosts on this machine / the LAN (router admin pages, local services) need the user's approval.
  */
 async function gateUrl(url: string, ctx: ToolCtx): Promise<string | null> {
+  if (!url) return 'Error: no URL given. Pass a full URL like https://example.com or search words.';
   if (url === 'about:blank') return null;
   if (!isWebUrl(url)) return `Blocked: agents may only open http(s) web pages, not "${url.split(':')[0]}:" URLs. Ask the user to open it themselves if it is really needed.`;
   const host = new URL(url).hostname;
   if (await resolvesToPrivate(host)) {
     if (!ctx.guard) return 'Blocked: this address is on your computer or local network.';
-    const ok = await ctx.guard(`Open a local-network address (${host})`, url);
+    const ok = await ctx.guard(`Open a local-network address (${host})`, url, { always: true });
     if (!ok) return 'The user denied access to this local-network address. Do not retry it.';
   }
   return null;
@@ -79,6 +93,11 @@ async function gateUrl(url: string, ctx: ToolCtx): Promise<string | null> {
 
 /** Fields an agent must not type into without the user's OK (passwords, card numbers, one-time codes). */
 const SENSITIVE_FIELD = /^(cc-|one-time-code|current-password|new-password)/i;
+const submitLike = (loc: any) => loc.type === 'submit' || loc.tag === 'button' || /^(submit|button|image)$/.test(loc.type || '');
+/** True when this click would most likely pay for something. */
+export function isPaymentClick(loc: { label?: string; type?: string; tag?: string; paymentForm?: boolean; paymentPage?: boolean }): boolean {
+  return PAY_CLICK.test(loc.label || '') || (!!(loc.paymentForm || loc.paymentPage) && submitLike(loc));
+}
 
 async function waitForLoad(wc: WebContents, timeout = 15000) {
   if (!wc.isLoading()) { await sleep(250); return; }
@@ -150,7 +169,7 @@ export function htmlToText(html: string): string {
 }
 
 /** Execute one browser tool. Returns text for the model and optionally an image (data URL). */
-export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Promise<{ text: string; image?: string }> {
+export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Promise<ToolResult> {
   switch (name) {
     case 'open_tab': {
       const target = toUrl(String(args.url ?? ''));
@@ -173,14 +192,19 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
     case 'snapshot': {
       const wc = await currentWc(ctx);
       const s = await wc.executeJavaScript(SNAPSHOT_SCRIPT, true);
+      if (!s) return { text: `URL: ${wc.getURL()}\n(The page could not be read yet; wait and snapshot again.)` };
       return { text: `URL: ${s.url}\nTitle: ${s.title}\nScroll: ${s.scroll.y}/${s.scroll.max}\n\nInteractive elements:\n${s.elements || '(none)'}\n\nVisible text:\n${s.text}` };
     }
     case 'click': {
       const wc = await currentWc(ctx);
       const loc = await wc.executeJavaScript(LOCATE_SCRIPT(Number(args.ref)), true);
       if (!loc) return { text: `Element [${args.ref}] not found — take a new snapshot.` };
+      // payments always need a human (also in autonomous mode)
+      if (isPaymentClick(loc)) {
+        const ok = ctx.guard ? await ctx.guard(`Submit a payment / purchase: click "${loc.label || loc.tag}"`, `on ${wc.getURL()}`, { always: true }) : false;
+        if (!ok) return { text: 'The user did not approve this payment step. Do not retry it; tell the user what is ready so they can finish it themselves.' };
       // labels are page-controlled, so also gate any click inside a form holding a password / card field
-      if (ctx.guard && (RISKY.test(loc.label) || loc.type === 'submit' || (loc.sensitiveForm && (loc.tag === 'button' || /^(submit|button|image)$/.test(loc.type || ''))))) {
+      } else if (ctx.guard && (RISKY.test(loc.label) || loc.type === 'submit' || (loc.sensitiveForm && submitLike(loc)))) {
         const ok = await ctx.guard(`Click "${loc.label || loc.tag}"`, `on ${wc.getURL()}`);
         if (!ok) return { text: 'The user denied this action. Do not retry it; ask or choose another path.' };
       }
@@ -195,9 +219,11 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
       const wc = await currentWc(ctx);
       const loc = await wc.executeJavaScript(LOCATE_SCRIPT(Number(args.ref)), true);
       if (!loc) return { text: `Element [${args.ref}] not found — take a new snapshot.` };
-      if (loc.type === 'password' || SENSITIVE_FIELD.test(loc.autocomplete || '')) {
-        const ok = ctx.guard ? await ctx.guard('Type into a password / payment field', `field "${loc.label || loc.tag}" on ${wc.getURL()}`) : false;
-        if (!ok) return { text: 'The user did not allow typing into this sensitive field. Ask the user to fill it in themselves (they can take over the tab).' };
+      const sensitive = !!(loc.sensitive || loc.type === 'password' || SENSITIVE_FIELD.test(loc.autocomplete || ''));
+      if (sensitive) {
+        // never skipped, also in autonomous mode; the value itself is never shown in the approval
+        const ok = ctx.guard ? await ctx.guard('Type into a password / payment / one-time-code field', `field "${loc.label || loc.tag}" on ${wc.getURL()}`, { always: true }) : false;
+        if (!ok) return { text: 'The user did not allow typing into this sensitive field. Ask the user to fill it in themselves (they can take over the tab).', sensitive };
       }
       await trustedClick(wc, loc.x, loc.y);
       await sleep(120);
@@ -207,12 +233,15 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
         await pressKey(wc, 'Backspace');
       }
       await wc.insertText(String(args.text));
-      if (args.submit && ctx.guard && loc.inForm && /mail|message|post|comment|reply|tweet/i.test(wc.getURL() + loc.label)) {
-        const ok = await ctx.guard('Submit text', `"${String(args.text).slice(0, 140)}" on ${wc.getURL()}`);
-        if (!ok) return { text: 'Typed, but the user denied submitting it.' };
+      if (args.submit && (loc.paymentForm || loc.paymentPage)) {
+        const ok = ctx.guard ? await ctx.guard('Submit a payment form (press Enter)', `on ${wc.getURL()}`, { always: true }) : false;
+        if (!ok) return { text: 'Typed, but the user did not approve submitting this payment form.', sensitive };
+      } else if (args.submit && ctx.guard && loc.inForm && /mail|message|post|comment|reply|tweet/i.test(wc.getURL() + loc.label)) {
+        const ok = await ctx.guard('Submit text', sensitive ? `(hidden text) on ${wc.getURL()}` : `"${String(args.text).slice(0, 140)}" on ${wc.getURL()}`);
+        if (!ok) return { text: 'Typed, but the user denied submitting it.', sensitive };
       }
       if (args.submit) { await sleep(100); await pressKey(wc, 'Enter'); await sleep(600); if (wc.isLoading()) await waitForLoad(wc); }
-      return { text: `Typed into [${args.ref}]${args.submit ? ' and pressed Enter' : ''}.` };
+      return { text: `Typed into [${args.ref}]${args.submit ? ' and pressed Enter' : ''}.`, sensitive };
     }
     case 'select_option': {
       const wc = await currentWc(ctx);
@@ -220,6 +249,13 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
     }
     case 'press_key': {
       const wc = await currentWc(ctx);
+      if (/(^|\+)\s*(enter|return)\s*$/i.test(String(args.key))) {
+        const f = await wc.executeJavaScript(FOCUS_SCRIPT, true).catch(() => null);
+        if (f && (f.paymentPage || (f.inForm && f.sensitiveForm && f.paymentForm))) {
+          const ok = ctx.guard ? await ctx.guard('Submit a payment form (press Enter)', `on ${wc.getURL()}`, { always: true }) : false;
+          if (!ok) return { text: 'The user did not approve submitting this payment form.' };
+        }
+      }
       await pressKey(wc, String(args.key));
       if (wc.isLoading()) await waitForLoad(wc);
       return { text: `Pressed ${args.key}.` };
@@ -271,7 +307,8 @@ export async function runBrowserTool(name: string, args: any, ctx: ToolCtx): Pro
       const blocked = await gateUrl(target, ctx);
       if (blocked) return { text: blocked };
       const html = await ctx.host.fetchText(target);
-      return { text: htmlToText(html).slice(0, 15000) };
+      const text = htmlToText(html);
+      return { text: text.length > 12000 ? text.slice(0, 12000) + `\n…(${text.length - 12000} more characters not shown)` : text || '(The page had no readable text.)' };
     }
   }
   throw new Error('Unknown browser tool ' + name);

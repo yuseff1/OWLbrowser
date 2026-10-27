@@ -49,7 +49,7 @@
     return [...by.entries()].sort((a, b) => (order.indexOf(a[0]) + 99) % 99 - (order.indexOf(b[0]) + 99) % 99);
   });
   const statusLabel = { connected: 'Connected', connecting: 'Connecting…', error: 'Needs attention', off: 'Not connected' } as const;
-  const statusColor = { connected: '#30a46c', connecting: '#f5a524', error: '#e5484d', off: 'var(--ink-3)' } as const;
+  const statusColor = { connected: '#30a46c', connecting: '#e8742a', error: '#e5484d', off: 'var(--ink-3)' } as const;
 
   async function connect(id: string) {
     busy[id] = true;

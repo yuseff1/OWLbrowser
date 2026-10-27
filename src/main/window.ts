@@ -3,7 +3,7 @@ import * as path from 'path';
 import { sessionFor } from './profiles';
 import { settings } from './settings';
 import { history, bookmarks } from './data';
-import { uiUrl } from './ui-protocol';
+import { uiUrl, isTrustedUiFrame } from './ui-protocol';
 import { logLine, crashLogPath } from './crash';
 import type { TabState, WindowState } from '../shared/types';
 
@@ -140,6 +140,17 @@ export class OwlWindow {
   splitBounds: Bounds | null = null;
   overlay = false;
   private stateTimer: NodeJS.Timeout | null = null;
+  /**
+   * Popup layer: a transparent WebContentsView stacked above every page view. The UI asks it to draw
+   * menus and the omnibox dropdown (owl.popupShow) so they stay live over web pages instead of
+   * freezing the page under a screenshot. It loads the same UI bundle in `?popup=1` mode; it gets no
+   * owl:* API (windowFor() only trusts the window's own UI webContents), only the owl-popup:* channel.
+   */
+  private popup: WebContentsView | null = null;
+  private popupReady = false;
+  private popupPending: PopupSpec | null = null;
+  private popupId: number | null = null;
+  private popupFocus = false;
 
   constructor(public profileId: string, public incognito: boolean, private hooks: WindowHooks, initial?: { bounds?: Electron.Rectangle }) {
     const dark = nativeTheme.shouldUseDarkColors;
@@ -154,7 +165,7 @@ export class OwlWindow {
       titleBarStyle: 'hidden',
       titleBarOverlay: process.platform === 'win32' ? { color: '#00000000', symbolColor: dark ? '#e8e6ef' : '#26232f', height: 38 } : undefined,
       trafficLightPosition: { x: 14, y: 13 },
-      backgroundColor: dark ? '#141317' : '#f4f3f7',
+      backgroundColor: dark ? '#141317' : '#f4f3f2',
       backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
       vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
       icon: path.join(__dirname, '..', 'renderer', 'art', 'owl-icon.png'),
@@ -181,8 +192,95 @@ export class OwlWindow {
     this.watchUi(this.win.webContents, { profile: profileId, incognito: incognito ? '1' : '0' });
     this.win.on('closed', () => { this.tabs.forEach((t) => t.destroy()); this.hooks.onClosed(this); });
     this.win.on('focus', () => this.pushState());
-    nativeTheme.on('updated', () => this.updateTitleBar());
+    const onTheme = () => this.updateTitleBar();
+    nativeTheme.on('updated', onTheme);
+    this.win.once('closed', () => nativeTheme.removeListener('updated', onTheme));
     this.win.webContents.on('before-input-event', (e, input) => this.handleShortcut(e, input));
+    // F11 / window fullscreen hides the chrome like Chrome does (html fullscreen already sends this)
+    this.win.on('enter-full-screen', () => this.send('fullscreen', true));
+    this.win.on('leave-full-screen', () => this.send('fullscreen', false));
+    this.wirePopupLayer();
+  }
+
+  // ---------- popup layer ----------
+  private wirePopupLayer() {
+    const ui = this.win.webContents;
+    ui.ipc.on('owl-popup:show', (e, spec: PopupSpec) => { if (isTrustedUiFrame(e.senderFrame)) this.showPopup(spec); });
+    ui.ipc.on('owl-popup:hide', (e, id?: number) => { if (isTrustedUiFrame(e.senderFrame)) this.hidePopup(typeof id === 'number' ? id : undefined); });
+    const dismiss = () => { if (this.popupId != null) { const id = this.popupId; this.hidePopup(); this.send('popup-event', { id, type: 'dismiss' }); } };
+    this.win.on('blur', dismiss);
+    this.win.on('resize', dismiss);
+    this.win.on('move', dismiss);
+    this.win.on('closed', () => { this.popup = null; });
+    // prewarm after the window is up so the first menu opens instantly (one small renderer)
+    this.win.once('show', () => setTimeout(() => this.ensurePopup(), 2500));
+  }
+
+  private ensurePopup(): WebContentsView | null {
+    if (this.popup || this.win.isDestroyed()) return this.popup;
+    const v = new WebContentsView({
+      webPreferences: {
+        preload: path.join(__dirname, '..', 'preload', 'ui.js'),
+        contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true,
+        allowRunningInsecureContent: false, webviewTag: false, spellcheck: false, backgroundThrottling: false,
+      },
+    });
+    v.setBackgroundColor('#00000000');
+    v.setVisible(false);
+    const wc = v.webContents;
+    this.lockDownUi(wc);
+    wc.ipc.on('owl-popup:ready', (e) => {
+      if (!isTrustedUiFrame(e.senderFrame)) return;
+      this.popupReady = true;
+      const p = this.popupPending; this.popupPending = null;
+      if (p) this.showPopup(p);
+    });
+    wc.ipc.on('owl-popup:event', (e, evt: any) => {
+      if (!isTrustedUiFrame(e.senderFrame) || !evt || typeof evt !== 'object' || evt.id !== this.popupId) return;
+      const out = { id: evt.id, type: String(evt.type || ''), index: typeof evt.index === 'number' ? evt.index : undefined };
+      if (out.type === 'select' || out.type === 'dismiss') this.hidePopup();
+      this.send('popup-event', out);
+    });
+    wc.on('before-input-event', (e, input) => this.handleShortcut(e, input));
+    wc.on('render-process-gone', () => {
+      try { this.win.contentView.removeChildView(v); } catch {}
+      if (this.popup === v) { this.popup = null; this.popupReady = false; }
+      if (this.popupId != null) { const id = this.popupId; this.popupId = null; this.send('popup-event', { id, type: 'dismiss' }); }
+    });
+    wc.loadURL(uiUrl({ profile: this.profileId, incognito: this.incognito ? '1' : '0', popup: '1' })).catch(() => {});
+    this.win.contentView.addChildView(v);
+    this.popup = v;
+    return v;
+  }
+
+  private showPopup(spec: PopupSpec) {
+    if (this.win.isDestroyed() || !spec || typeof spec !== 'object' || typeof spec.id !== 'number') return;
+    const v = this.ensurePopup();
+    if (!v) return;
+    this.popupId = spec.id;
+    if (!this.popupReady) { this.popupPending = spec; return; }
+    const [cw, ch] = this.win.getContentSize();
+    const r = spec.rect;
+    const b = r && [r.x, r.y, r.width, r.height].every((n) => typeof n === 'number' && isFinite(n))
+      ? clampRect(r, cw, ch)
+      : { x: 0, y: 0, width: cw, height: ch };
+    v.webContents.send('owl:event', 'popup', { ...spec, origin: { x: b.x, y: b.y } });
+    v.setBounds(b);
+    this.win.contentView.addChildView(v); // top of the stack
+    v.setVisible(true);
+    this.popupFocus = !!spec.focus;
+    if (spec.focus) v.webContents.focus();
+  }
+
+  hidePopup(id?: number) {
+    if (id != null && id !== this.popupId) return; // a newer popup replaced it
+    this.popupId = null;
+    this.popupPending = null;
+    const v = this.popup;
+    if (!v || this.win.isDestroyed()) return;
+    v.setVisible(false);
+    v.webContents.send('owl:event', 'popup', null);
+    if (this.popupFocus) { this.popupFocus = false; this.win.webContents.focus(); }
   }
 
   get id() { return this.win.id; }
@@ -391,6 +489,8 @@ export class OwlWindow {
         v.setVisible(false);
       }
     }
+    // the popup layer always stays above page views
+    if (this.popup && this.popupId != null) cv.addChildView(this.popup);
   }
 
   wireWebContents(t: Tab, wc: WebContents) {
@@ -458,91 +558,151 @@ export class OwlWindow {
   }
 
   private contextMenu(t: Tab, p: Electron.ContextMenuParams) {
-    const wc = t.wc!;
+    const wc = t.wc;
+    if (!wc) return;
     const items: Electron.MenuItemConstructorOptions[] = [];
+    const sep = () => { if (items.length && items[items.length - 1].type !== 'separator') items.push({ type: 'separator' }); };
+    const ask = (prompt: string) => this.hooks.onCommand(this, 'ask', prompt);
+    const engine = engineName();
+    const isWeb = (u: string) => /^(https?|file|data|blob):/i.test(u);
     if (p.linkURL) {
+      const link = p.linkURL;
       items.push(
-        { label: 'Open link in new tab', click: () => this.newTab(p.linkURL, { background: true, openerId: t.id }) },
-        { label: 'Open link in split view', click: () => { const n = this.newTab(p.linkURL, { background: true }); this.setSplit(n.id); } },
-        { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
+        { label: 'Open link in new tab', click: () => this.newTab(link, { background: true, openerId: t.id }) },
+        { label: 'Open link in split view', click: () => { const n = this.newTab(link, { background: true, openerId: t.id }); this.setSplit(n.id); } },
+        { label: 'Open link in new window', click: () => this.hooks.onCommand(this, 'open-in-window', link) },
+        { label: 'Open link in incognito window', click: () => this.hooks.onCommand(this, 'open-in-incognito', link) },
         { type: 'separator' },
+        { label: 'Save link as…', enabled: isWeb(link), click: () => wc.downloadURL(link) },
+        { label: 'Copy link address', click: () => clipboard.writeText(link) },
       );
+      if (p.linkText?.trim() && !p.hasImageContents) items.push({ label: 'Copy link text', click: () => clipboard.writeText(p.linkText.trim()) });
+      items.push({ label: 'Ask companion about this link', click: () => ask(`Open and summarize this link: ${link}\n\n`) });
+      sep();
     }
-    if (p.hasImageContents && p.srcURL) {
+    if (p.mediaType === 'image' && p.srcURL) {
+      const src = p.srcURL;
       items.push(
-        { label: 'Open image in new tab', click: () => this.newTab(p.srcURL, { background: true }) },
-        { label: 'Save image as…', click: () => wc.downloadURL(p.srcURL) },
+        { label: 'Open image in new tab', click: () => this.newTab(src, { background: true, openerId: t.id }) },
+        { label: 'Save image as…', click: () => wc.downloadURL(src) },
         { label: 'Copy image', click: () => wc.copyImageAt(p.x, p.y) },
-        { label: 'Copy image address', click: () => clipboard.writeText(p.srcURL) },
-        { type: 'separator' },
+        { label: 'Copy image address', enabled: !src.startsWith('data:'), click: () => clipboard.writeText(src) },
+        { label: 'Ask companion about this image', enabled: /^https?:/i.test(src), click: () => ask(`Look at this image from ${wc.getURL()} and describe what it shows: ${src}\n\n`) },
       );
-    }
-    if (p.selectionText) {
-      const sel = p.selectionText.trim().slice(0, 2000);
+      sep();
+    } else if ((p.mediaType === 'video' || p.mediaType === 'audio') && p.srcURL && /^https?:/i.test(p.srcURL)) {
+      const src = p.srcURL;
       items.push(
-        { label: 'Copy', role: 'copy' },
-        { label: `Search for “${sel.slice(0, 24)}${sel.length > 24 ? '…' : ''}”`, click: () => this.newTab(searchUrl(sel), { openerId: t.id }) },
-        { label: 'Ask companion about selection', click: () => this.hooks.onCommand(this, 'ask', `About this text from ${wc.getURL()}:\n"${sel}"\n\n`) },
-        { type: 'separator' },
+        { label: `Open ${p.mediaType} in new tab`, click: () => this.newTab(src, { background: true, openerId: t.id }) },
+        { label: `Save ${p.mediaType} as…`, click: () => wc.downloadURL(src) },
+        { label: `Copy ${p.mediaType} address`, click: () => clipboard.writeText(src) },
       );
+      sep();
     }
+    const sel = p.selectionText?.trim().slice(0, 2000) || '';
     if (p.isEditable) {
-      items.push({ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'pasteAndMatchStyle' }, { role: 'selectAll' }, { type: 'separator' });
-      for (const s of p.dictionarySuggestions.slice(0, 4)) items.unshift({ label: s, click: () => wc.replaceMisspelling(s) });
+      if (p.misspelledWord) {
+        for (const w of p.dictionarySuggestions.slice(0, 5)) items.push({ label: w, click: () => wc.replaceMisspelling(w) });
+        if (!p.dictionarySuggestions.length) items.push({ label: 'No spelling suggestions', enabled: false });
+        items.push({ label: 'Add to dictionary', click: () => wc.session.addWordToSpellCheckerDictionary(p.misspelledWord) });
+        sep();
+      }
+      items.push(
+        { role: 'undo', enabled: p.editFlags.canUndo }, { role: 'redo', enabled: p.editFlags.canRedo }, { type: 'separator' },
+        { role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy }, { role: 'paste', enabled: p.editFlags.canPaste },
+        { role: 'pasteAndMatchStyle', label: 'Paste as plain text', enabled: p.editFlags.canPaste }, { role: 'selectAll' },
+      );
+      if (sel) items.push({ type: 'separator' }, { label: `Search ${engine} for “${clip(sel, 24)}”`, click: () => this.newTab(searchUrl(sel), { openerId: t.id }) });
+      sep();
+    } else if (sel) {
+      const asUrl = /^\S+\.[a-z]{2,}(\/\S*)?$/i.test(sel) && !/\s/.test(sel) ? normalizeInput(sel) : null;
+      items.push({ label: 'Copy', role: 'copy' });
+      if (asUrl && /^https?:/.test(asUrl)) items.push({ label: `Go to ${clip(sel, 32)}`, click: () => this.newTab(asUrl, { openerId: t.id }) });
+      items.push(
+        { label: `Search ${engine} for “${clip(sel, 24)}”`, click: () => this.newTab(searchUrl(sel), { openerId: t.id }) },
+        { label: 'Ask companion about selection', click: () => ask(`About this text from ${wc.getURL()}:\n"${sel}"\n\n`) },
+        { label: 'Explain selection', click: () => ask(`Explain this simply (from ${wc.getURL()}):\n"${sel}"`) },
+      );
+      sep();
     }
-    if (!p.linkURL && !p.selectionText && !p.isEditable) {
+    if (!p.linkURL && !sel && !p.isEditable && p.mediaType === 'none') {
       items.push(
         { label: 'Back', enabled: wc.navigationHistory.canGoBack(), click: () => wc.navigationHistory.goBack() },
         { label: 'Forward', enabled: wc.navigationHistory.canGoForward(), click: () => wc.navigationHistory.goForward() },
         { label: 'Reload', click: () => wc.reload() },
         { type: 'separator' },
-        { label: 'Summarize this page', click: () => this.hooks.onCommand(this, 'ask', 'Summarize this page in a few bullet points.') },
+        { label: 'Summarize this page', click: () => ask('Summarize this page in a few bullet points.') },
+        { label: 'Ask companion about this page', click: () => ask('') },
+        { type: 'separator' },
         { label: 'Save page as…', click: () => this.hooks.onCommand(this, 'save-page') },
         { label: 'Print…', click: () => wc.print() },
+        { label: 'Copy page address', click: () => clipboard.writeText(wc.getURL()) },
         { label: 'View page source', click: () => this.newTab('view-source:' + wc.getURL(), { openerId: t.id }) },
-        { type: 'separator' },
       );
+      sep();
     }
     items.push({ label: 'Inspect', click: () => wc.inspectElement(p.x, p.y) });
     Menu.buildFromTemplate(items).popup({ window: this.win });
   }
 
+  /** Chrome-parity shortcuts (Windows/Linux; Cmd on macOS). Commands main does not handle go to the UI as 'command'. */
   handleShortcut(e: Electron.Event, input: Electron.Input) {
     if (input.type !== 'keyDown') return;
-    const ctrl = process.platform === 'darwin' ? input.meta : input.control;
+    const mac = process.platform === 'darwin';
+    const ctrl = mac ? input.meta : input.control;
+    const shift = input.shift, alt = input.alt;
     const k = input.key.toLowerCase();
     let cmd: string | null = null; let arg: any;
-    if (ctrl && !input.shift && k === 't') cmd = 'new-tab';
-    else if (ctrl && input.shift && k === 't') cmd = 'reopen-tab';
-    else if (ctrl && k === 'w') cmd = 'close-tab';
-    else if (ctrl && input.shift && k === 'n') cmd = 'incognito';
-    else if (ctrl && !input.shift && k === 'n') cmd = 'new-window';
-    else if (ctrl && (k === 'l' || k === 'e') || (input.alt && k === 'd')) cmd = 'focus-omnibox';
-    else if ((ctrl && k === 'r') || k === 'f5') cmd = input.shift ? 'hard-reload' : 'reload';
-    else if (ctrl && k === 'f') cmd = 'find';
+    if (ctrl && !shift && k === 't') cmd = 'new-tab';
+    else if (ctrl && shift && k === 't') cmd = 'reopen-tab';
+    else if (ctrl && shift && k === 'w') cmd = 'close-window';
+    else if ((ctrl && k === 'w') || (ctrl && k === 'f4')) cmd = 'close-tab';
+    else if (ctrl && shift && k === 'n') cmd = 'incognito';
+    else if (ctrl && !shift && k === 'n') cmd = 'new-window';
+    else if ((ctrl && (k === 'l' || k === 'e')) || (alt && k === 'd') || k === 'f6') cmd = 'focus-omnibox';
+    else if ((ctrl && k === 'r') || k === 'f5') cmd = shift || (ctrl && k === 'f5') ? 'hard-reload' : 'reload';
+    else if (ctrl && !shift && k === 'f') cmd = 'find';
+    else if (k === 'f3' || (ctrl && k === 'g')) cmd = shift ? 'find-prev' : 'find-next';
     else if (ctrl && k === 'd') cmd = 'bookmark';
-    else if (ctrl && input.shift && k === 'j') cmd = 'downloads';
-    else if (ctrl && k === 'j') cmd = 'toggle-companion';
+    else if (ctrl && shift && k === 'j') cmd = 'toggle-companion';
+    else if (ctrl && k === 'j') cmd = 'downloads';
+    else if (ctrl && shift && k === 'a') cmd = 'palette';
     else if (ctrl && k === 'k') cmd = 'palette';
-    else if (ctrl && k === 'h') cmd = 'history';
-    else if (ctrl && input.shift && k === 'b') cmd = 'toggle-bookmarks-bar';
-    else if (ctrl && input.shift && k === 'o') cmd = 'bookmarks';
+    else if (ctrl && k === 'h' && !mac) cmd = 'history';
+    else if (mac && input.meta && k === 'y') cmd = 'history';
+    else if (ctrl && shift && k === 'b') cmd = 'toggle-bookmarks-bar';
+    else if (ctrl && shift && k === 'o') cmd = 'bookmarks';
+    else if (ctrl && shift && k === 'delete') cmd = 'clear-data';
     else if (ctrl && (k === '=' || k === '+')) cmd = 'zoom-in';
-    else if (ctrl && k === '-') cmd = 'zoom-out';
+    else if (ctrl && (k === '-' || k === '_')) cmd = 'zoom-out';
     else if (ctrl && k === '0') cmd = 'zoom-reset';
-    else if (ctrl && k === 'tab') cmd = input.shift ? 'prev-tab' : 'next-tab';
+    else if (ctrl && k === 'tab') cmd = shift ? 'prev-tab' : 'next-tab';
+    else if (ctrl && shift && (k === 'pageup' || k === 'pagedown')) cmd = k === 'pageup' ? 'move-tab-left' : 'move-tab-right';
+    else if (ctrl && (k === 'pageup' || k === 'pagedown')) cmd = k === 'pageup' ? 'prev-tab' : 'next-tab';
+    else if (mac && input.meta && alt && (k === 'arrowleft' || k === 'arrowright')) cmd = k === 'arrowleft' ? 'prev-tab' : 'next-tab';
     else if (ctrl && /^[1-9]$/.test(k)) { cmd = 'goto-tab'; arg = Number(k); }
-    else if (input.alt && k === 'arrowleft') cmd = 'back';
-    else if (input.alt && k === 'arrowright') cmd = 'forward';
-    else if (k === 'f12' || (ctrl && input.shift && k === 'i')) cmd = 'devtools';
+    else if ((alt && !ctrl && k === 'arrowleft') || (mac && input.meta && k === '[')) cmd = 'back';
+    else if ((alt && !ctrl && k === 'arrowright') || (mac && input.meta && k === ']')) cmd = 'forward';
+    else if (alt && k === 'home') cmd = 'home';
+    else if (k === 'f12' || (ctrl && shift && (k === 'i' || k === 'c'))) cmd = 'devtools';
+    else if (k === 'f11' || (mac && input.meta && input.control && k === 'f')) cmd = 'toggle-fullscreen';
     else if (ctrl && k === 'p') cmd = 'print';
-    else if (ctrl && input.shift && k === 's') cmd = 'toggle-split';
+    else if (ctrl && shift && k === 's') cmd = 'toggle-split';
     else if (ctrl && k === 's') cmd = 'save-page';
     else if (ctrl && k === 'u') cmd = 'view-source';
+    else if (alt && !ctrl && (k === 'f' || k === 'e')) cmd = 'app-menu';
     else if (k === 'escape' && this.win.isFullScreen()) cmd = 'exit-fullscreen';
     else if (ctrl && k === '\\') cmd = 'toggle-sidebar';
     if (cmd) { e.preventDefault(); this.hooks.onCommand(this, cmd, arg); }
   }
+}
+
+/** What the UI asks the popup layer to draw (see src/renderer/lib/ui/popup.ts). rect: window-relative CSS px, omitted = whole window. */
+export type PopupSpec = { id: number; kind: string; rect?: Bounds; focus?: boolean; [k: string]: any };
+
+function clampRect(r: Bounds, cw: number, ch: number): Electron.Rectangle {
+  const x = Math.max(0, Math.min(Math.round(r.x), cw - 1)), y = Math.max(0, Math.min(Math.round(r.y), ch - 1));
+  return { x, y, width: Math.max(1, Math.min(Math.round(r.width), cw - x)), height: Math.max(1, Math.min(Math.round(r.height), ch - y)) };
 }
 
 function roundB(b: Bounds): Electron.Rectangle {
@@ -554,6 +714,12 @@ export function parseInternal(url: string): InternalPage | undefined {
   if (!m) return undefined;
   const p = m[1] as InternalPage;
   return ['newtab', 'settings', 'companions', 'history', 'downloads', 'bookmarks', 'memory', 'routines', 'artifact', 'skills', 'apps', 'library', 'chats', 'agents'].includes(p) ? p : 'newtab';
+}
+
+function clip(s: string, n: number) { return s.length > n ? s.slice(0, n) + '…' : s; }
+
+export function engineName() {
+  return ({ google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing', brave: 'Brave', perplexity: 'Perplexity', kagi: 'Kagi' } as Record<string, string>)[settings.get().searchEngine] || 'Google';
 }
 
 export function searchUrl(q: string) {

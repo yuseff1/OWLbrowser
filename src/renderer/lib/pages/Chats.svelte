@@ -101,7 +101,7 @@
         {#snippet actions()}<Button size="sm" variant="secondary" onclick={() => { q = ''; who = 'all'; kind = 'all'; }}>Clear filters</Button>{/snippet}
       </Empty>
     {:else}
-      <Empty icon={MessagesSquare} title="No chats yet" body="Ask a companion anything from the new tab page, or press Ctrl+J on any site.">
+      <Empty icon={MessagesSquare} title="No chats yet" body="Ask a companion anything from the new tab page, or press Ctrl+Shift+J on any site.">
         {#snippet actions()}<Button variant="primary" icon={Plus} onclick={newChat}>Start a chat</Button>{/snippet}
       </Empty>
     {/if}

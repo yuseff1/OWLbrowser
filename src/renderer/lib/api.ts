@@ -12,6 +12,8 @@ export const owl: OwlApi = (typeof window !== 'undefined' && (window as any).owl
 export const params = new URLSearchParams(location.search);
 export const PROFILE_ID = params.get('profile') || 'default';
 export const INCOGNITO = params.get('incognito') === '1';
+/** this document is the popup layer (lib/popup/PopupApp.svelte), not the browser UI */
+export const IS_POPUP = params.get('popup') === '1';
 
 export const art = {
   mark: './art/owl-mark.png',

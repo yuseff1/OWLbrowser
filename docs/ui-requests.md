@@ -51,3 +51,19 @@ Requests from the internal-pages engineer. Nothing here is required for the page
 - **Shell 6 (`completeOnboarding` with a model): done.** Accepts optional `defaultModel: { providerId, model }`; Onboarding can keep calling `patchSettings` too.
 - **Shell 7 (zero rect): done.** A 0×0 (or negative) rect hides page views instead of drawing them at 1×1.
 - **Shell 1 (overlay layer for popups): not done.** Needs a transparent always-on-top `WebContentsView` for menus (its own preload/IPC); the frozen-screenshot overlay stays meanwhile.
+
+### Main replies (auto-update + memory, 2026-10-27)
+
+- **Auto-update API (new, for Settings → About).** Three calls at the end of `window.owl` plus one event:
+  - `getUpdateStatus()` → `UpdateStatus`
+  - `checkForUpdates()` → `UpdateStatus` once the check finishes (failures land in `.error`; it never throws). With auto-download on, the download continues in the background after it returns.
+  - `installUpdate()` → `boolean`. `true`: OWL quits, installs silently and relaunches (the session is saved first). `false`: nothing is ready. On the portable ZIP build it opens the release page in a new tab when a newer version exists.
+  - Event `update` → `UpdateStatus`, sent to every window on each change (checking, download progress, downloaded, error).
+  - `UpdateStatus = { state: 'disabled'|'idle'|'checking'|'available'|'not-available'|'downloading'|'downloaded'|'error', currentVersion, version?, releaseName?, releaseDate?, percent?, bytesPerSecond?, transferred?, total?, error?, checkedAt?, canInstall, autoInstallSupported, reason?: 'dev'|'portable'|'platform', downloadUrl }`.
+  - Suggested UI: show `currentVersion` and a "Check for updates" button. While `state === 'downloading'`, show `percent`. When `canInstall`, show a primary **Restart to update** button that calls `installUpdate()`. When `reason === 'portable'` and `state === 'available'`, show **Download** (calls `installUpdate()`, or open `downloadUrl`). When `reason === 'dev'`, show "Updates are off in development builds".
+  - Main already shows a toast plus a system notification ("OWL x.y.z is ready", where clicking it restarts) when a download finishes. If the user does nothing, the update installs on the next quit.
+- **Session restore is lazy now.** Restored background tabs have no renderer until they are activated (`sleeping: true` in `TabState`), and they keep their saved title. Scroll position is restored when a slept or restored tab wakes up.
+- **Memory saver.** It never puts the split tab or an audible tab to sleep, even when over the `maxAwakeTabs` cap. `sleepTab(id)` is ignored for the active tab.
+- **Downloads in incognito** are kept in memory only, shown only to that profile's incognito windows, and dropped when its last incognito window closes. `downloads()` called from an incognito window returns that list.
+- **Agent tabs are capped**: 5 per run (the run's least-recently-used tab is recycled) and 12 per profile across all running agents (`open_tab` returns an error telling the model to close or reuse a tab).
+- **Shell 1 (overlay layer for popups): done (2026-10-27, shell).** `window.ts` keeps a transparent `WebContentsView` (the UI bundle in `?popup=1` mode, prewarmed 2.5 s after the window shows) stacked above page views; `layout()` keeps it on top. IPC is scoped to webContents (`owl-popup:show/hide` only from the window's UI document, `owl-popup:ready/event` only from the layer's), so main.ts is untouched for it. Menus (`Menu`, `ContextMenu`, tab/toolbar menus) and the omnibox dropdown draw there and the page stays live (video keeps playing). Modals (palette, dialogs, popovers, password prompt) keep the frozen-glass overlay, now skipped when nothing native sits under them. Runtime-checked headless: layer on top, menu placed/focused, keyboard select, forged events from the UI ignored, layer has no `owl:*` access.

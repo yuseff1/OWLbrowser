@@ -1,6 +1,6 @@
 <script lang="ts">
   import { store } from '$lib/stores.svelte';
-  import { prefs } from '$lib/shell/prefs.svelte';
+  import { prefs, BRAND_HUE } from '$lib/shell/prefs.svelte';
   import { Segmented } from '$lib/ui';
   import Section from './Section.svelte';
   import Group from './Group.svelte';
@@ -11,7 +11,7 @@
   const s = $derived(store.settings);
   const WALLS = [
     { v: 'aurora', l: 'Aurora', bg: 'radial-gradient(80% 70% at 50% 0%, color-mix(in srgb, var(--accent) 35%, transparent), transparent), var(--ground)' },
-    { v: 'dusk', l: 'Dusk', bg: 'linear-gradient(180deg, color-mix(in srgb, #ffb38a 40%, var(--ground)), var(--ground) 55%, color-mix(in srgb, #7a6cff 25%, var(--ground)))' },
+    { v: 'dusk', l: 'Dusk', bg: 'linear-gradient(180deg, color-mix(in srgb, #ffb38a 40%, var(--ground)), var(--ground) 55%, color-mix(in srgb, #e8a317 22%, var(--ground)))' },
     { v: 'paper', l: 'Paper', bg: 'radial-gradient(var(--halftone) 1.2px, transparent 1.3px) 0 0 / 8px 8px, var(--ground)' },
     { v: 'none', l: 'Plain', bg: 'var(--ground)' },
   ] as const;
@@ -23,10 +23,11 @@
       <Segmented value={s?.theme ?? 'system'} onValueChange={(v) => patch({ theme: v as any })} label="Theme" options={[{ value: 'system', label: 'System', icon: Monitor }, { value: 'light', label: 'Light', icon: Sun }, { value: 'dark', label: 'Dark', icon: Moon }]} />
     </Row>
     <Row title="Profile colour" description="Tints focus rings, progress and a few highlights.">
-      <div class="flex w-[260px] items-center gap-3">
+      <div class="flex w-[300px] items-center gap-3">
         <input type="range" min="0" max="360" step="1" value={prefs.hue} oninput={(e) => prefs.setHue(+(e.currentTarget as HTMLInputElement).value)} aria-label="Profile colour hue"
           class="hue h-5 flex-1 cursor-pointer appearance-none rounded-full bg-transparent" />
         <span class="size-6 shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,.1)]" style:background="var(--accent)" aria-hidden="true"></span>
+        <button type="button" class="owl-link shrink-0 text-[12.5px]" class:invisible={prefs.hue === BRAND_HUE} onclick={() => prefs.setHue(BRAND_HUE)}>Amber</button>
       </div>
     </Row>
     <Row title="Tab layout" description="Classic puts tabs on top; Modern keeps them in the sidebar as cards.">

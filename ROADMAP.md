@@ -11,7 +11,7 @@ Source of truth for the overnight build loop. Tick only after verification.
 - [x] Internal pages: new tab, settings, companions, agents, chats, routines, skills, apps, library, memory, history, downloads, bookmarks
 - [x] Local checks: tsc main, svelte-check, vite build
 - [x] CI: Windows NSIS + ZIP build green, nightly release published
-- [ ] Main ← UI requests (docs/ui-requests.md): overlay layer for popups over native views
+- [x] Main ← UI requests (docs/ui-requests.md): overlay layer for popups over native views (popup layer WebContentsView; runtime-probed headless)
 - [x] Hide background agent views when an internal page is active (parked off-window)
 - [x] Ctrl+Shift+J → downloads (shortcut order; Ctrl+Shift+S split too)
 - [x] Settings deep link hash (`owl://settings#models`)

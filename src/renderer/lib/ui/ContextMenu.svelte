@@ -4,6 +4,7 @@
   import type { MenuItem } from './Menu.svelte';
   import { store } from '../stores.svelte';
   import { kbdLabel } from './cn';
+  import { hasPopupLayer, openMenu, type PopupHandle } from './popup';
 
   type Props = {
     /** items are computed lazily when the menu opens */
@@ -15,6 +16,19 @@
   let { items, overlay = true, children }: Props = $props();
   let open = $state(false);
   let list = $state<MenuItem[]>([]);
+  // ---- Electron: draw the menu in the popup layer at the pointer
+  let handle: PopupHandle | null = null;
+  const nativeTrigger = {
+    oncontextmenu: (e: MouseEvent) => {
+      e.preventDefault();
+      handle?.close();
+      const its = items();
+      if (!its.length) return;
+      handle = openMenu({ anchor: { x: e.clientX, y: e.clientY, width: 0, height: 0 }, point: true, items: its }, () => { handle = null; });
+    },
+  };
+  $effect(() => () => { handle?.close(); handle = null; });
+
   let pushed = false;
   function onOpenChange(o: boolean) {
     if (o) list = items();
@@ -25,6 +39,9 @@
   $effect(() => () => { if (pushed) { pushed = false; store.popOverlay(); } });
 </script>
 
+{#if hasPopupLayer}
+  {@render children(nativeTrigger)}
+{:else}
 <ContextMenu.Root bind:open {onOpenChange}>
   <ContextMenu.Trigger>
     {#snippet child({ props })}{@render children(props)}{/snippet}
@@ -47,3 +64,4 @@
     </ContextMenu.Content>
   </ContextMenu.Portal>
 </ContextMenu.Root>
+{/if}

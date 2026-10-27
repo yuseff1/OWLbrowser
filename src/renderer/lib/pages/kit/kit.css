@@ -5,7 +5,7 @@
 .owl-note .ic { flex: none; margin-top: 1px; color: var(--ink-2); }
 .owl-note.error { background: color-mix(in srgb, #e5484d 8%, transparent); }
 .owl-note.error .ic { color: #d43a3f; }
-.owl-note.warn { background: color-mix(in srgb, #f5a524 11%, transparent); }
+.owl-note.warn { background: color-mix(in srgb, #e8742a 11%, transparent); }
 .owl-note.warn .ic { color: #b7740b; }
 .owl-note.ok .ic { color: #24855a; }
 .owl-note .retry { flex: none; font: inherit; font-weight: 500; color: var(--ink); background: none; border: 0; padding: 0 2px; text-decoration: underline; text-underline-offset: 3px; }

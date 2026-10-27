@@ -48,33 +48,117 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npx electron-builder --win --publish never
+
+      # Every build gets a unique, increasing version so electron-updater sees it as newer:
+      #   main / PR / dispatch → <major>.<minor from package.json>.<run_number>   (e.g. 0.1.42)
+      #   tag vX.Y.Z           → X.Y.Z
+      # Bump major/minor in package.json to start a new line (0.2.<run_number>); the patch is always the run number.
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            BASE=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+            VERSION="${BASE}.${GITHUB_RUN_NUMBER}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::bad version '$VERSION'"; exit 1; fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building OWL $VERSION"
+
+      # publish config (package.json → build.publish, github provider) makes electron-builder write
+      # release/latest.yml + the installer .blockmap; we upload them ourselves below (--publish never).
+      - name: Package
+        shell: bash
+        run: npx electron-builder --win --publish never "-c.extraMetadata.version=$VERSION"
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Check update metadata
+        shell: bash
+        run: |
+          ls -la release
+          test -f "release/OWL-Setup-$VERSION.exe"
+          test -f "release/OWL-Setup-$VERSION.exe.blockmap"
+          test -f "release/OWL-$VERSION-x64.zip"
+          test -f release/latest.yml
+          cat release/latest.yml
+          grep -q "^version: $VERSION\$" release/latest.yml
+          grep -q "OWL-Setup-$VERSION.exe" release/latest.yml
+
       - uses: actions/upload-artifact@v4
         with:
           name: OWL-windows
           path: |
             release/*.exe
+            release/*.exe.blockmap
             release/*.zip
+            release/latest.yml
           if-no-files-found: error
 
+      # Update source for electron-updater: a real (non-prerelease) release vX.Y.Z marked "latest".
+      # The updater resolves github.com/<repo>/releases/latest → tag → latest.yml → installer.
+      # Created as a draft first and published once every asset is uploaded, so clients never see a
+      # latest.yml whose installer is still missing. Re-runs of the same run upload with --clobber.
+      - name: Update release (v${{ steps.version.outputs.version }})
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v$VERSION"
+          FILES=("release/OWL-Setup-$VERSION.exe" "release/OWL-Setup-$VERSION.exe.blockmap" "release/latest.yml" "release/OWL-$VERSION-x64.zip")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+            gh release edit "$TAG" --draft=false --prerelease=false --latest
+          else
+            NOTES="Build of ${GITHUB_SHA::7} on $(date -u +'%Y-%m-%d %H:%M UTC'). Installed copies of OWL update to this version automatically.
+          Unsigned: Windows SmartScreen will ask you to confirm (More info → Run anyway).
+          <!-- owl-auto-release -->"
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              gh release create "$TAG" "${FILES[@]}" --draft --title "OWL $VERSION" --notes "$NOTES" --generate-notes
+            else
+              gh release create "$TAG" "${FILES[@]}" --draft --target "$GITHUB_SHA" --title "OWL $VERSION" --notes "$NOTES"
+            fi
+            gh release edit "$TAG" --draft=false --prerelease=false --latest
+          fi
+
+      # Stable download link: the `nightly` prerelease always carries OWL-Setup.exe / OWL-x64.zip
+      # (https://github.com/yuseff1/OWLbrowser/releases/download/nightly/OWL-Setup.exe).
+      # It is a prerelease, so electron-updater (allowPrerelease=false) never reads it.
       - name: Nightly release
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          mkdir -p nightly
+          cp "release/OWL-Setup-$VERSION.exe" nightly/OWL-Setup.exe
+          cp "release/OWL-$VERSION-x64.zip" nightly/OWL-x64.zip
           git tag -f nightly
           git push -f origin nightly
           gh release delete nightly --yes || true
-          gh release create nightly release/*.exe release/*.zip \
-            --prerelease --title "OWL nightly" \
-            --notes "Automatic build of ${GITHUB_SHA::7} on $(date -u +'%Y-%m-%d %H:%M UTC'). Unsigned: Windows SmartScreen will ask you to confirm (More info → Run anyway)."
+          gh release create nightly nightly/OWL-Setup.exe nightly/OWL-x64.zip \
+            --prerelease --latest=false --title "OWL nightly ($VERSION)" \
+            --notes "Automatic build $VERSION of ${GITHUB_SHA::7} on $(date -u +'%Y-%m-%d %H:%M UTC'). Same files as release v$VERSION. Unsigned: Windows SmartScreen will ask you to confirm (More info → Run anyway)."
 
-      - name: Versioned release
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Keep the release list readable: only the newest 15 automatic update releases are kept
+      # (identified by the owl-auto-release marker; hand-made releases are never touched).
+      - name: Prune old update releases
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${GITHUB_REF_NAME}" release/*.exe release/*.zip --title "OWL ${GITHUB_REF_NAME}" --generate-notes
+        run: |
+          gh release list --limit 200 --exclude-drafts --exclude-pre-releases --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[].tagName' > tags.txt
+          n=0
+          while read -r tag; do
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            gh release view "$tag" --json body --jq .body | grep -q 'owl-auto-release' || continue
+            n=$((n+1))
+            if (( n > 15 )); then echo "pruning $tag"; gh release delete "$tag" --yes --cleanup-tag; fi
+          done < tags.txt

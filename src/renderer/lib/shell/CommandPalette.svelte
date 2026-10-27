@@ -39,7 +39,7 @@
     { label: 'New window', icon: AppWindow, kbd: 'Ctrl+N', act: () => owl.newWindow({}) },
     { label: 'New incognito window', icon: EyeOff, kbd: 'Ctrl+Shift+N', act: () => owl.newWindow({ incognito: true }) },
     { label: 'Reopen closed tab', icon: RotateCcw, kbd: 'Ctrl+Shift+T', act: () => owl.reopenClosed() },
-    { label: 'New chat with companion', icon: MessageCircle, kbd: 'Ctrl+J', act: () => { threads.clear(); store.panelOpen = true; } },
+    { label: 'New chat with companion', icon: MessageCircle, kbd: 'Ctrl+Shift+J', act: () => { threads.clear(); store.panelOpen = true; } },
     { label: 'Toggle sidebar', icon: PanelLeft, kbd: 'Ctrl+\\', act: () => (store.sidebarOpen = !store.sidebarOpen) },
     { label: 'Toggle bookmarks bar', icon: Bookmark, kbd: 'Ctrl+Shift+B', act: () => store.onCommand('toggle-bookmarks-bar') },
     { label: 'Split view', icon: Columns2, kbd: 'Ctrl+Shift+S', act: () => owl.command('toggle-split') },

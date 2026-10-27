@@ -101,7 +101,7 @@
     { icon: Telescope, title: 'Do online research', body: 'Ask a question; get a sourced answer from several sites.', act: () => { text = 'Research and compare '; ta?.focus(); } },
     { icon: Cable, title: 'Connect my apps', body: 'Give your companions Notion, GitHub, Linear and more.', act: () => openPage('owl://apps', tab.id) },
     { icon: Download, title: 'Import from Chrome', body: 'Bring bookmarks, history and passwords across.', act: () => openPage('owl://settings#import', tab.id) },
-    { icon: PanelRight, title: 'Work in this tab', body: 'Open any site, then press Ctrl+J to hand it to a companion.', act: () => { store.panelOpen = true; } },
+    { icon: PanelRight, title: 'Work in this tab', body: 'Open any site, then press Ctrl+Shift+J to hand it to a companion.', act: () => { store.panelOpen = true; } },
   ];
   function scrollIdeas(dir: 1 | -1) { carousel?.scrollBy({ left: dir * 260, behavior: 'smooth' }); }
 
@@ -119,7 +119,7 @@
       <div class="absolute bottom-[-25%] right-[-10%] h-[420px] w-[620px] rounded-full opacity-[.10] blur-[90px]" style:background="radial-gradient(closest-side, var(--accent), transparent)"></div>
     </div>
   {:else if wallpaper === 'dusk'}
-    <div aria-hidden="true" class="pointer-events-none absolute inset-0" style="background: linear-gradient(180deg, color-mix(in srgb, #ffb38a 14%, transparent), transparent 45%, color-mix(in srgb, #7a6cff 10%, transparent))"></div>
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0" style="background: linear-gradient(180deg, color-mix(in srgb, #ffb38a 14%, transparent), transparent 45%, color-mix(in srgb, #e8a317 12%, transparent))"></div>
   {/if}
 
   <main class="relative mx-auto flex min-h-full w-full max-w-[760px] flex-col items-center px-8 pb-14 pt-[6vh]">
@@ -142,7 +142,7 @@
     <!-- companion stage -->
     <div class="relative mt-6">
       {#key active?.id}
-        <img src={art.companion(active?.id ?? 'hoot')} alt="{active?.name ?? 'Companion'}, {active?.role ?? ''}" class="animate-bob h-[112px] w-[112px] select-none object-contain drop-shadow-[0_10px_14px_rgba(20,10,40,.18)]" draggable="false" />
+        <img src={art.companion(active?.id ?? 'hoot')} alt="{active?.name ?? 'Companion'}, {active?.role ?? ''}" class="animate-bob h-[112px] w-[112px] select-none object-contain drop-shadow-[0_10px_14px_rgba(20,19,23,.18)]" draggable="false" />
       {/key}
       <Tooltip text="Edit {active?.name ?? 'companion'}" side="right">
         {#snippet children(p)}
@@ -178,11 +178,11 @@
           </span>
         {/if}
         {#if text.trim()}
-          <button type="submit" aria-label={isUrl ? 'Open' : `Send to ${active?.name ?? 'companion'}`} class="grid size-9 place-items-center rounded-full text-white shadow-[0_2px_8px_-2px_rgba(0,0,0,.3)] transition-transform active:scale-95" style:background={color}>
+          <button type="submit" aria-label={isUrl ? 'Open' : `Send to ${active?.name ?? 'companion'}`} class="owl-send grid size-9 place-items-center rounded-full shadow-[0_2px_8px_-2px_rgba(0,0,0,.3)] transition-transform active:scale-95">
             {#if isUrl}<Globe size={17} strokeWidth={2} />{:else}<ArrowUp size={18} strokeWidth={2.2} />{/if}
           </button>
         {:else}
-          <button type="button" onclick={voice} aria-label="Speak your request" aria-pressed={listening} class="grid size-9 place-items-center rounded-full text-white shadow-[0_2px_8px_-2px_rgba(0,0,0,.3)] transition-transform active:scale-95" class:animate-pulse-soft={listening} style:background={color}>
+          <button type="button" onclick={voice} aria-label="Speak your request" aria-pressed={listening} class="owl-send grid size-9 place-items-center rounded-full shadow-[0_2px_8px_-2px_rgba(0,0,0,.3)] transition-transform active:scale-95" class:animate-pulse-soft={listening}>
             <Mic size={17} strokeWidth={2} />
           </button>
         {/if}
@@ -267,3 +267,10 @@
     </section>
   </main>
 </div>
+
+<style>
+  /* composer action: ink on paper (Apple-like), the companion colour stays on the companion */
+  .owl-send { background: var(--ink); color: var(--ground); }
+  .owl-send:hover { background: color-mix(in srgb, var(--ink) 86%, var(--accent)); }
+  .owl-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>

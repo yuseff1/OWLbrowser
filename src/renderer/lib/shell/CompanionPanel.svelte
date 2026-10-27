@@ -148,7 +148,7 @@
       <Menu items={moreItems}>
         {#snippet trigger(p)}<IconButton icon={Ellipsis} label="More" size="sm" {...p} />{/snippet}
       </Menu>
-      <IconButton icon={X} label="Close" kbd="Ctrl+J" size="sm" onclick={() => (store.panelOpen = false)} />
+      <IconButton icon={X} label="Close" kbd="Ctrl+Shift+J" size="sm" onclick={() => (store.panelOpen = false)} />
     </div>
   </header>
 

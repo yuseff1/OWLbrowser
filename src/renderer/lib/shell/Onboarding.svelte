@@ -208,7 +208,7 @@
             </div>
           {:else}
             <div class="bubble"><h1>You’re set{userName ? `, ${userName.trim()}` : ''}.</h1></div>
-            <div class="bubble sub"><p>I’m {companionName || chosen?.name}. Press <Kbd keys="Ctrl+J" /> to ask me about any page, or switch to <b>Do it</b> and I’ll handle the clicking in my own tab.</p></div>
+            <div class="bubble sub"><p>I’m {companionName || chosen?.name}. Press <Kbd keys="Ctrl+Shift+J" /> to ask me about any page, or switch to <b>Do it</b> and I’ll handle the clicking in my own tab.</p></div>
           {/if}
         </div>
       {/key}

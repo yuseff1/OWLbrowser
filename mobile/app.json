@@ -29,19 +29,49 @@
         "foregroundImage": "../build/icon.png",
         "backgroundColor": "#E8A317"
       },
-      "permissions": ["android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"],
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
       "predictiveBackGestureEnabled": false,
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "plugins": [
       "expo-router",
       "expo-status-bar",
       "expo-secure-store",
       "expo-image",
-      ["expo-build-properties", { "android": { "usesCleartextTraffic": true, "useLegacyPackaging": true } }]
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "useLegacyPackaging": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "e2a75a9e-8c48-461c-bce8-49fe00aa4006"
+      }
+    },
+    "owner": "yusef_ef08",
+    "updates": {
+      "url": "https://u.expo.dev/e2a75a9e-8c48-461c-bce8-49fe00aa4006"
     }
   }
 }

@@ -101,7 +101,7 @@ export function modelGroups(providers: ModelProvider[]) {
   }));
 }
 
-export const COMPANION_SWATCHES = ['#4C6FFF', '#FF9A3D', '#2FCB94', '#FF6F91', '#8B5CF6', '#14B8C4', '#F5B83D', '#9AA3B5'];
+export const COMPANION_SWATCHES = ['#4C6FFF', '#FF9A3D', '#2FCB94', '#FF6F91', '#C2622D', '#14B8C4', '#F5B83D', '#9AA3B5'];
 
 /** Mix a hex colour toward white (amt > 0) or black (amt < 0). */
 export function shade(hex: string, amt: number) {

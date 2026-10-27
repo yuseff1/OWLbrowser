@@ -12,6 +12,7 @@
     "build": "npm run build:main && npm run build:renderer",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
+    "test:agents": "node tests/agents/run.js",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && svelte-check --tsconfig ./tsconfig.json --threshold error",
     "dist": "npm run build && electron-builder --win --publish never",
     "dist:dir": "npm run build && electron-builder --win dir --publish never"
@@ -19,6 +20,7 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@ghostery/adblocker-electron": "^2.20.1",
+    "electron-updater": "^6.8.11",
     "sql.js": "^1.15.2"
   },
   "devDependencies": {
@@ -51,6 +53,14 @@
     "asarUnpack": [
       "node_modules/sql.js/dist/*.wasm"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "yuseff1",
+        "repo": "OWLbrowser",
+        "releaseType": "release"
+      }
+    ],
     "electronFuses": {
       "runAsNode": false,
       "enableCookieEncryption": true,
@@ -77,7 +87,8 @@
         }
       ],
       "icon": "build/icon.png",
-      "artifactName": "OWL-${version}-${arch}.${ext}"
+      "artifactName": "OWL-${version}-${arch}.${ext}",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,

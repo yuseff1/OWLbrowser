@@ -2,12 +2,35 @@
 // Kept as strings so they run in any site without bundling.
 
 /**
+ * Page-side heuristics shared by LOCATE / FOCUS: secret fields (passwords, card data, one-time codes,
+ * PINs) and payment forms. Page-controlled, so the main process treats a positive as authoritative and
+ * a negative only as "no evidence" (labels on risky clicks are checked separately).
+ */
+const SENSITIVE_JS = `
+  const SENS_RE = /(pass(word|wd|code|phrase)|\\bpwd\\b|\\botp\\b|one.?time|\\b2fa\\b|\\bmfa\\b|totp|verification.?code|security.?code|auth(entication)?.?code|\\bcvv|\\bcvc|\\bcsc\\b|card.?(number|no\\b|num)|\\bcc.?(num|number|csc)|cardnumber|\\biban\\b|\\bssn\\b|social.?security|\\bpin\\b|expiry|exp.?date)/i;
+  const AC_RE = /^(cc-|one-time-code|current-password|new-password)/i;
+  const isSecret = (el) => {
+    if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return false;
+    if (el.type === 'password') return true;
+    const ac = (el.getAttribute('autocomplete') || '').trim();
+    if (AC_RE.test(ac)) return true;
+    const lab = (el.labels && el.labels[0] && el.labels[0].innerText) || '';
+    const hint = [el.name, el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), lab, ac].join(' ');
+    return SENS_RE.test(hint);
+  };
+  const PAY_SEL = '[autocomplete^="cc-"],input[name*="card" i],input[name*="cvv" i],input[name*="cvc" i],iframe[src*="stripe.com"],iframe[src*="braintree"],iframe[src*="adyen"],iframe[src*="checkout.com"],iframe[name*="card" i],iframe[title*="card" i],iframe[title*="payment" i]';
+  const secretIn = (root) => !!root && (Array.from(root.querySelectorAll('input,textarea')).some(isSecret));
+  const payIn = (root) => !!root && !!root.querySelector(PAY_SEL);
+`;
+
+/**
  * Builds a compact, LLM-friendly snapshot of the page: interactive elements get numeric refs
  * (data-owl-ref) the agent can target, plus a trimmed readable text of the viewport.
  */
-export const SNAPSHOT_SCRIPT = `(() => {
-  const MAX_EL = 180;
-  const vw = innerWidth, vh = innerHeight;
+export const SNAPSHOT_SCRIPT = `(() => {${SENSITIVE_JS}
+  const MAX_EL = 150, MAX_EL_CHARS = 7000, MAX_TEXT = 4000;
+  // a view that has not been laid out yet reports a ~0px viewport: judge visibility against a normal one
+  const vw = innerWidth > 100 ? innerWidth : 1280, vh = innerHeight > 100 ? innerHeight : 800;
   document.querySelectorAll('[data-owl-ref]').forEach(e => e.removeAttribute('data-owl-ref'));
   const isVisible = (el) => {
     const r = el.getBoundingClientRect();
@@ -18,17 +41,17 @@ export const SNAPSHOT_SCRIPT = `(() => {
   };
   const label = (el) => {
     const t = (el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('alt') ||
-      (el.labels && el.labels[0] && el.labels[0].innerText) || el.innerText || (el.type === 'password' ? '' : el.value) || el.getAttribute('name') || '').trim();
-    return t.replace(/\\s+/g, ' ').slice(0, 90);
+      (el.labels && el.labels[0] && el.labels[0].innerText) || el.innerText || (isSecret(el) ? '' : el.value) || el.getAttribute('name') || '').trim();
+    return t.replace(/\\s+/g, ' ').slice(0, 80);
   };
   const sel = 'a[href],button,input:not([type=hidden]),textarea,select,[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=radio],[role=switch],[role=option],[role=combobox],[role=textbox],[contenteditable=""],[contenteditable=true],summary,label[for]';
   const all = Array.from(document.querySelectorAll(sel));
   // include elements in open shadow roots (one level)
   document.querySelectorAll('*').forEach(h => { if (h.shadowRoot) all.push(...h.shadowRoot.querySelectorAll(sel)); });
   const out = [];
-  let n = 0;
+  let n = 0, chars = 0, cut = false;
   for (const el of all) {
-    if (n >= MAX_EL) break;
+    if (n >= MAX_EL || chars >= MAX_EL_CHARS) { cut = true; break; }
     if (!isVisible(el)) continue;
     const r = el.getBoundingClientRect();
     const tag = el.tagName.toLowerCase();
@@ -37,30 +60,47 @@ export const SNAPSHOT_SCRIPT = `(() => {
     el.setAttribute('data-owl-ref', String(n));
     const inView = r.top >= 0 && r.bottom <= vh;
     let extra = '';
-    const secretField = el.type === 'password' || /^(cc-|one-time-code|current-password|new-password)/i.test(el.getAttribute('autocomplete') || '');
+    const secretField = isSecret(el);
     if (tag === 'input' || tag === 'textarea') extra = el.value ? (secretField ? ' [filled]' : ' value="' + String(el.value).slice(0, 40) + '"') : '';
     if (el.type === 'checkbox' || el.type === 'radio') extra += el.checked ? ' [checked]' : '';
     if (tag === 'a') { const h = el.getAttribute('href') || ''; if (h && !h.startsWith('javascript')) extra += ' -> ' + h.slice(0, 80); }
     if (el.disabled) extra += ' [disabled]';
-    out.push('[' + n + '] ' + role + ' "' + label(el) + '"' + extra + (inView ? '' : ' (offscreen)'));
+    const line = '[' + n + '] ' + role + ' "' + label(el) + '"' + extra + (inView ? '' : ' (offscreen)');
+    chars += line.length + 1;
+    out.push(line);
   }
-  const text = (document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').slice(0, 6000);
+  const full = (document.body ? document.body.innerText : '').replace(/[ \\t]+/g, ' ').replace(/\\n\\s*\\n+/g, '\\n\\n').trim();
+  const text = full.length > MAX_TEXT ? full.slice(0, MAX_TEXT) + '\\n…(' + (full.length - MAX_TEXT) + ' more characters; use read_page or scroll)' : full;
+  const more = cut ? '\\n…(more elements below; scroll to see them)' : '';
   return {
     url: location.href,
     title: document.title,
     scroll: { y: Math.round(scrollY), max: Math.round(document.documentElement.scrollHeight - vh) },
-    elements: out.join('\\n'),
+    elements: out.join('\\n') + more,
     text
   };
 })()`;
 
-/** Returns the viewport-center coordinates of a ref'd element after scrolling it into view. */
-export const LOCATE_SCRIPT = (ref: number) => `(() => {
+/** Returns the viewport-center coordinates of a ref'd element after scrolling it into view, plus safety flags. */
+export const LOCATE_SCRIPT = (ref: number) => `(() => {${SENSITIVE_JS}
   const el = document.querySelector('[data-owl-ref="${ref}"]') || Array.from(document.querySelectorAll('*')).map(h => h.shadowRoot && h.shadowRoot.querySelector('[data-owl-ref="${ref}"]')).find(Boolean);
   if (!el) return null;
   el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
   const r = el.getBoundingClientRect();
-  const form = el.closest('form'); const label = ((el.getAttribute('aria-label') || el.innerText || (el.type === 'password' ? '' : el.value) || el.getAttribute('title') || '') + '').trim().slice(0, 80); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tag: el.tagName.toLowerCase(), label, type: el.type || '', autocomplete: (el.getAttribute('autocomplete') || '') + '', inForm: !!form, sensitiveForm: !!(form && form.querySelector('input[type=password],[autocomplete^="cc-"],[name*="card" i],[name*="cvv" i],[name*="cvc" i]')), editable: el.isContentEditable || /input|textarea|select/i.test(el.tagName) };
+  const form = el.closest('form');
+  const secret = isSecret(el);
+  const label = ((el.getAttribute('aria-label') || el.innerText || (secret ? '' : el.value) || el.getAttribute('title') || '') + '').trim().slice(0, 80);
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), tag: el.tagName.toLowerCase(), label, type: el.type || '', autocomplete: (el.getAttribute('autocomplete') || '') + '',
+    inForm: !!form, sensitive: secret, sensitiveForm: secretIn(form) || payIn(form), paymentForm: payIn(form), paymentPage: payIn(document),
+    editable: el.isContentEditable || /input|textarea|select/i.test(el.tagName) };
+})()`;
+
+/** Safety flags for the focused element (used before press_key Enter submits a form). */
+export const FOCUS_SCRIPT = `(() => {${SENSITIVE_JS}
+  let el = document.activeElement; while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
+  if (!el || el === document.body) return { inForm: false, sensitive: false, sensitiveForm: false, paymentPage: payIn(document) };
+  const form = el.closest && el.closest('form');
+  return { inForm: !!form, sensitive: isSecret(el), sensitiveForm: secretIn(form) || payIn(form), paymentPage: payIn(document), tag: el.tagName.toLowerCase(), label: ((el.getAttribute && el.getAttribute('aria-label')) || el.innerText || '').trim().slice(0, 80) };
 })()`;
 
 export const SELECT_OPTION_SCRIPT = (ref: number, value: string) => `(() => {

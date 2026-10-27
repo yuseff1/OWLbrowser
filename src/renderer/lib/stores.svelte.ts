@@ -23,6 +23,11 @@ class OwlStore {
   toasts = $state<Array<{ id: number; title: string; body?: string; kind?: string }>>([]);
   activeCompanionId = $state(localStorage.getItem('owl.companion') || 'hoot');
   omniboxFocus = $state(0);
+  /** bumped by Ctrl+F (focus + select the find field) and F3 / Ctrl+G (step through matches) */
+  findFocus = $state(0);
+  findStep = $state<{ n: number; forward: boolean }>({ n: 0, forward: true });
+  /** the toolbar's "More" menu (Alt+F / Alt+E) */
+  appMenuOpen = $state(false);
 
   get activeTab(): TabState | null { return this.win.tabs.find((t) => t.id === this.win.activeTabId) ?? null; }
   get activeCompanion(): Companion | null { return this.companions.find((c) => c.id === this.activeCompanionId) ?? this.companions[0] ?? null; }
@@ -37,14 +42,36 @@ class OwlStore {
     setTimeout(() => { this.toasts = this.toasts.filter((t) => t.id !== id); }, 4200);
   }
 
-  /** ref-counted overlay: hides native page views and shows a frozen glass screenshot behind popovers */
-  async pushOverlay() {
+  /** page rects last reported to main (window CSS px): where native page views draw */
+  pageRects: Array<{ x: number; y: number; width: number; height: number }> = [];
+  private frozen = false;
+
+  /** true when something drawn at `rect` (or anywhere, without a rect) would sit under a native page view */
+  needsFreeze(rect?: { left: number; top: number; right: number; bottom: number }) {
+    if (this.fullscreen) return true;
+    const split = this.win.splitTabId ? this.win.tabs.find((t) => t.id === this.win.splitTabId) : null;
+    const native = [this.activeTab, split].filter((t) => t && !t.internal);
+    if (!native.length) return false; // internal pages are drawn by the UI itself: nothing covers popovers
+    if (!rect) return true;
+    return this.pageRects.some((p) => rect.left < p.x + p.width && rect.right > p.x && rect.top < p.y + p.height && rect.bottom > p.y);
+  }
+
+  /**
+   * Ref-counted page freeze for modal UI (dialogs, palette, popovers) that must sit over a web page:
+   * hides the native view and shows a blurred screenshot. Skipped when nothing native is underneath.
+   * Menus and the omnibox dropdown use the live popup layer instead (lib/ui/popup.ts).
+   */
+  async pushOverlay(rect?: { left: number; top: number; right: number; bottom: number }) {
     this.overlayCount++;
-    if (this.overlayCount === 1) this.overlayShot = (await owl.setOverlay(true)) as string | null;
+    if (this.frozen || !this.needsFreeze(rect)) return;
+    this.frozen = true;
+    const shot = (await owl.setOverlay(true)) as string | null;
+    if (!this.frozen) { owl.setOverlay(false); return; } // closed while the screenshot was taken
+    this.overlayShot = shot;
   }
   async popOverlay() {
     this.overlayCount = Math.max(0, this.overlayCount - 1);
-    if (this.overlayCount === 0) { await owl.setOverlay(false); this.overlayShot = null; }
+    if (this.overlayCount === 0 && this.frozen) { this.frozen = false; this.overlayShot = null; await owl.setOverlay(false); }
   }
 
   async refreshCompanions() { this.companions = ((await owl.companions()) as Companion[]) || []; }
@@ -70,7 +97,22 @@ class OwlStore {
   onCommand(cmd: string, arg?: any) {
     switch (cmd) {
       case 'focus-omnibox': this.omniboxFocus++; break;
-      case 'find': this.findOpen = true; break;
+      case 'find': this.findOpen = true; this.findFocus++; break;
+      case 'find-next': case 'find-prev':
+        if (!this.findOpen) { this.findOpen = true; this.findFocus++; }
+        else this.findStep = { n: this.findStep.n + 1, forward: cmd === 'find-next' };
+        break;
+      case 'app-menu': this.appMenuOpen = !this.appMenuOpen; break;
+      case 'home': { const t = this.activeTab; if (t) owl.navigate(t.id, 'owl://newtab'); else owl.newTab(); break; }
+      case 'clear-data': owl.newTab('owl://settings#privacy'); break;
+      case 'move-tab-left': case 'move-tab-right': {
+        const tabs = this.win.tabs, i = tabs.findIndex((t) => t.id === this.win.activeTabId);
+        if (i < 0) break;
+        const j = i + (cmd === 'move-tab-left' ? -1 : 1);
+        // pinned tabs stay together at the start
+        if (j >= 0 && j < tabs.length && !!tabs[j].pinned === !!tabs[i].pinned) owl.moveTab(tabs[i].id, j);
+        break;
+      }
       case 'toggle-companion': this.panelOpen = !this.panelOpen; break;
       case 'palette': this.paletteOpen = !this.paletteOpen; break;
       case 'toggle-sidebar': this.sidebarOpen = !this.sidebarOpen; break;
