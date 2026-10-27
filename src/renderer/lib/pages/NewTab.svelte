@@ -37,7 +37,8 @@
   onMount(() => {
     owl.onboarding().then((o: any) => { userName = o?.userName || ''; }).catch(() => {});
     owl.providers().then((p: any) => (providers = p || [])).catch(() => {});
-    owl.history('', 0, 400).then((h: any) => {
+    // incognito: no "frequently visited" from the regular profile's history (Chrome shows none either)
+    if (store.win.incognito) { sitesLoaded = true; } else owl.history('', 0, 400).then((h: any) => {
       const by = new Map<string, { host: string; url: string; title: string; favicon: string; visits: number }>();
       for (const e of (h || []) as HistoryEntry[]) {
         if (!/^https?:/.test(e.url)) continue;

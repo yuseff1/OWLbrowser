@@ -57,7 +57,9 @@
       <VerticalTabs />
     {:else}
       <div class="grp">Recent chats</div>
-      {#if threads.recent.length}
+      {#if store.win.incognito}
+        <p class="empty">Recent chats are hidden in incognito.</p>
+      {:else if threads.recent.length}
         {#each threads.recent as t (t.id)}
           <button class="chat" class:active={store.panelOpen && threads.currentId === t.id} onclick={() => openThread(t.id)} title={t.title}>
             <CompanionAvatar companion={t.companionId} size={16} />

@@ -7,6 +7,14 @@
     <title>OWL</title>
   </head>
   <body>
+    <!-- liquid-glass edge refraction map for the glass-lens utility (app.css): neutral grey in the middle,
+         R/G pushed at the edges so the backdrop bends inward near the rim. Used by transient sheets only. -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <filter id="owl-glass-lens" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feImage href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22l%22%20x1%3D%220%22%20x2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ff8080%22/%3E%3Cstop%20offset%3D%22.1%22%20stop-color%3D%22%23ff8080%22%20stop-opacity%3D%220%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id%3D%22r%22%20x1%3D%221%22%20x2%3D%220%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23008080%22/%3E%3Cstop%20offset%3D%22.1%22%20stop-color%3D%22%23008080%22%20stop-opacity%3D%220%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id%3D%22t%22%20y1%3D%220%22%20y2%3D%221%22%20x2%3D%220%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%2380ff80%22/%3E%3Cstop%20offset%3D%22.14%22%20stop-color%3D%22%2380ff80%22%20stop-opacity%3D%220%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id%3D%22b%22%20y1%3D%221%22%20y2%3D%220%22%20x2%3D%220%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23800080%22/%3E%3Cstop%20offset%3D%22.14%22%20stop-color%3D%22%23800080%22%20stop-opacity%3D%220%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20fill%3D%22%23808080%22/%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20fill%3D%22url%28%23l%29%22/%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20fill%3D%22url%28%23r%29%22/%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20fill%3D%22url%28%23t%29%22/%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20fill%3D%22url%28%23b%29%22/%3E%3C/svg%3E" x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map" />
+        <feDisplacementMap in="SourceGraphic" in2="map" scale="12" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
     <div id="app"></div>
     <script type="module" src="./main.ts"></script>
   </body>

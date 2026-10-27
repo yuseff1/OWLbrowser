@@ -705,7 +705,9 @@ export async function loadInstalledExtensions(ses: Session, profileId: string): 
   let dirs: string[] = [];
   try { dirs = fs.readdirSync(root); } catch { return []; }
   for (const id of dirs) {
-    if (!EXT_ID_RE.test(id)) continue;
+    // Imported extensions live under their 32-char id; ones added with "Load unpacked" (main.ts loadExtension)
+    // keep their folder name, and used to vanish after a restart because only id-named folders were loaded.
+    if (id.startsWith('.') || id !== path.basename(id)) continue;
     const dir = path.join(root, id);
     if (!exists(path.join(dir, 'manifest.json'))) continue;
     try {

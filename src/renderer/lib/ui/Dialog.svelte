@@ -29,7 +29,7 @@
 <Dialog.Root bind:open {onOpenChange}>
   <Dialog.Portal>
     <Dialog.Overlay class="owl-dialog-backdrop" />
-    <Dialog.Content class="owl-dialog glass-strong {cls}" style="width:min({width}px, calc(100vw - 32px))">
+    <Dialog.Content class="owl-dialog glass-strong glass-lens {cls}" style="width:min({width}px, calc(100vw - 32px))">
       {#if title}
         <div class="mb-4 flex items-start gap-3">
           <div class="min-w-0 flex-1">

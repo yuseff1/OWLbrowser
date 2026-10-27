@@ -67,7 +67,7 @@
 <Dialog.Root bind:open={store.paletteOpen}>
   <Dialog.Portal>
     <Dialog.Overlay class="pal-backdrop" />
-    <Dialog.Content class="pal glass-strong" aria-label="Command palette">
+    <Dialog.Content class="pal glass-strong glass-lens" aria-label="Command palette">
       <Command.Root class="flex min-h-0 flex-col" loop filter={(value, search, keywords) => (/^(ask|do|search):/.test(value) ? 1 : computeCommandScore(value, search, keywords))}>
         <div class="in">
           <Search size={16} strokeWidth={1.8} class="text-ink-3" />

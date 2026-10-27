@@ -47,6 +47,27 @@ const providerStore = new JsonStore<{ providers: ModelProvider[] }>('providers',
 
 const listeners = new Set<(s: Settings) => void>();
 
+/**
+ * The OpenAI-style models endpoint for a provider base URL, accepting the same forms as llm.ts chatEndpoint():
+ * a server root (`http://127.0.0.1:1234`, `http://localhost:11434`) → `/v1/models`, a pasted
+ * `…/chat/completions` → `…/models`, Ollama's native `…:11434/api` → `/v1/models`, else `<base>/models`.
+ */
+export function modelsEndpoint(baseUrl: string): string {
+  const b = String(baseUrl || '').trim().replace(/\/+$/, '');
+  if (/\/chat\/completions$/i.test(b)) return b.replace(/\/chat\/completions$/i, '') + '/models';
+  try {
+    const u = new URL(b);
+    if (u.pathname === '' || u.pathname === '/') return b + '/v1/models';
+    if (/\/api$/i.test(u.pathname) && /11434/.test(u.port)) return b.replace(/\/api$/i, '') + '/v1/models';
+  } catch {}
+  return b + '/models';
+}
+
+/** Ollama's native model list (`/api/tags`) at the server root, whatever path the base URL carries. */
+function ollamaTagsUrl(baseUrl: string): string {
+  try { const u = new URL(baseUrl); return u.origin + '/api/tags'; } catch { return String(baseUrl).replace(/\/v1$/, '') + '/api/tags'; }
+}
+
 export const settings = {
   get(): Settings { return { ...DEFAULT_SETTINGS, ...settingsStore.get() }; },
   patch(p: Partial<Settings>) {
@@ -107,7 +128,7 @@ export const providers = {
     if (sendKey) headers['Authorization'] = `Bearer ${key}`;
     if (p.kind === 'anthropic' && sendKey) { headers['x-api-key'] = key; headers['anthropic-version'] = '2023-06-01'; }
     try {
-      const r = await fetch(p.baseUrl + '/models', { headers, signal: AbortSignal.timeout(6000) });
+      const r = await fetch(modelsEndpoint(p.baseUrl), { headers, signal: AbortSignal.timeout(6000) });
       if (!r.ok) throw new Error(String(r.status));
       const j: any = await r.json();
       const ids: string[] = (j.data || j.models || []).map((m: any) => m.id || m.name).filter(Boolean);
@@ -122,10 +143,14 @@ export const providers = {
       // Ollama native fallback
       if (p.kind === 'ollama') {
         try {
-          const r = await fetch(p.baseUrl.replace(/\/v1$/, '') + '/api/tags', { signal: AbortSignal.timeout(4000) });
+          const r = await fetch(ollamaTagsUrl(p.baseUrl), { signal: AbortSignal.timeout(4000) });
+          if (!r.ok) return [];
           const j: any = await r.json();
-          const ids = (j.models || []).map((m: any) => m.name);
-          providerStore.update((d) => { const x = d.providers.find((y) => y.id === id); if (x) x.models = ids; });
+          const ids: string[] = (Array.isArray(j?.models) ? j.models : []).map((m: any) => m?.name).filter((n: any) => typeof n === 'string' && n);
+          if (ids.length) {
+            providerStore.update((d) => { const x = d.providers.find((y) => y.id === id); if (x) x.models = ids; });
+            if (!settings.get().defaultModel) settings.patch({ defaultModel: { providerId: id, model: ids[0] } });
+          }
           return ids;
         } catch {}
       }

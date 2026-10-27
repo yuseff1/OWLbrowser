@@ -14,11 +14,14 @@ export type ThreadMsg = {
   runId?: string;
   pending?: boolean;
   error?: boolean;
+  /** the error is "no model configured": shown as a setup prompt, not a failure */
+  setup?: boolean;
   withPage?: boolean;
 };
 export type Thread = { id: string; title: string; companionId: string; createdAt: number; updatedAt: number; messages: ThreadMsg[] };
 
 const KEY = 'owl.threads';
+const NO_MODEL = /no (ai )?model|settings → models|no models? (is )?(set up|configured|connected)/i;
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 function load(): Thread[] {
@@ -126,6 +129,7 @@ class Threads {
     } catch (e: any) {
       m.content = e?.message || 'Couldn’t reach the model.'; m.error = true;
     }
+    if (m.error && NO_MODEL.test(m.content)) m.setup = true;
     m.pending = false;
     th.updatedAt = Date.now();
     this.touch(th.id);
@@ -139,9 +143,10 @@ class Threads {
     try {
       const run = (await owl.startRun(companionId, task, { useCurrentTab: true, background: false })) as { id: string } | null;
       if (run?.id) th.messages.push({ id: uid(), role: 'assistant', content: '', t: Date.now(), companionId, runId: run.id });
-      else th.messages.push({ id: uid(), role: 'assistant', content: 'Couldn’t start the task. Check that a model is connected in Settings → Models.', t: Date.now(), companionId, error: true });
+      else th.messages.push({ id: uid(), role: 'assistant', content: 'Couldn’t start the task. Check that a model is connected in Settings → Models.', t: Date.now(), companionId, error: true, setup: true });
     } catch (e: any) {
-      th.messages.push({ id: uid(), role: 'assistant', content: e?.message || 'Couldn’t start the task.', t: Date.now(), companionId, error: true });
+      const msg = e?.message || 'Couldn’t start the task.';
+      th.messages.push({ id: uid(), role: 'assistant', content: msg, t: Date.now(), companionId, error: true, setup: NO_MODEL.test(msg) });
     }
     th.updatedAt = Date.now();
     this.touch(th.id);

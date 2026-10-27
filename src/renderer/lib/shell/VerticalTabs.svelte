@@ -80,13 +80,13 @@
   .pins { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; margin-bottom: 8px; }
   .pin { display: grid; place-items: center; height: 36px; border-radius: 10px; border: 0; background: color-mix(in srgb, var(--ink) 5%, transparent); }
   .pin:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-  .pin.active { background: var(--tab-active); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.06); }
+  .pin.active { background: var(--tab-active) var(--glass-sheen); box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(0,0,0,.06); }
   .newtab { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 10px; border: 0; background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; }
   .newtab:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
   .grp { padding: 12px 10px 4px; font-size: 11.5px; font-weight: 500; color: var(--ink-3); }
   .vt { position: relative; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 4px 0 10px; border-radius: 10px; color: var(--ink-2); font-size: 13px; }
   .vt:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
-  .vt.active { background: var(--tab-active); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.05); }
+  .vt.active { background: var(--tab-active) var(--glass-sheen); color: var(--ink); box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(0,0,0,.05); }
   .vt.split:not(.active) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent); }
   .vt.sleeping { opacity: .5; }
   .live { width: 7px; height: 7px; margin-right: 6px; border-radius: 99px; background: var(--cc, var(--accent)); flex: none; animation: owl-pulse 1.6s ease-in-out infinite; }

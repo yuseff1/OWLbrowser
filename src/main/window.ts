@@ -264,8 +264,8 @@ export class OwlWindow {
     const b = r && [r.x, r.y, r.width, r.height].every((n) => typeof n === 'number' && isFinite(n))
       ? clampRect(r, cw, ch)
       : { x: 0, y: 0, width: cw, height: ch };
+    v.setBounds(b); // size first, so the popup renderer measures the right viewport when it places a menu
     v.webContents.send('owl:event', 'popup', { ...spec, origin: { x: b.x, y: b.y } });
-    v.setBounds(b);
     this.win.contentView.addChildView(v); // top of the stack
     v.setVisible(true);
     this.popupFocus = !!spec.focus;
@@ -406,6 +406,7 @@ export class OwlWindow {
     this.layout();
     this.pushState();
     if (t.wc && !this.overlay) t.wc.focus();
+    else if (!t.wc && !this.win.isDestroyed()) this.win.webContents.focus(); // internal page: keys go to the UI, not a hidden web view
   }
 
   close(id: number) {
@@ -552,6 +553,7 @@ export class OwlWindow {
   zoomTab(id: number, delta: number | 'reset') {
     const t = this.tab(id);
     if (!t?.wc) return;
+    if (delta !== 'reset' && !(typeof delta === 'number' && Number.isFinite(delta))) return; // NaN would reach setZoomFactor and the state JSON
     t.zoom = delta === 'reset' ? 1 : Math.max(0.25, Math.min(5, Math.round((t.zoom + delta) * 100) / 100));
     t.wc.setZoomFactor(t.zoom);
     this.pushState();
@@ -693,9 +695,17 @@ export class OwlWindow {
     else if (alt && !ctrl && (k === 'f' || k === 'e')) cmd = 'app-menu';
     else if (k === 'escape' && this.win.isFullScreen()) cmd = 'exit-fullscreen';
     else if (ctrl && k === '\\') cmd = 'toggle-sidebar';
-    if (cmd) { e.preventDefault(); this.hooks.onCommand(this, cmd, arg); }
+    if (cmd) {
+      e.preventDefault();
+      // commands that put the caret in the chrome (omnibox, find bar, palette, menu) must move OS keyboard
+      // focus off the web view first, or the next keystrokes land in the page
+      if (UI_FOCUS_CMDS.has(cmd) && !this.win.isDestroyed()) this.win.webContents.focus();
+      this.hooks.onCommand(this, cmd, arg);
+    }
   }
 }
+
+const UI_FOCUS_CMDS = new Set(['focus-omnibox', 'find', 'palette', 'app-menu', 'new-tab']);
 
 /** What the UI asks the popup layer to draw (see src/renderer/lib/ui/popup.ts). rect: window-relative CSS px, omitted = whole window. */
 export type PopupSpec = { id: number; kind: string; rect?: Bounds; focus?: boolean; [k: string]: any };

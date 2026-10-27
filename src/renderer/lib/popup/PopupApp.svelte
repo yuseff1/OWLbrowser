@@ -116,6 +116,10 @@
   $effect(() => { if (!sugg) lastHover = -1; });
 </script>
 
+<!-- main resizes this view to the window after sending a menu spec (it may still have the omnibox
+     dropdown's small bounds when place() first runs), so re-place once the viewport settles -->
+<svelte:window onresize={() => { if (menu) place(); }} />
+
 {#if menu}
   <!-- full-window catcher: a click anywhere outside the menu closes it (like a native menu) -->
   <div class="catch" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) emit('dismiss'); }} oncontextmenu={(e) => { e.preventDefault(); emit('dismiss'); }}>
@@ -166,11 +170,11 @@
   .catch { position: fixed; inset: 0; }
   /* no backdrop blur here: this view is composited over the page, so it reads as a solid sheet */
   .pop-surface {
-    background: color-mix(in srgb, var(--surface) 97%, transparent);
-    border: 1px solid color-mix(in srgb, var(--ink) 9%, transparent);
-    box-shadow: 0 12px 32px -10px rgba(20, 19, 23, 0.32), 0 2px 8px rgba(20, 19, 23, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    background-color: var(--surface);
+    background-image: var(--glass-sheen), var(--glass-hue);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-rim), var(--glass-float-drop);
   }
-  :global(.dark) .pop-surface { border-color: rgba(255, 255, 255, 0.09); box-shadow: 0 14px 36px -10px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05); }
   .owl-menu { position: fixed; max-height: calc(100vh - 16px); overflow-y: auto; opacity: 0; }
   .owl-menu.shown { opacity: 1; animation: pop-in .14s var(--ease-out) both; }
   .ico { display: grid; place-items: center; width: 15px; height: 15px; color: var(--ink-2); flex: none; }

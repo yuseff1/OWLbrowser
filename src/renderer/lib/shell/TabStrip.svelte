@@ -1,4 +1,5 @@
 <script lang="ts">
+  import WindowControls from './WindowControls.svelte';
   import { owl, hostOf } from '../api';
   import { store } from '../stores.svelte';
   import { IconButton, ContextMenu } from '../ui';
@@ -8,6 +9,7 @@
   import type { TabState } from '$shared/types';
 
   const mac = owl.platform === 'darwin';
+  const linux = owl.platform === 'linux';
   let over = $state<{ id: number; after: boolean } | null>(null);
 
   let tabsEl = $state<HTMLDivElement | null>(null);
@@ -102,8 +104,8 @@
       <IconButton icon={Plus} label="New tab" kbd="Ctrl+T" size="sm" onclick={() => owl.newTab()} />
     </div>
   </div>
-  <!-- window controls (titleBarOverlay) live here on Windows -->
-  <div class="wc-space" aria-hidden="true"></div>
+  <!-- window controls (titleBarOverlay) live here on Windows; Linux gets drawn ones -->
+  {#if linux}<div class="wc-space"><WindowControls /></div>{:else}<div class="wc-space" aria-hidden="true"></div>{/if}
 </div>
 
 <style>
@@ -111,6 +113,7 @@
   .strip.mac { padding-left: 78px; }
   .wc-space { width: 140px; flex: none; height: 100%; }
   .strip.mac .wc-space { width: 12px; }
+  :global(.platform-linux) .wc-space { width: 120px; }
   .tabs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 0 2px 0 6px; }
   .tabs::-webkit-scrollbar { display: none; }
   .ico { position: relative; display: grid; place-items: center; flex: none; }
@@ -128,9 +131,10 @@
   .tab:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
   .tab.active {
     background: var(--tab-active); color: var(--ink);
-    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 0 0 1px var(--line), inset 0 1px 0 rgba(255,255,255,.5);
+    background-image: var(--glass-sheen);
+    box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(24,22,20,.07);
   }
-  :global(.dark) .tab.active { box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--line), inset 0 1px 0 rgba(255,255,255,.05); }
+  :global(.dark) .tab.active { box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(0,0,0,.4); }
   .tab.split:not(.active) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent); }
   .tab.sleeping { opacity: .5; }
   .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; mask-image: linear-gradient(90deg, #000 85%, transparent); }

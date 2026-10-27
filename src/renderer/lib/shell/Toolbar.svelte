@@ -4,6 +4,7 @@
   import { IconButton, Menu, Popover, CompanionAvatar, Tooltip, type MenuItem } from '../ui';
   import { ArrowLeft, ArrowRight, RotateCw, X, PanelLeft, Ellipsis, Plus, AppWindow, EyeOff, Clock, Download, Bookmark, Search, Printer, Columns2, Settings, ZoomIn, ZoomOut, Code, Maximize } from '@lucide/svelte';
   import Omnibox from './Omnibox.svelte';
+  import WindowControls from './WindowControls.svelte';
   import AgentsIndicator from './AgentsIndicator.svelte';
   import DownloadsButton from './DownloadsButton.svelte';
   import ProfileMenu from './ProfileMenu.svelte';
@@ -81,7 +82,7 @@
       </Popover>
     {/if}
   </div>
-  {#if modern}<div class="wc-space" aria-hidden="true"></div>{/if}
+  {#if modern}{#if owl.platform === 'linux'}<div class="wc-space"><WindowControls /></div>{:else}<div class="wc-space" aria-hidden="true"></div>{/if}{/if}
 </div>
 
 <style>
@@ -91,7 +92,8 @@
   .nav { display: flex; align-items: center; gap: 1px; }
   .mid { flex: 1; min-width: 0; display: flex; justify-content: center; padding: 0 12px; }
   .right { display: flex; align-items: center; gap: 4px; }
-  .wc-space { width: 132px; flex: none; }
+  .wc-space { width: 132px; flex: none; height: 100%; }
+  :global(.platform-linux) .wc-space { width: 120px; }
   :global(.platform-darwin) .wc-space { display: none; }
   .comp {
     display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px 0 4px; border-radius: 999px; border: 0;
@@ -99,7 +101,7 @@
     transition: background-color .15s, color .15s;
   }
   .comp:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
-  .comp.on { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.05); }
+  .comp.on { background: var(--surface) var(--glass-sheen); color: var(--ink); box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(0,0,0,.05); }
   .me { display: grid; place-items: center; width: 26px; height: 26px; margin-left: 2px; border-radius: 99px; border: 0; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 600; }
   .me:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 </style>

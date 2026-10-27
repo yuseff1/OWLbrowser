@@ -124,7 +124,7 @@
   ]);
 </script>
 
-<aside class="panel" style:width="{width}px" aria-label="{comp?.name ?? 'Companion'} panel">
+<aside class="panel glass" style:width="{width}px" aria-label="{comp?.name ?? 'Companion'} panel">
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions (focusable splitter is a valid ARIA pattern) -->
   <div class="handle" class:on={resizing} role="separator" aria-orientation="vertical" aria-label="Resize panel" aria-valuemin={MIN} aria-valuemax={MAX} aria-valuenow={Math.round(width)}
     tabindex="0" onpointerdown={startResize} onkeydown={onHandleKey}></div>
@@ -170,7 +170,7 @@
     {:else}
       <ol class="thread">
         {#each msgs as m (m.id)}
-          <li class="msg {m.role}" class:error={m.error}>
+          <li class="msg {m.role}" class:error={m.error && !m.setup}>
             {#if m.role === 'user'}
               <div class="bubble">{m.content}</div>
             {:else}
@@ -181,6 +181,12 @@
                   {#if r}<RunView run={r} />{:else}<p class="text-[12.5px] text-ink-3">Starting…</p>{/if}
                 {:else if m.pending && !m.content}
                   <span class="typing" aria-label="Thinking"><i></i><i></i><i></i></span>
+                {:else if m.setup}
+                  <div class="setup" role="status">
+                    <p class="setup-t">{store.companions.find((c) => c.id === m.companionId)?.name ?? 'Your companion'} needs an AI model first</p>
+                    <p class="setup-d">Add an API key (OpenRouter, OpenAI, Anthropic…) or run a free local model with Ollama or LM Studio. It takes about a minute.</p>
+                    <button class="setup-b" onclick={() => owl.newTab('owl://settings#models')}><Settings2 size={13} strokeWidth={1.9} /> Set up a model</button>
+                  </div>
                 {:else}
                   <div class="owl-prose">{@html markdown(m.content)}</div>
                 {/if}
@@ -227,7 +233,7 @@
 </aside>
 
 <style>
-  .panel { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; flex: none; }
+  .panel { position: relative; display: flex; flex-direction: column; height: auto; min-height: 0; flex: none; margin: 0 6px 6px 0; border-radius: var(--glass-radius); }
   .handle { position: absolute; left: -5px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 5; }
   .handle::after { content: ''; position: absolute; left: 3px; top: 50%; height: 36px; width: 2px; margin-top: -18px; border-radius: 2px; background: transparent; transition: background-color .15s; }
   .handle:hover::after, .handle.on::after, .handle:focus-visible::after { background: color-mix(in srgb, var(--ink) 25%, transparent); }
@@ -251,6 +257,12 @@
   .bubble { max-width: 85%; padding: 8px 12px; border-radius: 16px 16px 5px 16px; background: color-mix(in srgb, var(--ink) 6.5%, transparent); white-space: pre-wrap; overflow-wrap: anywhere; }
   .from { padding-top: 1px; flex: none; }
   .msg.error .owl-prose { color: #d43a3f; }
+  .setup { padding: 11px 13px 12px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, var(--line)); }
+  .setup-t { font-weight: 600; font-size: 13px; color: var(--ink); }
+  .setup-d { margin-top: 3px; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+  .setup-b { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; height: 28px; padding: 0 12px; border-radius: 99px; border: 0; background: var(--ink); color: var(--surface); font: inherit; font-size: 12.5px; font-weight: 550; }
+  .setup-b:hover { opacity: .9; }
+  .setup-b:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .typing { display: inline-flex; gap: 4px; padding: 7px 0; }
   .typing i { width: 6px; height: 6px; border-radius: 99px; background: var(--ink-3); animation: owl-pulse 1.1s ease-in-out infinite; }
   .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }

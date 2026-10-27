@@ -545,7 +545,9 @@ function formatToolResult(r: any): string {
 
 // ───────────────────────────── registry ─────────────────────────────
 
+/** live connections, keyed by profile AND app id: two profiles may hold an app with the same id */
 const conns = new Map<string, Connection>();
+const connKey = (profileId: string, id: string) => profileId + '\u0000' + id;
 
 function getCfg(profileId: string, id: string): McpServerConfig {
   const cfg = storeFor(profileId).get().find((s) => s.id === id);
@@ -555,11 +557,10 @@ function getCfg(profileId: string, id: string): McpServerConfig {
 
 function connFor(profileId: string, id: string): Connection {
   const cfg = getCfg(profileId, id);
-  let c = conns.get(id);
-  if (!c || c.profileId !== profileId) {
-    if (c) c.close().catch(() => {});
+  let c = conns.get(connKey(profileId, id));
+  if (!c) {
     c = new Connection(profileId, cfg);
-    conns.set(id, c);
+    conns.set(connKey(profileId, id), c);
   } else c.cfg = cfg;
   return c;
 }
@@ -599,8 +600,8 @@ export const mcp = {
   /** server configs for the profile (token never returned, only hasToken) */
   list(profileId: string): McpServerView[] {
     return storeFor(profileId).get().map((s) => {
-      const c = conns.get(s.id);
-      const st: McpStatus = c && c.profileId === profileId ? c.status : 'off';
+      const c = conns.get(connKey(profileId, s.id));
+      const st: McpStatus = c ? c.status : 'off';
       return { ...s, hasToken: secrets.has(tokenKey(profileId, s.id)), status: st, error: st === 'error' ? c?.error : undefined };
     });
   },
@@ -618,14 +619,14 @@ export const mcp = {
     store.flush();
     if (cfg.token !== undefined) secrets.set(tokenKey(profileId, next.id), cfg.token ? String(cfg.token).trim() : null);
     // config changed → drop any live connection so the next use reconnects with new settings
-    const c = conns.get(next.id);
-    if (c) { conns.delete(next.id); c.close().catch(() => {}); }
+    const c = conns.get(connKey(profileId, next.id));
+    if (c) { conns.delete(connKey(profileId, next.id)); c.close().catch(() => {}); }
     return next;
   },
 
   remove(profileId: string, id: string) {
-    const c = conns.get(id);
-    if (c && c.profileId === profileId) { conns.delete(id); c.close().catch(() => {}); }
+    const c = conns.get(connKey(profileId, id));
+    if (c) { conns.delete(connKey(profileId, id)); c.close().catch(() => {}); }
     storeFor(profileId).update((d) => d.filter((s) => s.id !== id));
     storeFor(profileId).flush();
     secrets.set(tokenKey(profileId, id), null);
@@ -642,15 +643,15 @@ export const mcp = {
     }
   },
 
-  async disconnect(id: string) {
-    const c = conns.get(id);
+  async disconnect(profileId: string, id: string) {
+    const c = conns.get(connKey(profileId, id));
     if (!c) return;
-    conns.delete(id);
+    conns.delete(connKey(profileId, id));
     await c.close();
   },
 
-  status(id: string): McpStatus {
-    return conns.get(id)?.status ?? 'off';
+  status(profileId: string, id: string): McpStatus {
+    return conns.get(connKey(profileId, id))?.status ?? 'off';
   },
 
   /** all tools from enabled servers of this profile (auto-connects; failing servers are skipped) */

@@ -16,7 +16,7 @@ export async function companionChat(
   profileId: string,
   companionId: string,
   messages: ChatTurn[],
-  opts: { page?: { url: string; title: string; text: string } | null; onToken?: (t: string) => void; signal?: AbortSignal } = {},
+  opts: { page?: { url: string; title: string; text: string } | null; onToken?: (t: string) => void; signal?: AbortSignal; /** false in incognito: nothing from the chat is distilled into long-term memory */ remember?: boolean } = {},
 ): Promise<{ text: string; error?: string }> {
   const c = companions.get(profileId, companionId);
   const turns = (Array.isArray(messages) ? messages : [])
@@ -35,7 +35,7 @@ export async function companionChat(
   try {
     const res = await chat({ model: c.model, messages: [{ role: 'system', content: sys }, ...turns], temperature: 0.4, onToken: opts.onToken, signal: opts.signal });
     const text = res.content || '';
-    if (text) memory.distill(profileId, turns.map((m) => `${m.role}: ${m.content}`).join('\n') + `\nassistant: ${text}`, 'chat').catch(() => {});
+    if (text && opts.remember !== false) memory.distill(profileId, turns.map((m) => `${m.role}: ${m.content}`).join('\n') + `\nassistant: ${text}`, 'chat').catch(() => {});
     return text ? { text } : { text: '', error: `${c.name} returned an empty answer. Try again or pick another model.` };
   } catch (e: any) {
     if (e?.name === 'AbortError') return { text: '', error: 'Stopped.' };

@@ -47,6 +47,14 @@ const downloads = new Map<string, Electron.DownloadItem>();
 const pendingPasswords = new Map<string, { profileId: string; origin: string; username: string; password: string }>();
 /** incognito downloads live only in memory (per profile) and are dropped when its last incognito window closes */
 const incognitoDownloads = new Map<string, DownloadItem[]>();
+/** recently closed incognito tabs (per profile, memory only): never offered by "reopen closed tab" in a normal window */
+const incognitoClosed = new Map<string, string[]>();
+function closedTabsFor(w: OwlWindow): string[] {
+  if (!w.incognito) return dataFor(w.profileId).closedTabs;
+  let l = incognitoClosed.get(w.profileId);
+  if (!l) incognitoClosed.set(w.profileId, (l = []));
+  return l;
+}
 function downloadStore(profileId: string, incognito: boolean): { get(): DownloadItem[]; update(fn: (l: DownloadItem[]) => DownloadItem[] | void): void } {
   if (!incognito) return dataFor(profileId).downloads;
   return {
@@ -139,6 +147,10 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     const stored = origin ? storedPerm(origin, permission) : undefined;
     if (stored !== undefined) return stored;
     if (DEVICE_PERMS.has(permission)) return false;
+    // Notifications: a `true` check makes Notification.permission 'granted' and `new Notification()` shows
+    // without ever reaching the request handler (verified on Electron 45), i.e. any site could post OS
+    // notifications silently. Undecided → false; Notification.requestPermission() still prompts below.
+    if (permission === 'notifications') return false;
     return true; // Electron's default for everything else; real grants still go through the request handler below
   });
   ses.setDevicePermissionHandler(() => false); // WebHID / WebSerial / WebUSB devices are never auto-granted
@@ -182,7 +194,8 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     const safeName = path.basename(item.getFilename() || 'download').replace(/[\x00-\x1f<>:"/\\|?*]/g, '_').replace(/^\.+/, '_') || 'download';
     // agent-driven tabs: quarantined + paused until the user approves (see downloads.ts)
     const gate = gateAgentDownload(item, wc, path.join(dir, safeName), uniquePath);
-    if (!gate) item.setSavePath(uniquePath(path.join(dir, safeName)));
+    let reserved: string | null = null;
+    if (!gate) { reserved = uniquePath(path.join(dir, safeName)); reservedPaths.add(pathKey(reserved)); item.setSavePath(reserved); }
     const savedAt = () => (gate ? gate.currentPath() : item.getSavePath());
     const rec = (): DownloadItem => ({ id, url: item.getURL(), filename: path.basename(savedAt()), path: savedAt(), received: item.getReceivedBytes(), total: item.getTotalBytes(), state: item.getState(), startedAt: Math.round(item.getStartTime() * 1000) });
     // incognito: never written to the profile's download history, only shown to that profile's incognito windows
@@ -192,17 +205,25 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     save();
     let last = 0;
     item.on('updated', () => { if (Date.now() - last > 400) { last = Date.now(); save(); } });
-    item.once('done', async (_ev, state) => { const kept = gate ? await gate.settled : state === 'completed'; save(); downloads.delete(id); if (kept) targets().forEach((w) => toast(w, 'Downloaded', path.basename(savedAt()), 'success')); });
+    item.once('done', async (_ev, state) => { if (reserved) reservedPaths.delete(pathKey(reserved)); const kept = gate ? await gate.settled : state === 'completed'; save(); downloads.delete(id); if (kept) targets().forEach((w) => toast(w, 'Downloaded', path.basename(savedAt()), 'success')); });
   });
 
   if (!incognito) loadInstalledExtensions(ses, profileId).catch(() => {});
   return ses;
 }
 
+/**
+ * Chromium writes to a temporary file and only creates the target at the end, so two downloads of the
+ * same name started together both saw "free" and the second overwrote the first. Targets of downloads
+ * in flight are reserved here until they finish. Compared case-insensitively on Windows/macOS.
+ */
+const reservedPaths = new Set<string>();
+const pathKey = (p: string) => (process.platform === 'linux' ? p : p.toLowerCase());
 function uniquePath(p: string) {
-  if (!fs.existsSync(p)) return p;
+  const free = (c: string) => !fs.existsSync(c) && !reservedPaths.has(pathKey(c));
+  if (free(p)) return p;
   const { dir, name, ext } = path.parse(p);
-  for (let i = 1; i < 999; i++) { const c = path.join(dir, `${name} (${i})${ext}`); if (!fs.existsSync(c)) return c; }
+  for (let i = 1; i < 999; i++) { const c = path.join(dir, `${name} (${i})${ext}`); if (free(c)) return c; }
   return p;
 }
 
@@ -214,7 +235,7 @@ function createWindow(profileId: string, incognito = false, urls?: string[]): Ow
     onClosed: (ow) => {
       saveSession(ow.profileId);
       windows.delete(ow);
-      if (ow.incognito && ![...windows].some((x) => x.incognito && x.profileId === ow.profileId)) incognitoDownloads.delete(ow.profileId);
+      if (ow.incognito && ![...windows].some((x) => x.incognito && x.profileId === ow.profileId)) { incognitoDownloads.delete(ow.profileId); incognitoClosed.delete(ow.profileId); }
     },
     onCommand: (ow, cmd, arg) => runCommand(ow, cmd, arg),
     onPasswordSubmit: (ow, _tab, data) => {
@@ -223,6 +244,7 @@ function createWindow(profileId: string, incognito = false, urls?: string[]): Ow
       if (existing) { const cur = passwords.get(ow.profileId, existing.id); if (cur?.password === data.password) return; }
       const id = uid('pp_');
       pendingPasswords.set(id, { profileId: ow.profileId, ...data });
+      setTimeout(() => pendingPasswords.delete(id), 15 * 60_000).unref(); // an ignored prompt must not keep the plaintext forever
       ow.send('password-prompt', { id, origin: data.origin, username: data.username, update: !!existing });
     },
     onNewWindowRequest: () => {},
@@ -355,8 +377,8 @@ function runCommand(w: OwlWindow, cmd: string, arg?: any) {
   switch (cmd) {
     case 'new-tab': w.newTab('owl://newtab'); w.send('command', { cmd: 'focus-omnibox' }); break;
     case 'close-tab': if (t) w.close(t.id); break;
-    case 'reopen-tab': { const u = dataFor(w.profileId).closedTabs.pop(); if (u) w.newTab(u); break; }
-    case '__closed': { const l = dataFor(w.profileId).closedTabs; l.push(arg); if (l.length > 50) l.shift(); break; }
+    case 'reopen-tab': { const u = closedTabsFor(w).pop(); if (u) w.newTab(u); break; }
+    case '__closed': { const l = closedTabsFor(w); l.push(arg); if (l.length > 50) l.shift(); break; }
     case 'new-window': createWindow(w.profileId); break;
     case 'incognito': createWindow(w.profileId, true); break;
     case 'reload': wc?.reload(); break;
@@ -449,7 +471,14 @@ const api: Record<string, Handler> = {
   profiles: (w) => ({ profiles: profiles.list(), current: w.profileId }),
   createProfile: (_w, name: string, color?: string) => { const p = profiles.create(String(name ?? '').slice(0, 64), typeof color === 'string' ? color : undefined); createWindow(p.id); return p; },
   renameProfile: (_w, id, name, color) => profiles.rename(knownProfile(id), String(name ?? '').slice(0, 64), typeof color === 'string' ? color : undefined),
-  removeProfile: (_w, id) => { knownProfile(id); for (const w of windowsForProfile(id)) w.win.close(); profiles.remove(id); },
+  removeProfile: (_w, id) => {
+    knownProfile(id);
+    if (id === 'default') return; // profiles.remove refuses it too; keep its secrets
+    for (const w of [...windows]) if (w.profileId === id) w.win.close(); // incognito windows too
+    for (const p of passwords.list(id)) passwords.remove(id, p.id);
+    for (const a of mcp.list(id)) mcp.remove(id, a.id);
+    profiles.remove(id);
+  },
   openProfile: (_w, id) => { knownProfile(id); const ex = windowsForProfile(id)[0]; if (ex) ex.win.focus(); else createWindow(id); },
 
   bookmarks: (w) => bookmarks.list(w.profileId),
@@ -574,7 +603,7 @@ const api: Record<string, Handler> = {
   chat: async (w, companionId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>, opts: any = {}) => {
     let page = null;
     if (opts.withPage && w.active?.wc) { try { page = await w.active.wc.executeJavaScript(READ_SCRIPT, true); } catch {} }
-    return companionChat(w.profileId, companionId, messages, { page, onToken: (tok) => w.send('chat-token', { threadId: opts.threadId, token: tok }) });
+    return companionChat(w.profileId, companionId, messages, { page, remember: !w.incognito, onToken: (tok) => w.send('chat-token', { threadId: opts.threadId, token: tok }) });
   },
 
   memory: (w) => memory.list(w.profileId),
@@ -600,7 +629,7 @@ const api: Record<string, Handler> = {
   saveApp: (w, cfg) => mcp.upsert(w.profileId, cfg),
   removeApp: (w, id) => mcp.remove(w.profileId, id),
   connectApp: (w, id) => mcp.connect(w.profileId, id),
-  disconnectApp: (_w, id) => mcp.disconnect(id),
+  disconnectApp: (w, id) => mcp.disconnect(w.profileId, String(id)),
   artifacts: (w) => dataFor(w.profileId).artifacts.get().map((a) => ({ ...a, html: a.html.slice(0, 4000) })),
   artifact: (w, id) => dataFor(w.profileId).artifacts.get().find((a) => a.id === id) || null,
   artifactUrl: (_w, id: string) => artifactUrl(String(id)),
@@ -640,7 +669,7 @@ const api: Record<string, Handler> = {
 function hostOfUrl(u: string) { try { return new URL(u).hostname; } catch { return u; } }
 
 function suggest(w: OwlWindow, text: string) {
-  const q = text.trim();
+  const q = typeof text === 'string' ? text.trim() : '';
   const out: Array<{ type: string; title: string; url: string; favicon?: string }> = [];
   if (!q) return out;
   const asUrl = normalizeInput(q);

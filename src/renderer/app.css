@@ -44,18 +44,36 @@
   --surface-2: #f8f7f6;
   --ink: #141317;
   --ink-2: #5b5960;
-  --ink-3: #78757e;
+  --ink-3: #6e6b70; /* 4.5:1+ on ground, glass and surface */
   --line: rgba(20, 19, 23, 0.085);
   --accent: #e8a317; /* Tangent Owl amber; profile colour, overridden at runtime */
   --accent-ink: #141317;
 
-  /* liquid glass */
-  --glass-bg: rgba(255, 255, 255, 0.58);
-  --glass-bg-strong: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.7);
-  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04);
-  --glass-shadow: 0 10px 30px -10px rgba(20, 19, 23, 0.24), 0 2px 6px rgba(20, 19, 23, 0.06);
-  --glass-blur: saturate(180%) blur(22px);
+  /* liquid glass (recipe adapted from Glassy UI's material: tint · frost · saturate · split specular rim ·
+     hairline edge · two-step shadow; warm white rim, amber hue in the corner glow, no purple) */
+  --glass-tint: 255 253 250;            /* warm paper white the glass is tinted with */
+  --glass-pane: 0.64;                   /* tint opacity: panes (sidebar cards, companion panel, new-tab glass) */
+  --glass-float-a: 0.86;                /* tint opacity: floating (menus, dialogs, palette, toasts); kept high for 4.5:1 text */
+  --glass-frost: 14px;
+  --glass-float-frost: 22px;
+  --glass-sat: 1.6;
+  --glass-rim-hi: rgba(255, 252, 245, 0.78);   /* top-left specular rim (1.5px) */
+  --glass-rim-lo: rgba(255, 252, 245, 0.36);   /* bottom-right return rim (1px) */
+  --glass-rim-ring: rgba(255, 252, 245, 0.24); /* 2px inner ring */
+  --glass-edge: rgba(24, 22, 20, 0.11);        /* 1px hairline that holds the shape on light grounds */
+  --glass-drop: 0 1px 2px rgba(24, 22, 20, 0.09), 0 14px 34px -16px rgba(24, 22, 20, 0.26);
+  --glass-float-drop: 0 2px 6px rgba(24, 22, 20, 0.08), 0 24px 56px -16px rgba(24, 22, 20, 0.32);
+  --glass-sheen: linear-gradient(158deg, rgba(255, 255, 255, 0.34), transparent 36%);
+  --glass-hue: radial-gradient(110% 85% at 0% 0%, rgb(232 163 23 / 0.05), transparent 58%);
+  --glass-radius: 14px;
+  --glass-radius-float: 16px;
+  /* legacy names, kept so existing call sites read the new recipe */
+  --glass-bg: rgb(var(--glass-tint) / var(--glass-pane));
+  --glass-bg-strong: rgb(var(--glass-tint) / var(--glass-float-a));
+  --glass-border: var(--glass-edge);
+  --glass-rim: inset 1.5px 1.5px 0 -0.5px var(--glass-rim-hi), inset -1px -1px 0 var(--glass-rim-lo), inset 0 0 0 2px var(--glass-rim-ring);
+  --glass-shadow: var(--glass-drop);
+  --glass-blur: blur(var(--glass-frost)) saturate(var(--glass-sat));
 
   /* soft neumorphic (used sparingly) */
   --neu-bg: #efeeec;
@@ -70,25 +88,34 @@
 .dark {
   color-scheme: dark;
   --ground: #141317;
-  --surface: #1d1b20;
-  --surface-2: #232126;
-  --ink: #eeecf2;
-  --ink-2: #a9a4b2;
-  --ink-3: #858090;
+  --surface: #1e1c1f;
+  --surface-2: #242225;
+  --ink: #f0eeeb;
+  --ink-2: #b0aba5;
+  --ink-3: #8f8a84;
   --line: rgba(255, 255, 255, 0.07);
 
-  --glass-bg: rgba(38, 35, 42, 0.55);
-  --glass-bg-strong: rgba(34, 32, 38, 0.84);
-  --glass-border: rgba(255, 255, 255, 0.09);
-  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-  --glass-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --glass-tint: 30 28 27;
+  --glass-pane: 0.58;
+  --glass-float-a: 0.88;
+  --glass-frost: 16px;
+  --glass-float-frost: 26px;
+  --glass-sat: 1.7;
+  --glass-rim-hi: rgba(255, 246, 230, 0.16);
+  --glass-rim-lo: rgba(255, 246, 230, 0.06);
+  --glass-rim-ring: rgba(255, 246, 230, 0.04);
+  --glass-edge: rgba(255, 255, 255, 0.08);
+  --glass-drop: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 34px -16px rgba(0, 0, 0, 0.6);
+  --glass-float-drop: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 56px -16px rgba(0, 0, 0, 0.75);
+  --glass-sheen: linear-gradient(158deg, rgba(255, 246, 230, 0.06), transparent 36%);
+  --glass-hue: radial-gradient(110% 85% at 0% 0%, rgb(232 163 23 / 0.06), transparent 58%);
 
   --neu-bg: #1c1a1f;
   --neu-out: 6px 6px 14px rgba(0, 0, 0, 0.55), -5px -5px 12px rgba(255, 255, 255, 0.035);
   --neu-in: inset 3px 3px 8px rgba(0, 0, 0, 0.55), inset -3px -3px 8px rgba(255, 255, 255, 0.04);
 
   --chrome: rgba(20, 19, 23, 0.78);
-  --tab-active: rgba(48, 45, 52, 0.9);
+  --tab-active: rgba(50, 47, 46, 0.92);
   --halftone: rgba(255, 255, 255, 0.025);
 }
 
@@ -110,18 +137,36 @@ input, textarea, [contenteditable] { user-select: text; }
 .drag { -webkit-app-region: drag; }
 .no-drag, button, input, a, textarea, select, [role='button'], [role='tab'] { -webkit-app-region: no-drag; }
 
-/* ----- liquid glass ----- */
-.glass {
-  background: var(--glass-bg);
+/* ----- liquid glass -----
+   Tailwind 4 utilities. glass = pane, glass-strong = floating sheet, glass-field = recessed input,
+   glass-rim = specular edge only (for small chrome like the active tab), glass-lens = edge refraction.
+   Note: backdrop blur only sees this renderer. Over native web-page views and inside the popup layer
+   there is nothing to blur, so floating sheets carry a high tint and still read as solid. */
+@utility glass {
+  background-color: var(--glass-bg);
+  background-image: var(--glass-sheen), var(--glass-hue);
   backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-rim), var(--glass-shadow);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-rim), var(--glass-drop);
 }
-.glass-strong {
-  background: var(--glass-bg-strong);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-rim), var(--glass-shadow);
+@utility glass-strong {
+  background-color: var(--glass-bg-strong);
+  background-image: var(--glass-sheen), var(--glass-hue);
+  backdrop-filter: blur(var(--glass-float-frost)) saturate(var(--glass-sat));
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-rim), var(--glass-float-drop);
+}
+@utility glass-field {
+  background-color: color-mix(in srgb, var(--ink) 5%, transparent);
+  box-shadow: inset 0 1px 2px rgba(24, 22, 20, 0.07), inset 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent), 0 1px 0 var(--glass-rim-lo);
+}
+@utility glass-rim {
+  box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(24, 22, 20, 0.08);
+}
+/* edge refraction (SVG displacement, see #owl-glass-lens in index.html). GPU-heavy: transient, small or
+   medium floating sheets only (palette, dialogs), never always-on chrome. Chromium only; others ignore it. */
+@utility glass-lens {
+  backdrop-filter: url(#owl-glass-lens) blur(var(--glass-float-frost)) saturate(var(--glass-sat));
 }
 /* specular highlight sweep for hero glass pieces */
 .glass-sheen { position: relative; overflow: hidden; }
@@ -130,6 +175,9 @@ input, textarea, [contenteditable] { user-select: text; }
   position: absolute; inset: 0;
   background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 38%, transparent 60%);
   pointer-events: none; border-radius: inherit; mix-blend-mode: soft-light;
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-pane: 0.96; --glass-float-a: 0.98; }
 }
 
 /* ----- soft neumorphic (only composer, segmented controls, companion stage) ----- */

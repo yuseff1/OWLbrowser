@@ -21,7 +21,7 @@ export class RoutineScheduler {
     const prev = this.list(profileId).find((x) => x.id === id);
     const next: Routine = {
       id, name: r.name ?? prev?.name ?? 'Routine', companionId: r.companionId ?? prev?.companionId ?? 'hoot', task: r.task ?? prev?.task ?? '',
-      schedule: r.schedule ?? prev?.schedule ?? { type: 'daily', time: '08:00' }, trigger: r.trigger ?? prev?.trigger ?? null,
+      schedule: normalizeSchedule(r.schedule ?? prev?.schedule), trigger: r.trigger ?? prev?.trigger ?? null,
       enabled: r.enabled ?? prev?.enabled ?? true, lastRunAt: prev?.lastRunAt, lastResult: prev?.lastResult,
     };
     next.nextRunAt = computeNext(next, Date.now());
@@ -52,24 +52,39 @@ export class RoutineScheduler {
     for (const pid of this.profileIds()) {
       for (const r of this.list(pid)) {
         if (!r.enabled) continue;
-        if (r.trigger?.type === 'page-change') {
-          if (r.lastRunAt && now - r.lastRunAt < 5 * 60_000) continue;
-          try {
-            const html = await this.fetchText(pid, r.trigger.url);
-            const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-            const h = createHash('sha1').update(text).digest('hex');
-            const key = pid + r.id;
-            const prev = this.hashes.get(key);
-            this.hashes.set(key, h);
-            if (prev && prev !== h) this.fire(pid, r, `\n\nTrigger: the page ${r.trigger.url} changed.`);
-          } catch {}
-          continue;
-        }
-        if (r.nextRunAt && r.nextRunAt <= now) this.fire(pid, r);
-        else if (!r.nextRunAt) this.save(pid, r);
+        try { await this.tickOne(pid, r, now); } catch (e) { console.warn('[routines]', r.name, (e as any)?.message || e); } // one bad routine must not stop the others
       }
     }
   }
+
+  private async tickOne(pid: string, r: Routine, now: number) {
+    if (r.trigger?.type === 'page-change') {
+      if (r.lastRunAt && now - r.lastRunAt < 5 * 60_000) return;
+      try {
+        const html = await this.fetchText(pid, r.trigger.url);
+        const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+        const h = createHash('sha1').update(text).digest('hex');
+        const key = pid + r.id;
+        const prev = this.hashes.get(key);
+        this.hashes.set(key, h);
+        if (prev && prev !== h) this.fire(pid, r, `\n\nTrigger: the page ${r.trigger.url} changed.`);
+      } catch {}
+      return;
+    }
+    if (Number.isFinite(r.nextRunAt) && r.nextRunAt! <= now) this.fire(pid, r);
+    else if (!Number.isFinite(r.nextRunAt)) this.save(pid, r); // recomputes (and repairs a stored NaN)
+  }
+}
+
+/** A schedule computeNext can always handle: interval ≥ 5 min, or a daily HH:MM with optional weekdays 0-6. */
+export function normalizeSchedule(s: any): Routine['schedule'] {
+  if (s && s.type === 'interval') {
+    const m = Number(s.minutes);
+    return { type: 'interval', minutes: Number.isFinite(m) ? Math.max(5, Math.round(m)) : 60 };
+  }
+  const t = typeof s?.time === 'string' && /^([01]?\d|2[0-3]):([0-5]\d)$/.test(s.time.trim()) ? s.time.trim() : '08:00';
+  const days = Array.isArray(s?.days) ? [...new Set(s.days.map(Number).filter((d: number) => Number.isInteger(d) && d >= 0 && d <= 6))] as number[] : undefined;
+  return days?.length ? { type: 'daily', time: t, days } : { type: 'daily', time: t };
 }
 
 export function computeNext(r: Routine, from: number): number {
