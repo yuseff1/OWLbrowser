@@ -2,6 +2,7 @@ import { fatal, logLine, markStartupDone } from './crash'; // first: installs cr
 import { app, BrowserWindow, ipcMain, session, Session, dialog, shell, Notification, nativeTheme, net, webContents, protocol } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { pathToFileURL } from 'url';
 import { OwlWindow, Tab, normalizeInput, searchUrl, type Bounds } from './window';
 import { profiles, sessionFor } from './profiles';
 import { settings, providers, PROVIDER_PRESETS } from './settings';
@@ -63,8 +64,13 @@ const MAX_AGENT_TABS = 12;
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.exit(0);
 
+/** A web URL or an .html/.htm/.pdf path passed on the command line (shell "Open with", file association, default browser). */
+function launchArg(argv: string[]): string | undefined {
+  return argv.find((a) => !a.startsWith('-') && (/^https?:\/\//i.test(a) || /\.(html?|pdf)$/i.test(a)));
+}
+
 app.on('second-instance', (_e, argv) => {
-  const url = argv.find((a) => /^https?:\/\//.test(a) || a.endsWith('.html') || a.endsWith('.pdf'));
+  const url = launchArg(argv.slice(1));
   const w = focusedWindow() || [...windows][0];
   try {
     if (w) { if (w.win.isMinimized()) w.win.restore(); if (!w.win.isVisible()) w.win.show(); w.win.focus(); if (url) w.newTab(fileToUrl(url)); }
@@ -74,7 +80,8 @@ app.on('second-instance', (_e, argv) => {
 
 app.on('open-url', (e, url) => { e.preventDefault(); const w = focusedWindow(); if (w) w.newTab(url); else app.whenReady().then(() => createWindow(profiles.lastUsed(), false, [url])); });
 
-function fileToUrl(p: string) { return /^https?:/.test(p) ? p : 'file:///' + p.replace(/\\/g, '/'); }
+// pathToFileURL percent-encodes spaces, '#', '%' and non-ASCII characters (e.g. C:\Users\José\a b.html)
+function fileToUrl(p: string) { if (/^https?:/i.test(p)) return p; try { return pathToFileURL(path.resolve(p)).href; } catch { return 'file:///' + p.replace(/\\/g, '/'); } }
 
 function focusedWindow(): OwlWindow | null {
   const f = BrowserWindow.getFocusedWindow();
@@ -679,8 +686,9 @@ app.whenReady().then(async () => {
   logLine('info', `starting OWL ${app.getVersion()} (electron ${process.versions.electron}, ${process.platform}) packaged=${app.isPackaged}`);
   try { nativeTheme.themeSource = settings.get().theme; } catch (e) { logLine('warn', 'themeSource', e); }
   try {
-    const urlArg = process.argv.slice(1).find((a) => /^https?:\/\//.test(a));
-    createWindow(profiles.lastUsed(), false, urlArg ? [urlArg] : undefined);
+    // first launch from a file association / "Open with" gets the file too, not just http(s) links
+    const urlArg = launchArg(process.argv.slice(1));
+    createWindow(profiles.lastUsed(), false, urlArg ? [fileToUrl(urlArg)] : undefined);
   } catch (e) {
     // Without a window the process would live on invisibly (and block the installer). Fail loudly instead.
     return fatal('creating the first window', e);

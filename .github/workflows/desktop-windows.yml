@@ -88,6 +88,49 @@ jobs:
           grep -q "^version: $VERSION\$" release/latest.yml
           grep -q "OWL-Setup-$VERSION.exe" release/latest.yml
 
+      # Real-Windows smoke test of what users hit: install per-user into a folder with a space on D:\,
+      # start OWL (must log a clean start and stay up), install again OVER the running app (the
+      # "OWL cannot be closed" / "Error opening file for writing ...\Uninstall OWL.exe" path), then
+      # uninstall. A build that fails here is never released.
+      - name: Smoke test installer + startup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path "release\OWL-Setup-$env:VERSION.exe").Path
+          $dir = 'D:\OWL smoke'
+          $log = Join-Path $env:APPDATA 'OWL\logs\main.log'
+          # one argument string: NSIS wants /D= and _?= last and unquoted (spaces allowed)
+          function Run($exe, [string]$argline) { $p = Start-Process -FilePath $exe -ArgumentList $argline -PassThru; if (-not $p.WaitForExit(180000)) { throw "$exe timed out" }; return $p.ExitCode }
+          function OwlProcs { @(Get-CimInstance Win32_Process -Filter "Name = 'OWL.exe'") }
+
+          $code = Run $setup "/S /currentuser /D=$dir"
+          if ($code -ne 0) { throw "fresh install exited $code" }
+          foreach ($f in 'OWL.exe', 'Uninstall OWL.exe', 'resources\app.asar', 'resources\app-update.yml') { if (-not (Test-Path (Join-Path $dir $f))) { throw "missing $f after install" } }
+
+          $app = Start-Process -FilePath (Join-Path $dir 'OWL.exe') -PassThru
+          Start-Sleep -Seconds 25
+          if (-not (Test-Path $log)) { throw "no main.log at $log" }
+          Get-Content $log
+          if ($app.HasExited) { throw "OWL exited during startup with code $($app.ExitCode)" }
+          if (-not (Select-String -Path $log -Pattern 'starting OWL' -Quiet)) { throw 'main.log has no startup line' }
+          $bad = Select-String -Path $log -Pattern 'FATAL|UI failed to load|UI preload failed|UI renderer gone|uncaughtException'
+          if ($bad) { throw "startup errors: $($bad -join ' | ')" }
+          Write-Host "OWL running: $((OwlProcs).Count) OWL.exe processes"
+
+          # upgrade over the running app: the installer must close it and replace every file
+          $code = Run $setup "/S /currentuser /D=$dir"
+          if ($code -ne 0) { throw "install over running OWL exited $code" }
+          if (-not (Test-Path (Join-Path $dir 'Uninstall OWL.exe'))) { throw 'uninstaller missing after upgrade' }
+          Start-Sleep -Seconds 2
+          $left = OwlProcs
+          if ($left.Count) { throw "OWL.exe still running after upgrade: $($left | % { "$($_.ProcessId) $($_.ExecutablePath)" })" }
+
+          # uninstall in place (_?= makes it run synchronously instead of re-spawning from %TEMP%)
+          $code = Run (Join-Path $dir 'Uninstall OWL.exe') "/S /currentuser _?=$dir"
+          if ($code -ne 0) { throw "uninstall exited $code" }
+          if (Test-Path (Join-Path $dir 'resources\app.asar')) { throw 'app files left after uninstall' }
+          Write-Host 'smoke test passed'
+
       - uses: actions/upload-artifact@v4
         with:
           name: OWL-windows
