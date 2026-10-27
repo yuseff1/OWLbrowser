@@ -56,10 +56,12 @@ const api = {
   bookmarks: call('bookmarks'), toggleBookmark: call('toggleBookmark'), removeBookmark: call('removeBookmark'), renameBookmark: call('renameBookmark'), isBookmarked: call('isBookmarked'),
   history: call('history'), removeHistory: call('removeHistory'), clearHistory: call('clearHistory'),
   downloads: call('downloads'), openDownload: call('openDownload'), showDownload: call('showDownload'), cancelDownload: call('cancelDownload'), clearDownloads: call('clearDownloads'),
+  pauseDownload: call('pauseDownload'), resumeDownload: call('resumeDownload'), retryDownload: call('retryDownload'), removeDownload: call('removeDownload'),
   clearBrowsingData: call('clearBrowsingData'), // ({cache, cookies, history})
 
   // ---- passwords
   // ---- site settings: [{ site, origins, perms: { permission: allowed }, zoom? }], set/clear one decision, reset a site
+  toggleReader: call('toggleReader'), taskManager: call('taskManager'), endProcess: call('endProcess'), // reader mode (tab id) · Shift+Esc task manager rows · end a tab renderer by pid
   permissionPrompts: call('permissionPrompts'), answerPermission: call('answerPermission'), // permission bubble (events 'permission-prompt' / 'permission-done')
   siteSettings: call('siteSettings'), setSitePermission: call('setSitePermission'), resetSite: call('resetSite'),
   passwords: call('passwords'), removePassword: call('removePassword'), savePassword: call('savePassword'), revealPassword: call('revealPassword'),

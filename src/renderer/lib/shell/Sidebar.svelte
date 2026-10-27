@@ -75,7 +75,7 @@
   <div class="foot">
     <Popover bind:open={profileOpen} side="top" align="start" width={300}>
       {#snippet trigger(p)}
-        <button {...p} class="me" aria-label="Profile and appearance">
+        <button {...p} class="me" data-profile-button aria-label="Profile and appearance">
           <span class="av">{profile.initial}</span>
           <span class="min-w-0 flex-1 text-left">
             <span class="block truncate text-[13px] font-medium text-ink">{profile.name}</span>

@@ -28,6 +28,8 @@ class OwlStore {
   findStep = $state<{ n: number; forward: boolean }>({ n: 0, forward: true });
   /** the toolbar's "More" menu (Alt+F / Alt+E) */
   appMenuOpen = $state(false);
+  /** Shift+Esc */
+  taskManagerOpen = $state(false);
 
   get activeTab(): TabState | null { return this.win.tabs.find((t) => t.id === this.win.activeTabId) ?? null; }
   get activeCompanion(): Companion | null { return this.companions.find((c) => c.id === this.activeCompanionId) ?? this.companions[0] ?? null; }
@@ -114,6 +116,8 @@ class OwlStore {
         break;
       }
       case 'toggle-companion': this.panelOpen = !this.panelOpen; break;
+      case 'task-manager': this.taskManagerOpen = !this.taskManagerOpen; break;
+      case 'switch-profile': import('./shell/profileSwitch').then((m) => m.openProfileSwitcher()); break;
       case 'palette': this.paletteOpen = !this.paletteOpen; break;
       case 'toggle-sidebar': this.sidebarOpen = !this.sidebarOpen; break;
       case 'ask': this.panelOpen = true; this.panelPrefill = String(arg || ''); break;

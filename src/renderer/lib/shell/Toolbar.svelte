@@ -22,6 +22,7 @@
     { separator: true },
     { label: 'History', icon: 'clock', kbd: 'Ctrl+H', onSelect: () => owl.newTab('owl://history') },
     { label: 'Downloads', icon: 'arrow-download', kbd: 'Ctrl+J', onSelect: () => owl.newTab('owl://downloads') },
+    { label: 'Task manager', icon: 'data-usage', kbd: 'Shift+Esc', onSelect: () => (store.taskManagerOpen = true) },
     { label: 'Bookmarks', icon: 'bookmark', kbd: 'Ctrl+Shift+O', onSelect: () => owl.newTab('owl://bookmarks') },
     { separator: true },
     { label: 'Find in page', icon: 'search', kbd: 'Ctrl+F', disabled: !tab || !!tab.internal, onSelect: () => (store.findOpen = true) },
@@ -75,7 +76,7 @@
     {#if !store.sidebarOpen}
       <Popover bind:open={profileOpen} width={300}>
         {#snippet trigger(p)}
-          <button {...p} class="me" aria-label="Profile and appearance">{profile.initial}</button>
+          <button {...p} class="me" data-profile-button aria-label="Profile and appearance">{profile.initial}</button>
         {/snippet}
         {#snippet children({ close })}<ProfileMenu {close} />{/snippet}
       </Popover>

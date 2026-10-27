@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-10-28 (night) — tab groups, permission bubble
+## 2026-10-28 (night) — tab groups, permission bubble, reader mode, task manager, profile switch, download bubble
 - Tab groups, Chrome-style: tab menu › *Add tab to new group* / *Add to “…”* / *Remove from group*. The chip before a group collapses / expands it on click; right-click (or Enter / F2) opens the editor: name, nine muted colours (amber `#E8A317` included), new tab in group, collapse, ungroup, close group. A coloured underline runs from the chip under the group's tabs (horizontal strip); vertical tabs show the chip as a header with a colour rail.
 - Main keeps groups contiguous: grouping moves tabs next to each other, a tab dropped between two grouped tabs joins the group, one dragged out leaves it, a tab opened from a grouped opener joins it, pinning ungroups, empty groups disappear. Collapsing the active tab's group moves to the nearest tab outside it; activating a hidden tab expands its group.
 - Groups (and pinned tabs) are saved with the session and with a closed window, and come back on restore / Ctrl+Shift+T.
@@ -13,6 +13,24 @@ Permissions:
 - IPC `permissionPrompts()` / `answerPermission(id, 'allow' | 'block' | 'dismiss')`, events `permission-prompt` / `permission-done`. Popup layer: new `bubble` kind.
 - Fluent icons added: alert, location, clipboard, share-screen-start, person-swap, data-usage, text-font, text-font-size, immersive-reader, pause.
 - Tests: undecided state; dismiss asks again, allow/block remembered and listed in site settings, geolocation reaches the bubble, navigation cancels a pending prompt.
+
+Reader mode (F9, the book icon in the address bar, palette):
+- Readability-style extractor (`src/main/reader.ts`) runs in an isolated world of the tab: scores paragraph parents (commas, length, positive/negative class names, link density), prefers an explicit `<article>` / `[itemprop=articleBody]` / `main`, keeps headings, paragraphs, figures (lazy `data-src` / `srcset` resolved, absolute URLs), lists, quotes, code, tables, links; drops nav / aside / footer / forms / scripts / share & promo blocks and strips every attribute except href / src / alt / colspan / rowspan. Pages under ~120 words are refused with a toast.
+- Clean reading page: site, title, author · date · minutes, 680px column, Charter-style serif (or Inter), light / sepia / dark, text size 15–30 px (kept for the tab's session). CSS injected with `insertCSS`, so page CSP can't break it. No page HTML ever reaches the privileged OWL UI.
+- `TabState.reader`; F9 again (or the icon) reloads the real page; any navigation turns it off. IPC `toggleReader(tabId)`.
+
+Task manager (Shift+Esc, More menu, palette):
+- Every process from `app.getAppMetrics()`: browser, GPU, OWL interface, OWL menus (popup layer), each tab renderer (tab titles, agent / incognito marked), utility services. Memory (working set) and CPU %, sortable, refreshed every 1.5 s, totals in the footer.
+- End process (button or Delete) only for tab renderers: `forcefullyCrashRenderer()`, the tab stays as a discarded tab and reloads when opened. IPC `taskManager()`, `endProcess(pid)` (refuses the browser / UI / unknown pids).
+
+Profiles:
+- Ctrl+Shift+M opens a profile switcher anchored at the profile button: every profile (this window's checked), Open incognito window, Manage profiles.
+
+Downloads bubble:
+- Per file: progress bar (indeterminate when the size is unknown), speed and time left, file-type badge, Pause / Resume, Cancel, Retry (failed or cancelled; same URL, the old row is replaced), Resume for interrupted downloads Chromium can continue, Show in folder, Remove from list (file kept). "Clear finished" in the header; a dot on the button when something finished while the bubble was closed; the ring has a track.
+- Agent downloads held for approval show "Waiting for your approval" and can't be paused or resumed from the bubble (the gate stays the only way out of quarantine).
+- `DownloadItem.paused / canResume / awaitingApproval`; IPC `pauseDownload / resumeDownload / retryDownload / removeDownload`.
+- Tests: pause holds a finished transfer, resume completes it, remove keeps the file, cancel + retry, held agent download refuses pause/resume.
 
 ## 2026-10-27 (night) — bug sweep + daily-browser features
 Fixes (from the UI QA and main-process audits):

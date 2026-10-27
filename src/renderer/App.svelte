@@ -17,6 +17,7 @@
   import Toasts from './lib/shell/Toasts.svelte';
   import PasswordPrompt from './lib/shell/PasswordPrompt.svelte';
   import PermissionBubble from './lib/shell/PermissionBubble.svelte';
+  import TaskManager from './lib/shell/TaskManager.svelte';
   import Onboarding from './lib/shell/Onboarding.svelte';
   import WebPlaceholder from './lib/shell/WebPlaceholder.svelte';
   import PageHost from './lib/pages/PageHost.svelte';
@@ -219,6 +220,7 @@
     <Toasts top={topBand} right={modern ? 148 : 8} />
     <PasswordPrompt top={pageTop} />
     <PermissionBubble />
+    {#if store.taskManagerOpen}<TaskManager />{/if}
   {/if}
 </Tooltip.Provider>
 

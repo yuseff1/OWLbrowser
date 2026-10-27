@@ -32,6 +32,8 @@ export class Tab {
   /** '#section' of an internal URL (owl://settings#models), kept so deep links survive state round-trips */
   hash?: string;
   groupId?: string;
+  /** page is showing its reader view (reset by the next navigation) */
+  reader = false;
   /** tabs created by agents in the background are hidden from the strip until opened */
   hidden = false;
 
@@ -117,6 +119,7 @@ export class Tab {
       internal: this.internal,
       artifactId: this.artifactId,
       groupId: this.groupId,
+      reader: this.reader || undefined,
     };
   }
 }
@@ -294,6 +297,8 @@ export class OwlWindow {
     if (this.bubble) { const b = this.bubble; setTimeout(() => { if (this.bubble === b && this.popupId == null) this.showPopup(b); }, 0); }
   }
 
+  /** OS pid of the popup layer's renderer (task manager), 0 when it isn't running */
+  get popupPid(): number { try { const wc = this.popup?.webContents; return wc && !wc.isDestroyed() ? wc.getOSProcessId() : 0; } catch { return 0; } }
   get id() { return this.win.id; }
   get active(): Tab | null { return this.tabs.find((t) => t.id === this.activeId) ?? null; }
   tab(id: number) { return this.tabs.find((t) => t.id === id) ?? null; }
@@ -826,6 +831,9 @@ export class OwlWindow {
     else if (alt && !ctrl && (k === 'f' || k === 'e')) cmd = 'app-menu';
     else if (k === 'escape' && this.win.isFullScreen()) cmd = 'exit-fullscreen';
     else if (ctrl && k === '\\') cmd = 'toggle-sidebar';
+    else if (shift && !ctrl && !alt && k === 'escape') cmd = 'task-manager';
+    else if (ctrl && shift && k === 'm') cmd = 'switch-profile';
+    else if (!ctrl && !alt && !shift && k === 'f9') cmd = 'reader'; // Firefox's key; Ctrl+Alt+R would steal AltGr+R
     if (cmd) {
       e.preventDefault();
       // commands that put the caret in the chrome (omnibox, find bar, palette, menu) must move OS keyboard

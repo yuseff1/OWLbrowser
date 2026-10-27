@@ -189,6 +189,11 @@
         <Badge variant="outline">{Math.round(tab.zoom * 100)}%</Badge>
       </button>
     {/if}
+    {#if tab && !tab.internal && !focused && /^https?:/.test(tab.url)}
+      <button class="star" class:on={tab.reader} aria-label={tab.reader ? 'Exit reader mode' : 'Reader mode'} aria-pressed={!!tab.reader} title={tab.reader ? 'Exit reader mode (F9)' : 'Reader mode (F9)'} onclick={() => owl.toggleReader(tab.id)}>
+        <Icon name="immersive-reader" size={16} filled={tab.reader} />
+      </button>
+    {/if}
     {#if tab && !tab.internal && !focused}
       <button class="star" class:on={starred} aria-label={starred ? 'Remove bookmark' : 'Bookmark this tab'} aria-pressed={starred} onclick={toggleStar}>
         <Icon name="star" size={16} filled={starred} />

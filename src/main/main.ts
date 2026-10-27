@@ -9,6 +9,7 @@ import { settings, providers, PROVIDER_PRESETS } from './settings';
 import { dataFor, flushAll, history, bookmarks } from './data';
 import { secrets } from './secrets';
 import { JsonStore, uid } from './store';
+import { enterReader } from './reader';
 import { AgentRuntime } from './agents/runner';
 import { RoutineScheduler } from './agents/routines';
 import { companions } from './agents/companions';
@@ -274,15 +275,20 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     let reserved: string | null = null;
     if (!gate) { reserved = uniquePath(path.join(dir, safeName)); reservedPaths.add(pathKey(reserved)); item.setSavePath(reserved); }
     const savedAt = () => (gate ? gate.currentPath() : item.getSavePath());
-    const rec = (): DownloadItem => ({ id, url: item.getURL(), filename: path.basename(savedAt()), path: savedAt(), received: item.getReceivedBytes(), total: item.getTotalBytes(), state: item.getState(), startedAt: Math.round(item.getStartTime() * 1000) });
+    let gateOpen = !!gate;
+    if (gate) { gatedDownloads.add(id); gate.settled.then(() => { gateOpen = false; gatedDownloads.delete(id); }, () => { gateOpen = false; gatedDownloads.delete(id); }); }
+    const rec = (): DownloadItem => {
+      const state = item.getState();
+      return { id, url: item.getURL(), filename: path.basename(savedAt()), path: savedAt(), received: item.getReceivedBytes(), total: item.getTotalBytes(), state, startedAt: Math.round(item.getStartTime() * 1000), paused: state === 'progressing' && item.isPaused(), canResume: state === 'interrupted' && item.canResume(), awaitingApproval: gateOpen || undefined };
+    };
     // incognito: never written to the profile's download history, only shown to that profile's incognito windows
     const store = downloadStore(profileId, incognito);
     const targets = () => [...windows].filter((w) => w.profileId === profileId && w.incognito === incognito);
     const save = () => { const r = rec(); store.update((l) => { const i = l.findIndex((x) => x.id === id); if (i >= 0) l[i] = r; else l.unshift(r); if (l.length > 500) l.length = 500; }); targets().forEach((w) => w.send('download', r)); };
     save();
     let last = 0;
-    item.on('updated', () => { if (Date.now() - last > 400) { last = Date.now(); save(); } });
-    item.once('done', async (_ev, state) => { if (reserved) reservedPaths.delete(pathKey(reserved)); const kept = gate ? await gate.settled : state === 'completed'; save(); downloads.delete(id); if (kept) targets().forEach((w) => toast(w, 'Downloaded', path.basename(savedAt()), 'success')); });
+    item.on('updated', (_ev, st) => { if (Date.now() - last > 400 || st === 'interrupted') { last = Date.now(); save(); } });
+    item.once('done', async (_ev, state) => { if (reserved) reservedPaths.delete(pathKey(reserved)); const kept = gate ? await gate.settled : state === 'completed'; save(); if (!(state === 'interrupted' && !gate && item.canResume())) downloads.delete(id); if (kept) targets().forEach((w) => toast(w, 'Downloaded', path.basename(savedAt()), 'success')); });
   });
 
   if (!incognito) loadInstalledExtensions(ses, profileId).catch(() => {});
@@ -463,6 +469,63 @@ setInterval(async () => {
   finally { saverBusy = false; }
 }, 60_000);
 
+// ---------- downloads (bubble actions) ----------
+const gatedDownloads = new Set<string>();
+const ownDownload = (w: OwlWindow, id: string) => downloadStore(w.profileId, w.incognito).get().some((x) => x.id === id);
+/** push the item's fresh state after a pause/resume (Chromium sends no 'updated' while paused) */
+function downloadNotify(w: OwlWindow, id: string) {
+  const it = downloads.get(id); if (!it) return;
+  const cur = downloadStore(w.profileId, w.incognito).get().find((x) => x.id === id); if (!cur) return;
+  const r: DownloadItem = { ...cur, received: it.getReceivedBytes(), total: it.getTotalBytes(), state: it.getState(), paused: it.getState() === 'progressing' && it.isPaused(), canResume: it.getState() === 'interrupted' && it.canResume() };
+  downloadStore(w.profileId, w.incognito).update((l) => { const i = l.findIndex((x) => x.id === id); if (i >= 0) l[i] = r; });
+  for (const x of windows) if (x.profileId === w.profileId && x.incognito === w.incognito) x.send('download', r);
+}
+
+// ---------- reader mode ----------
+async function toggleReader(w: OwlWindow, t: Tab) {
+  const wc = t.wc;
+  if (!wc || wc.isDestroyed() || t.internal) return false;
+  if (t.reader) { t.reader = false; w.pushState(); wc.reload(); return false; }
+  if (!/^https?:/i.test(wc.getURL())) { toast(w, 'Reader mode is not available on this page'); return false; }
+  const r = await enterReader(wc);
+  if (!r.ok) { toast(w, (r as { reason: string }).reason); return false; }
+  t.reader = true;
+  if (r.title) t.title = r.title;
+  const off = () => { t.reader = false; if (!w.win.isDestroyed()) w.pushState(); };
+  wc.once('did-navigate', off);
+  w.pushState();
+  return true;
+}
+
+// ---------- task manager (Shift+Esc) ----------
+const procLabel: Record<string, string> = { Browser: 'Browser', GPU: 'GPU process', Utility: 'Utility', Zygote: 'Zygote', 'Sandbox helper': 'Sandbox helper', 'Pepper Plugin': 'Plugin', 'Pepper Plugin Broker': 'Plugin broker', Tab: 'Renderer', Unknown: 'Process' };
+function taskManagerRows() {
+  const metrics = app.getAppMetrics();
+  const tabsByPid = new Map<number, Array<{ id: number; title: string; favicon?: string; windowId: number; incognito: boolean; agent: boolean; sleeping: boolean; active: boolean }>>();
+  const uiPids = new Set<number>(), popupPids = new Set<number>();
+  for (const w of windows) {
+    if (w.win.isDestroyed()) continue;
+    try { uiPids.add(w.win.webContents.getOSProcessId()); } catch { /* gone */ }
+    if (w.popupPid) popupPids.add(w.popupPid);
+    for (const t of w.tabs) {
+      const wc = t.wc;
+      if (!wc || wc.isDestroyed()) continue;
+      let pid = 0; try { pid = wc.getOSProcessId(); } catch { continue; }
+      let l = tabsByPid.get(pid); if (!l) tabsByPid.set(pid, (l = []));
+      l.push({ id: t.id, title: t.title || wc.getURL(), favicon: t.favicon, windowId: w.id, incognito: w.incognito, agent: !!t.agentId, sleeping: t.sleeping, active: w.activeId === t.id });
+    }
+  }
+  const rows = metrics.map((m) => {
+    const tabs = tabsByPid.get(m.pid) ?? [];
+    const kind = tabs.length ? 'tab' : uiPids.has(m.pid) || popupPids.has(m.pid) ? 'ui' : m.type === 'Browser' ? 'browser' : m.type === 'GPU' ? 'gpu' : m.type === 'Tab' ? 'renderer' : 'utility';
+    const name = tabs.length ? tabs.map((x) => x.title).join(', ')
+      : kind === 'ui' ? (uiPids.has(m.pid) ? 'OWL interface' : 'OWL menus')
+      : kind === 'utility' ? (m.name || m.serviceName || 'Utility') : (procLabel[m.type] ?? m.type);
+    return { pid: m.pid, kind, type: m.type, name: String(name).slice(0, 200), memMB: Math.round((m.memory.workingSetSize || 0) / 1024), cpu: Math.round((m.cpu.percentCPUUsage || 0) * 10) / 10, tabs, canEnd: tabs.length > 0 };
+  });
+  return { rows, totalMB: rows.reduce((a, r) => a + r.memMB, 0), cpu: Math.round(rows.reduce((a, r) => a + r.cpu, 0) * 10) / 10, at: Date.now() };
+}
+
 // ---------- commands (shortcuts & menus) ----------
 function runCommand(w: OwlWindow, cmd: string, arg?: any) {
   const t = w.active;
@@ -521,6 +584,7 @@ function runCommand(w: OwlWindow, cmd: string, arg?: any) {
     case 'open-in-window': case 'open-in-incognito': if (typeof arg === 'string' && /^(https?|file):/i.test(arg)) createWindow(w.profileId, cmd === 'open-in-incognito', [arg]); break;
     case 'toggle-fullscreen': w.win.setFullScreen(!w.win.isFullScreen()); break;
     case 'close-window': w.win.close(); break;
+    case 'reader': if (t) toggleReader(w, t); break;
     default: w.send('command', { cmd, arg });
   }
 }
@@ -620,6 +684,19 @@ const api: Record<string, Handler> = {
     return shell.openPath(d.path).then((err) => !err);
   },
   showDownload: (w, id) => { const d = downloadStore(w.profileId, w.incognito).get().find((x) => x.id === id); if (d) shell.showItemInFolder(d.path); },
+  /** pause / resume (never for an agent download held for approval: that is the quarantine) */
+  pauseDownload: (w, id) => { const it = typeof id === 'string' && ownDownload(w, id) && !gatedDownloads.has(id) ? downloads.get(id) : undefined; if (!it || it.getState() !== 'progressing') return false; it.pause(); downloadNotify(w, id); return true; },
+  resumeDownload: (w, id) => { const it = typeof id === 'string' && ownDownload(w, id) && !gatedDownloads.has(id) ? downloads.get(id) : undefined; if (!it || !(it.isPaused() || it.canResume())) return false; it.resume(); downloadNotify(w, id); return true; },
+  /** download a failed / cancelled item again (same URL, this window's session) */
+  retryDownload: (w, id) => {
+    const d = typeof id === 'string' ? downloadStore(w.profileId, w.incognito).get().find((x) => x.id === id) : undefined;
+    if (!d || d.state === 'progressing' || d.state === 'completed' || !/^https?:/i.test(d.url)) return false;
+    downloadStore(w.profileId, w.incognito).update((l) => { const i = l.findIndex((x) => x.id === id); if (i >= 0) l.splice(i, 1); });
+    sessionFor(w.profileId, w.incognito).downloadURL(d.url);
+    return true;
+  },
+  /** forget one finished item (the file stays on disk) */
+  removeDownload: (w, id) => { let ok = false; downloadStore(w.profileId, w.incognito).update((l) => { const i = l.findIndex((x) => x.id === id && x.state !== 'progressing'); if (i >= 0) { l.splice(i, 1); ok = true; } }); return ok; },
   cancelDownload: (w, id) => { if (downloadStore(w.profileId, w.incognito).get().some((x) => x.id === id)) downloads.get(id)?.cancel(); },
   clearDownloads: (w) => downloadStore(w.profileId, w.incognito).update((l) => l.filter((d) => d.state === 'progressing')),
   clearBrowsingData: async (w, o: any = {}) => {
@@ -728,6 +805,24 @@ const api: Record<string, Handler> = {
     });
     const totalMB = Math.round(metrics.reduce((a, m) => a + (m.memory.workingSetSize || 0), 0) / 1024);
     return { totalMB, tabs };
+  },
+  toggleReader: async (w, id) => { const t = typeof id === 'number' ? w.tab(id) : null; return t ? toggleReader(w, t) : false; },
+  taskManager: () => taskManagerRows(),
+  /** Task manager › End process: only tab renderers; the tab shows as discarded and reloads when opened */
+  endProcess: (_w, pid: number) => {
+    if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false;
+    let n = 0;
+    for (const w of windows) for (const t of w.tabs) {
+      const wc = t.wc;
+      if (!wc || wc.isDestroyed()) continue;
+      let p = 0; try { p = wc.getOSProcessId(); } catch { continue; }
+      if (p !== pid) continue;
+      t.url = wc.getURL() || t.url;
+      n++;
+    }
+    if (!n) return false;
+    for (const w of windows) for (const t of w.tabs) { const wc = t.wc; try { if (wc && !wc.isDestroyed() && wc.getOSProcessId() === pid) { wc.forcefullyCrashRenderer(); break; } } catch { /* gone */ } }
+    return true;
   },
   appInfo: () => ({ version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, platform: process.platform, userData: app.getPath('userData'), computerUse: computer.available(), secrets: (() => { const s = secrets.status(); return { encrypted: s.encrypted, backend: s.backend }; })() }),
 

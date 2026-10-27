@@ -41,8 +41,10 @@ Source of truth for the overnight build loop. Tick only after verification.
 - [x] Reopen closed window (Ctrl+Shift+T)
 - [x] Media context menu: PiP, loop, controls, mute (any player)
 - [x] Tab groups (named, coloured, collapsible; restored with the session)
-- [ ] Reader mode
-- [ ] Download shelf / bubble with progress per file
+- [x] Reader mode (F9 / book icon; light, sepia, dark; serif/sans; text size)
+- [x] Task manager (Shift+Esc): memory / CPU per process, end a tab's process
+- [x] Ctrl+Shift+M profile switcher
+- [x] Download bubble: progress, speed, time left, pause / resume, retry, remove, finished dot
 - [x] Permission prompt as a non-modal bubble under the address bar, with Chrome's undecided state (`default` / `prompt`)
 - [ ] Windows runtime smoke test of this build
 
@@ -74,8 +76,9 @@ Source of truth for the overnight build loop. Tick only after verification.
 | Ctrl+Shift+J (Chrome: devtools console) | OWL: toggle companion | ⚠️ differs on purpose |
 | Ctrl+K | OWL: command palette | OWL extra |
 | Ctrl+Shift+S / Ctrl+\ | OWL: split view / sidebar | OWL extra |
-| Ctrl+Shift+M | switch profile | ❌ not yet |
-| Shift+Esc | task manager | ❌ not yet (Settings › Performance shows RAM per tab) |
+| Ctrl+Shift+M | switch profile | ✅ (menu of profiles + incognito + manage) |
+| Shift+Esc | task manager | ✅ |
+| F9 (Firefox) | reader mode | ✅ OWL extra |
 
 ## v0.2
 - [ ] Code signing, auto-update

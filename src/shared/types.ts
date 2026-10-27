@@ -20,6 +20,8 @@ export type TabState = {
   artifactId?: string;
   /** tab group this tab belongs to (WindowState.groups) */
   groupId?: string;
+  /** reader mode is on (F9) */
+  reader?: boolean;
 };
 
 export type TabGroupColor = 'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange';
@@ -55,6 +57,12 @@ export type DownloadItem = {
   total: number;
   state: 'progressing' | 'completed' | 'cancelled' | 'interrupted';
   startedAt: number;
+  /** paused by the user (or held for approval, see `awaitingApproval`) */
+  paused?: boolean;
+  /** an interrupted download Chromium can pick up where it stopped */
+  canResume?: boolean;
+  /** started by an agent-driven tab: quarantined until the user approves it */
+  awaitingApproval?: boolean;
 };
 
 export type ProviderKind =

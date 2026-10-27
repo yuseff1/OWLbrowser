@@ -70,6 +70,9 @@ function pagesServer() {
       '/login': wrap('Login', '<form id="f" onsubmit="return false"><input id="u" type="text" name="user"><input id="p" type="password" name="pw"><button id="go" type="submit">Sign in</button></form>'),
       '/ad': wrap('Ad page', '<h1>ads</h1><script src="/owl-test-ad.js"></script>'),
       '/perm': wrap('Perm page', '<h1>perm</h1>'),
+      '/article': wrap('The owl that read the web — Test Times', '<meta property="og:site_name" content="Test Times"><meta name="author" content="Ada Writer"><nav class="menu"><a href="/a">Home</a><a href="/b">World</a><a href="/c">Sport</a></nav><div class="sidebar promo"><a href="/x">Subscribe now</a><p>Buy our newsletter, it is great, really, honestly.</p></div><article class="post-content"><h1>The owl that read the web</h1>' +
+        Array.from({ length: 9 }, (_, i) => `<p onclick="window.hacked=1">Paragraph ${i + 1}: owls are birds of prey, and this one, unlike the others, learned to read long articles, skim the noise, and keep only what matters, which is what reader mode does for you as well.</p>`).join('') +
+        '<figure><img src="/img.png" alt="An owl" width="300" height="200"><figcaption>An owl, reading.</figcaption></figure><script>window.articleScript = 1</script><div class="share social"><a href="/s">Share</a></div></article><footer>© Test Times</footer>'),
     };
     const html = pages[p];
     res.writeHead(html ? 200 : 404, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -293,6 +296,69 @@ async function main() {
     for (const id of [ids[0], ids[2], ids[3], inner]) await owl('closeTab', id);
   });
 
+  test('reader mode: article extracted, chrome stripped, attributes sanitized; exit reloads; non-articles refuse', async () => {
+    const id = await owl('newTab', PAGES + '/article');
+    await loaded(id, PAGES + '/article');
+    const wc = wcForUrl(PAGES + '/article', defaultSes());
+    assert.strictEqual(await owl('toggleReader', id), true);
+    assert.strictEqual((await tabState(id)).reader, true, 'TabState.reader');
+    const r = await wc.executeJavaScript(`({ reader: document.documentElement.getAttribute('data-owl-reader'), h1: document.querySelector('.owl-r h1')?.textContent, site: document.querySelector('.owl-r-site')?.textContent, meta: document.querySelector('.owl-r-meta')?.textContent, ps: document.querySelectorAll('.owl-r-body p').length, nav: !!document.querySelector('nav, .sidebar, footer, script, .share'), onclick: document.querySelectorAll('[onclick]').length, img: document.querySelector('.owl-r-body img')?.src, cap: document.querySelector('.owl-r-body figcaption')?.textContent, bar: document.querySelectorAll('.owl-r-bar button').length })`);
+    assert.ok(['light', 'dark'].includes(r.reader), 'reader page: ' + JSON.stringify(r));
+    assert.strictEqual(r.h1, 'The owl that read the web');
+    assert.strictEqual(r.site, 'Test Times');
+    assert.ok(/Ada Writer/.test(r.meta) && /min read/.test(r.meta), r.meta);
+    assert.strictEqual(r.ps, 9, 'all paragraphs kept, title h1 not duplicated');
+    assert.strictEqual(r.nav, false, 'nav / sidebar / footer / scripts / share removed');
+    assert.strictEqual(r.onclick, 0, 'attributes stripped');
+    assert.strictEqual(r.img, PAGES + '/img.png', 'images kept with absolute URLs');
+    assert.strictEqual(r.cap, 'An owl, reading.');
+    assert.ok(r.bar >= 5, 'reader toolbar');
+    // the theme buttons work (isolated-world listeners)
+    await wc.executeJavaScript(`document.querySelector('.owl-r-sepia').click()`);
+    assert.strictEqual(await wc.executeJavaScript(`document.documentElement.getAttribute('data-owl-reader')`), 'sepia');
+    // exit: back to the real page
+    assert.strictEqual(await owl('toggleReader', id), false);
+    await until(async () => { const t = await tabState(id); return t && !t.reader && !t.loading ? t : null; }, 8000, 'reader off');
+    await until(() => wc.executeJavaScript(`!!document.querySelector('nav') && !document.documentElement.hasAttribute('data-owl-reader')`), 8000, 'original page back');
+    // a navigation turns the flag off too
+    await owl('toggleReader', id);
+    await owl('navigate', id, PAGES + '/a');
+    await until(async () => { const t = await tabState(id); return t && !t.reader && t.url === PAGES + '/a' ? t : null; }, 8000, 'flag reset by navigation');
+    // not an article: refused, page untouched
+    assert.strictEqual(await owl('toggleReader', id), false);
+    assert.ok(!(await tabState(id)).reader);
+    assert.strictEqual(await owl('toggleReader', 'x'), false);
+    await owl('closeTab', id);
+  });
+
+  test('task manager: rows with memory / CPU per process, tab renderers mapped, end process discards the tab', async () => {
+    const id = await owl('newTab', PAGES + '/c?tm', { background: true });
+    await owl('activateTab', id);
+    await loaded(id, PAGES + '/c?tm');
+    const wc = wcForUrl(PAGES + '/c?tm', defaultSes());
+    const pid = wc.getOSProcessId();
+    let snap = await owl('taskManager');
+    assert.ok(snap.rows.some((r) => r.kind === 'browser'), 'browser process listed');
+    assert.ok(snap.rows.some((r) => r.kind === 'ui'), 'UI renderer listed');
+    const row = snap.rows.find((r) => r.pid === pid);
+    assert.ok(row && row.kind === 'tab' && row.canEnd && row.tabs.some((t) => t.id === id), 'tab row: ' + JSON.stringify(row));
+    assert.ok(row.memMB > 0, 'memory reported');
+    assert.ok(snap.totalMB >= row.memMB);
+    assert.strictEqual(snap.rows.find((r) => r.kind === 'browser').canEnd, false, 'browser process cannot be ended');
+    // guard rails
+    assert.strictEqual(await owl('endProcess', process.pid), false, 'never the browser process');
+    assert.strictEqual(await owl('endProcess', -1), false);
+    assert.strictEqual(await owl('endProcess', 'x'), false);
+    // end it: renderer gone, tab kept (discarded), reload on activate
+    const other = await owl('newTab', PAGES + '/a', { background: true });
+    assert.strictEqual(await owl('endProcess', pid), true);
+    await until(async () => (await tabState(id))?.sleeping, 8000, 'tab discarded after its process ended');
+    await owl('activateTab', other);
+    await owl('activateTab', id);
+    await loaded(id, PAGES + '/c?tm');
+    await owl('closeTab', id); await owl('closeTab', other);
+  });
+
   // ---- history ----
   test('history: add (by navigation) / search / remove / clear', async () => {
     const id = await owl('newTab', PAGES + '/a');
@@ -371,6 +437,38 @@ async function main() {
     await owl('closeTab', id);
   });
 
+  test('downloads: pause / resume, cancel + retry, remove from list; agent downloads cannot be resumed past the gate', async () => {
+    const { id, wc } = await dlIn(main);
+    const find = async (name) => (await owl('downloads')).find((x) => x.filename.startsWith(name));
+    wc.downloadURL(PAGES + '/dl/pausable.bin?slow=1&body=pause%20');
+    let d = await until(async () => { const x = await find('pausable'); return x && x.state === 'progressing' && x.received > 0 ? x : null; }, 8000, 'download started');
+    assert.strictEqual(await owl('pauseDownload', d.id), true);
+    d = await find('pausable');
+    assert.strictEqual(d.paused, true, 'paused flag');
+    await sleep(1500); // the server finished sending meanwhile; a paused item must not complete
+    assert.strictEqual((await find('pausable')).state, 'progressing', 'paused download did not complete');
+    assert.strictEqual(await owl('resumeDownload', d.id), true);
+    d = await until(async () => { const x = await find('pausable'); return x && x.state === 'completed' ? x : null; }, 8000, 'resumed download completes');
+    assert.ok(!d.paused);
+    assert.strictEqual(fs.readFileSync(d.path, 'utf8').slice(0, 6), 'pause ');
+    // remove from list keeps the file
+    assert.strictEqual(await owl('removeDownload', d.id), true);
+    assert.ok(!(await find('pausable')), 'removed from list');
+    assert.ok(fs.existsSync(d.path), 'file kept on disk');
+    // cancel + retry downloads the same URL again
+    wc.downloadURL(PAGES + '/dl/retry.bin?slow=1');
+    let r = await until(async () => { const x = await find('retry'); return x && x.state === 'progressing' ? x : null; }, 8000, 'retry download started');
+    await owl('cancelDownload', r.id);
+    r = await until(async () => { const x = await find('retry'); return x && x.state === 'cancelled' ? x : null; }, 8000, 'cancelled');
+    assert.strictEqual(await owl('retryDownload', r.id), true);
+    await until(async () => { const l = (await owl('downloads')).filter((x) => x.filename.startsWith('retry')); return l.length === 1 && l[0].state === 'completed' && l[0].id !== r.id ? l : null; }, 10000, 'retried download completes, old row replaced');
+    // guards
+    assert.strictEqual(await owl('pauseDownload', 'nope'), false);
+    assert.strictEqual(await owl('resumeDownload', 42), false);
+    assert.strictEqual(await owl('retryDownload', 'nope'), false);
+    await owl('closeTab', id);
+  });
+
   test('downloads: agent-tab download is quarantined until approved / deleted when denied', async () => {
     const { id, wc } = await dlIn(main);
     agentDownloads.register(wc.id, 'run_test', async () => true);
@@ -385,6 +483,16 @@ async function main() {
     assert.ok(!fs.existsSync(path.join(DOWNLOADS, 'agent-no.txt')));
     assert.ok(!fs.readdirSync(path.join(tmp, 'quarantine')).some((f) => f.includes('agent-no')), 'quarantine cleaned');
     agentDownloads.unregisterRun('run_test2');
+    // while held for approval the bubble can't resume it past the quarantine
+    let release; const held = new Promise((r) => (release = r));
+    agentDownloads.register(wc.id, 'run_test3', () => held);
+    wc.downloadURL(PAGES + '/dl/agent-hold.txt');
+    const h = await until(async () => (await owl('downloads')).find((x) => x.filename.includes('agent-hold') && x.awaitingApproval), 8000, 'held agent download flagged');
+    assert.strictEqual(await owl('resumeDownload', h.id), false, 'no resume past the gate');
+    assert.strictEqual(await owl('pauseDownload', h.id), false);
+    release(false);
+    await until(async () => (await owl('downloads')).find((x) => x.filename.includes('agent-hold') && x.state !== 'progressing'), 8000, 'held download denied');
+    agentDownloads.unregisterRun('run_test3');
     assert.ok(ok);
     await owl('closeTab', id);
   });
