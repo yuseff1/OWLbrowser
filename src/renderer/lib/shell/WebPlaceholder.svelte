@@ -1,15 +1,15 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   /** What sits under a native web view: in Electron the page covers it; in the browser preview it stands in for the page. */
   import type { TabState } from '$shared/types';
   import { hostOf } from '../api';
   import { isMock } from '../env';
-  import { Moon } from '@lucide/svelte';
   import TabIcon from './TabIcon.svelte';
   let { tab }: { tab: TabState } = $props();
 </script>
 
 {#if tab.sleeping}
-  <div class="ph"><Moon size={20} strokeWidth={1.6} class="text-ink-3" /><p class="text-[13px] text-ink-2">This tab is asleep to save memory. It wakes when you open it.</p></div>
+  <div class="ph"><Icon name="weather-moon" size={20} class="text-ink-3" /><p class="text-[13px] text-ink-2">This tab is asleep to save memory. It wakes when you open it.</p></div>
 {:else if isMock}
   <div class="mock" aria-hidden="true">
     <div class="mh"><TabIcon {tab} size={18} /><span>{hostOf(tab.url)}</span></div>

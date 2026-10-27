@@ -1,6 +1,6 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { Select } from 'bits-ui';
-  import { Check, ChevronDown } from '@lucide/svelte';
 
   type Item = { value: string; label: string; disabled?: boolean; hint?: string };
   type Props = { items: Item[]; value?: string; placeholder?: string; size?: 'sm' | 'md'; label?: string; onValueChange?: (v: string) => void; class?: string; disabled?: boolean };
@@ -11,7 +11,7 @@
 <Select.Root type="single" bind:value {items} {disabled} onValueChange={(v) => onValueChange?.(v)}>
   <Select.Trigger aria-label={label || placeholder} class="owl-sel {size} {cls}">
     <span class="truncate" class:ph={!current}>{current?.label ?? placeholder}</span>
-    <ChevronDown size={14} strokeWidth={1.8} class="opacity-60" />
+    <Icon name="chevron-down" size={14} class="opacity-60" />
   </Select.Trigger>
   <Select.Portal>
     <Select.Content sideOffset={6} class="owl-menu glass-strong z-[90] max-h-[320px] min-w-[var(--bits-select-anchor-width)] animate-in">
@@ -21,7 +21,7 @@
             {#snippet children({ selected })}
               <span class="flex-1 truncate">{it.label}</span>
               {#if it.hint}<span class="text-[11.5px] text-ink-3">{it.hint}</span>{/if}
-              <Check size={14} strokeWidth={2} class={selected ? '' : 'invisible'} />
+              <Icon name="checkmark" size={14} class={selected ? '' : 'invisible'} />
             {/snippet}
           </Select.Item>
         {/each}

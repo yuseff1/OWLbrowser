@@ -1,10 +1,12 @@
 <script lang="ts">
-  import type { Component, Snippet } from 'svelte';
+  import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
   import type { HTMLInputAttributes } from 'svelte/elements';
 
   type Props = Omit<HTMLInputAttributes, 'size'> & {
     value?: string | number | null;
-    icon?: Component<any>;
+    icon?: IconName;
     size?: 'sm' | 'md' | 'lg';
     /** rounded pill field */
     pill?: boolean;
@@ -14,13 +16,13 @@
     trailing?: Snippet;
   };
   let {
-    value = $bindable(''), icon: Icon, size = 'md', pill = false, inset = false, class: cls = '',
+    value = $bindable(''), icon, size = 'md', pill = false, inset = false, class: cls = '',
     ref = $bindable(null), trailing, ...rest
   }: Props = $props();
 </script>
 
 <label class="owl-field {size} {cls}" class:pill class:inset>
-  {#if Icon}<Icon size={size === 'sm' ? 14 : 15} strokeWidth={1.8} class="ic" />{/if}
+  {#if icon}<Icon name={icon} size={size === 'sm' ? 14 : 16} class="ic" />{/if}
   <input bind:this={ref} bind:value spellcheck="false" {...rest} />
   {#if trailing}{@render trailing()}{/if}
 </label>

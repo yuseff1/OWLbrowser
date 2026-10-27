@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState } from '$shared/types';
   import { owl, hostOf } from '$lib/api';
@@ -8,7 +9,6 @@
   import Field from './kit/Field.svelte';
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
-  import { Plus, Check, Search, Ellipsis, Trash2, KeyRound, Plug, Unplug, Terminal, Blocks, ExternalLink, RefreshCw } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -138,10 +138,10 @@
 
 <Page title="Apps" description="Connect the tools your companions can use. Tokens stay encrypted on this PC." width={980}>
   {#snippet actions()}
-    <Button variant="primary" icon={Plus} onclick={openMcp}>Add custom MCP</Button>
+    <Button variant="primary" icon="add" onclick={openMcp}>Add custom MCP</Button>
   {/snippet}
   {#snippet toolbar()}
-    <Input bind:value={q} icon={Search} pill placeholder="Search apps" class="w-[320px]" type="search" aria-label="Search apps" />
+    <Input bind:value={q} icon="search" pill placeholder="Search apps" class="w-[320px]" type="search" aria-label="Search apps" />
   {/snippet}
 
   {#if error}<Note kind="error" text={error} retry={load} class="mb-5" />{/if}
@@ -156,7 +156,7 @@
           {@const d = appDomain(a)}
           <div class="flex items-center gap-3.5 px-4 py-3">
             <span class="owl-tile size-9">
-              {#if a.transport === 'stdio' || !d || iconFail[a.id]}<Terminal size={16} class="text-ink-2" />{:else}<img src={icon(d)} alt="" onerror={() => (iconFail[a.id] = true)} />{/if}
+              {#if a.transport === 'stdio' || !d || iconFail[a.id]}<Icon name="window-console" size={16} class="text-ink-2" />{:else}<img src={icon(d)} alt="" onerror={() => (iconFail[a.id] = true)} />{/if}
             </span>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
@@ -166,14 +166,14 @@
               <div class="truncate text-[12.5px] {a.status === 'error' ? 'text-[#c4242a] dark:text-[#ff7a7e]' : 'text-ink-2'}">{a.status === 'error' && a.error ? a.error : a.description || (a.transport === 'http' ? a.url : [a.command, ...(a.args ?? [])].join(' '))}</div>
             </div>
             {#if a.status === 'connected'}
-              <Button size="sm" variant="ghost" icon={Unplug} disabled={busy[a.id]} onclick={() => disconnect(a)}>Disconnect</Button>
+              <Button size="sm" variant="ghost" icon="plug-disconnected" disabled={busy[a.id]} onclick={() => disconnect(a)}>Disconnect</Button>
             {:else if a.status === 'error' && a.transport === 'http' && /token|auth|401|403/i.test(a.error || '')}
-              <Button size="sm" variant="secondary" icon={KeyRound} onclick={() => editToken(a)}>{a.hasToken ? 'Replace token' : 'Add token'}</Button>
+              <Button size="sm" variant="secondary" icon="key" onclick={() => editToken(a)}>{a.hasToken ? 'Replace token' : 'Add token'}</Button>
             {:else}
-              <Button size="sm" variant="secondary" icon={a.status === 'error' ? RefreshCw : Plug} loading={busy[a.id]} onclick={() => connect(a.id)}>{a.status === 'error' ? 'Retry' : 'Connect'}</Button>
+              <Button size="sm" variant="secondary" icon={a.status === 'error' ? 'arrow-sync' : 'plug-connected'} loading={busy[a.id]} onclick={() => connect(a.id)}>{a.status === 'error' ? 'Retry' : 'Connect'}</Button>
             {/if}
-            <Menu items={[...(a.transport === 'http' ? [{ label: a.hasToken ? 'Replace token' : 'Add token', icon: KeyRound, onSelect: () => editToken(a) }] : []), { separator: true }, { label: 'Remove', icon: Trash2, danger: true, onSelect: () => remove(a) }]}>
-              {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {a.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Ellipsis size={16} /></button>{/snippet}
+            <Menu items={[...(a.transport === 'http' ? [{ label: a.hasToken ? 'Replace token' : 'Add token', icon: 'key' as const, onSelect: () => editToken(a) }] : []), { separator: true }, { label: 'Remove', icon: 'delete' as const, danger: true, onSelect: () => remove(a) }]}>
+              {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {a.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Icon name="more-horizontal" size={16} /></button>{/snippet}
             </Menu>
           </div>
         {/each}
@@ -186,8 +186,8 @@
       <div class="mb-8"><Skel w={110} h={14} class="mb-3" /><div class="grid grid-cols-3 gap-x-6 gap-y-1">{#each Array(6) as _, i (i)}<div class="flex items-center gap-3 py-2.5"><Skel w={36} h={36} r={10} /><div class="flex flex-1 flex-col gap-1.5"><Skel w="50%" h={12} /><Skel w="85%" h={10} /></div></div>{/each}</div></div>
     {/each}
   {:else if !categories.length}
-    <Empty icon={Blocks} title={q ? `No apps match “${q}”` : 'No apps in the catalog'} body="You can still connect any MCP server with Add custom MCP." compact>
-      {#snippet actions()}<Button size="sm" variant="secondary" icon={Plus} onclick={openMcp}>Add custom MCP</Button>{/snippet}
+    <Empty icon="apps" title={q ? `No apps match “${q}”` : 'No apps in the catalog'} body="You can still connect any MCP server with Add custom MCP." compact>
+      {#snippet actions()}<Button size="sm" variant="secondary" icon="add" onclick={openMcp}>Add custom MCP</Button>{/snippet}
     </Empty>
   {:else}
     {#each categories as [cat, entries] (cat)}
@@ -197,17 +197,17 @@
           {#each entries as e (e.url)}
             {@const have = added(e)}
             <li class="flex items-center gap-3 border-b border-line py-3">
-              <span class="owl-tile size-9">{#if iconFail['c' + e.url]}<Blocks size={16} class="text-ink-2" />{:else}<img src={icon(e.iconDomain)} alt="" loading="lazy" onerror={() => (iconFail['c' + e.url] = true)} />{/if}</span>
+              <span class="owl-tile size-9">{#if iconFail['c' + e.url]}<Icon name="apps" size={16} class="text-ink-2" />{:else}<img src={icon(e.iconDomain)} alt="" loading="lazy" onerror={() => (iconFail['c' + e.url] = true)} />{/if}</span>
               <div class="min-w-0 flex-1">
                 <div class="truncate text-[13.5px] font-medium">{e.name}</div>
                 <div class="truncate text-[12.5px] text-ink-2" title={e.description}>{e.description}</div>
               </div>
               {#if have}
-                <span class="grid size-8 place-items-center text-[#24855a]" title="Added"><Check size={16} strokeWidth={2.2} aria-label="{e.name} added" /></span>
+                <span class="grid size-8 place-items-center text-[#24855a]" title="Added"><Icon name="checkmark" size={16} aria-label="{e.name} added" /></span>
               {:else}
                 <button type="button" aria-label="Add {e.name}" disabled={busy['cat:' + e.url]} onclick={() => addEntry(e)}
                   class="grid size-8 shrink-0 place-items-center rounded-full bg-surface text-ink-2 shadow-[0_0_0_1px_var(--line)] hover:text-ink active:scale-95">
-                  {#if busy['cat:' + e.url]}<Spinner size={13} />{:else}<Plus size={15} strokeWidth={2} />{/if}
+                  {#if busy['cat:' + e.url]}<Spinner size={13} />{:else}<Icon name="add" size={16} />{/if}
                 </button>
               {/if}
             </li>
@@ -223,7 +223,7 @@
     <Field label="Token or API key" for="tok"><Input id="tok" type="password" bind:value={token} placeholder="Paste here" autocomplete="off" /></Field>
     {#if tokFor?.entry || tokFor?.app}
       {@const dom = tokFor.entry?.iconDomain || (tokFor.app ? appDomain(tokFor.app) : '')}
-      {#if dom}<button type="button" class="owl-link self-start" onclick={() => owl.newTab('https://' + dom)}>Get a token on {dom} <ExternalLink size={12} /></button>{/if}
+      {#if dom}<button type="button" class="owl-link self-start" onclick={() => owl.newTab('https://' + dom)}>Get a token on {dom} <Icon name="open" size={12} /></button>{/if}
     {/if}
     {#if tokError}<Note kind="error" text={tokError} />{/if}
   </form>

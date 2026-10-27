@@ -18,4 +18,6 @@ export { default as Badge } from './Badge.svelte';
 export { default as Empty } from './Empty.svelte';
 export { default as CompanionAvatar } from './CompanionAvatar.svelte';
 export { default as Spinner } from './Spinner.svelte';
+export { default as Icon } from './Icon.svelte';
+export type { IconName } from './icons';
 export { cn, kbdLabel } from './cn';

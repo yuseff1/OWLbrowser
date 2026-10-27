@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import type { TabState, HistoryEntry } from '$shared/types';
   import { owl, hostOf, faviconFor } from '$lib/api';
   import { store } from '$lib/stores.svelte';
@@ -7,7 +8,6 @@
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
   import { groupByDay, clock, debounce } from './kit/util';
-  import { Search, Trash2, History as HistoryIcon, Eraser, Globe } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -70,10 +70,10 @@
 
 <Page title="History" description="Pages you visited in this profile. Companions’ background tabs aren’t listed.">
   {#snippet actions()}
-    <Button variant="secondary" icon={Eraser} onclick={() => (clearOpen = true)}>Clear browsing data</Button>
+    <Button variant="secondary" icon="eraser" onclick={() => (clearOpen = true)}>Clear browsing data</Button>
   {/snippet}
   {#snippet toolbar()}
-    <Input bind:value={q} icon={Search} pill placeholder="Search history" class="w-[380px]" type="search" aria-label="Search history" />
+    <Input bind:value={q} icon="search" pill placeholder="Search history" class="w-[380px]" type="search" aria-label="Search history" />
   {/snippet}
 
   {#if error}<Note kind="error" text={error} retry={() => load()} class="mb-4" />{/if}
@@ -83,9 +83,9 @@
     <div class="owl-sheet">{#each Array(8) as _, i (i)}<div class="flex items-center gap-3 px-4 py-3"><Skel w={44} h={11} /><Skel w={16} h={16} r={4} /><Skel w="{40 + ((i * 13) % 35)}%" h={13} /></div>{/each}</div>
   {:else if !items.length}
     {#if q.trim()}
-      <Empty icon={Search} title="No pages match “{q}”" body="Search looks at page titles and addresses." compact />
+      <Empty icon="search" title="No pages match “{q}”" body="Search looks at page titles and addresses." compact />
     {:else}
-      <Empty icon={HistoryIcon} title="No history yet" body="Pages you visit appear here, grouped by day." />
+      <Empty icon="history" title="No history yet" body="Pages you visit appear here, grouped by day." />
     {/if}
   {:else}
     <div class="flex flex-col gap-6">
@@ -97,13 +97,13 @@
               {@const fav = faviconFor(h.url, h.favicon)}
               <li class="owl-hoverable flex items-center gap-3 px-4 py-2">
                 <span class="tnum w-[64px] shrink-0 whitespace-nowrap text-[12px] text-ink-2">{clock(h.lastVisit)}</span>
-                <span class="grid size-4 shrink-0 place-items-center">{#if fav && !broken[h.url]}<img src={fav} alt="" class="size-4 rounded-[3px]" loading="lazy" onerror={() => (broken[h.url] = true)} />{:else}<Globe size={14} class="text-ink-2" />{/if}</span>
+                <span class="grid size-4 shrink-0 place-items-center">{#if fav && !broken[h.url]}<img src={fav} alt="" class="size-4 rounded-[3px]" loading="lazy" onerror={() => (broken[h.url] = true)} />{:else}<Icon name="globe" size={14} class="text-ink-2" />{/if}</span>
                 <a href={h.url} onclick={(e) => { e.preventDefault(); open(h, e); }} onauxclick={(e) => { e.preventDefault(); open(h, e); }} class="flex min-w-0 flex-1 items-baseline gap-2 py-1 hover:underline hover:decoration-[color-mix(in_srgb,var(--ink)_25%,transparent)] hover:underline-offset-2">
                   <span class="truncate text-[13.5px]">{h.title || h.url}</span>
                   <span class="shrink-0 text-[12px] text-ink-2">{hostOf(h.url)}</span>
                 </a>
                 {#if h.visits > 1}<span class="tnum shrink-0 text-[12px] text-ink-2" title="Visits">{h.visits}×</span>{/if}
-                <span class="owl-hover-actions"><IconButton icon={Trash2} label="Remove from history" size="sm" onclick={() => remove(h)} /></span>
+                <span class="owl-hover-actions"><IconButton icon="delete" label="Remove from history" size="sm" onclick={() => remove(h)} /></span>
               </li>
             {/each}
           </ul>
@@ -125,6 +125,6 @@
   </div>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (clearOpen = false)}>Cancel</Button>
-    <Button variant="danger" icon={Eraser} loading={clearing} disabled={!what.history && !what.cookies && !what.cache} onclick={clear}>Clear data</Button>
+    <Button variant="danger" icon="eraser" loading={clearing} disabled={!what.history && !what.cookies && !what.cache} onclick={clear}>Clear data</Button>
   {/snippet}
 </Dialog>

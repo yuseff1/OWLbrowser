@@ -1,8 +1,8 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { Button } from '../ui';
-  import { KeyRound } from '@lucide/svelte';
 
   let { top = 88 }: { top?: number } = $props();
   let req = $state<{ id: string; origin: string; username: string } | null>(null);
@@ -20,7 +20,7 @@
   <div class="pp glass-strong animate-in" style:top="{top}px" role="dialog" aria-label="Save password" tabindex="-1"
     onkeydown={(e) => { if (e.key === 'Escape') answer(false); }}>
     <div class="flex items-start gap-3">
-      <span class="ic"><KeyRound size={16} strokeWidth={1.8} /></span>
+      <span class="ic"><Icon name="key" size={16} /></span>
       <div class="min-w-0 flex-1">
         <div class="text-[13.5px] font-semibold">Save password for {host}?</div>
         <div class="mt-0.5 truncate text-[12.5px] text-ink-2">{req.username || 'No username'} · ••••••••</div>

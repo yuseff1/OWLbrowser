@@ -6,7 +6,6 @@
   import type { Component } from 'svelte';
   import type { TabState } from '$shared/types';
   import { Spinner, Empty } from '../ui';
-  import { Construction } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -35,7 +34,7 @@
     {#if Page}
       <Page {tab} />
     {:else}
-      <Empty icon={Construction} title="{name || 'This page'} is on its way" body="This part of OWL isn’t built yet." class="h-full" />
+      <Empty icon="wrench-screwdriver" title="{name || 'This page'} is on its way" body="This part of OWL isn’t built yet." class="h-full" />
     {/if}
   {/await}
 </div>

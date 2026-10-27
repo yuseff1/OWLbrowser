@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState, Routine } from '$shared/types';
   import { owl, hostOf } from '$lib/api';
@@ -9,7 +10,6 @@
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
   import { fmtWhen } from './kit/util';
-  import { Plus, Play, Ellipsis, Pencil, Trash2, CalendarClock, Eye, Clock } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -87,7 +87,7 @@
 
 <Page title="Routines" description="Tasks your companions run on a schedule, or when a page you care about changes.">
   {#snippet actions()}
-    <Button variant="primary" icon={Plus} onclick={() => edit()}>New routine</Button>
+    <Button variant="primary" icon="add" onclick={() => edit()}>New routine</Button>
   {/snippet}
 
   {#if error}<Note kind="error" text={error} retry={load} class="mb-4" />{/if}
@@ -95,9 +95,9 @@
   {#if loading}
     <div class="owl-sheet">{#each Array(3) as _, i (i)}<div class="flex items-center gap-4 px-4 py-4"><Skel w={32} h={32} r={99} /><div class="flex flex-1 flex-col gap-2"><Skel w="40%" h={14} /><Skel w="65%" h={11} /></div><Skel w={34} h={20} r={99} /></div>{/each}</div>
   {:else if !routines.length}
-    <Empty icon={CalendarClock} title="No routines yet" body="A morning brief, a weekly report, or a price watch that tells you when something drops.">
+    <Empty icon="calendar-clock" title="No routines yet" body="A morning brief, a weekly report, or a price watch that tells you when something drops.">
       {#snippet actions()}
-        <Button variant="primary" icon={Plus} onclick={() => edit()}>New routine</Button>
+        <Button variant="primary" icon="add" onclick={() => edit()}>New routine</Button>
         <Button variant="secondary" onclick={() => { edit(); f.name = 'Morning brief'; f.task = 'Read the news sites I visit most and give me the 5 things worth knowing today, with links.'; }}>Try a morning brief</Button>
       {/snippet}
     </Empty>
@@ -114,18 +114,18 @@
             </div>
             <p class="mt-0.5 line-clamp-1 text-[13px] text-ink-2">{r.task}</p>
             <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-2">
-              <span class="flex items-center gap-1.5"><Clock size={13} strokeWidth={1.8} />{scheduleText(r)}</span>
-              {#if r.trigger}<span class="flex items-center gap-1.5"><Eye size={13} strokeWidth={1.8} />When {hostOf(r.trigger.url)} changes</span>{/if}
+              <span class="flex items-center gap-1.5"><Icon name="clock" size={14} />{scheduleText(r)}</span>
+              {#if r.trigger}<span class="flex items-center gap-1.5"><Icon name="eye" size={14} />When {hostOf(r.trigger.url)} changes</span>{/if}
               <span class="tnum">Next: {r.enabled ? fmtWhen(r.nextRunAt) : 'paused'}</span>
               <span class="tnum">Last: {fmtWhen(r.lastRunAt)}</span>
             </div>
             {#if r.lastResult}<p class="mt-2 line-clamp-2 rounded-lg bg-surface-2 px-3 py-2 text-[12.5px] leading-snug">{r.lastResult}</p>{/if}
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
-            <Button size="sm" variant="ghost" icon={Play} onclick={() => runNow(r)}>Run now</Button>
+            <Button size="sm" variant="ghost" icon="play" onclick={() => runNow(r)}>Run now</Button>
             <Switch checked={r.enabled} label="{r.enabled ? 'Pause' : 'Resume'} {r.name}" onCheckedChange={(v) => toggle(r, v)} />
-            <Menu items={[{ label: 'Edit', icon: Pencil, onSelect: () => edit(r) }, { separator: true }, { label: 'Delete', icon: Trash2, danger: true, onSelect: () => remove(r) }]}>
-              {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {r.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Ellipsis size={16} /></button>{/snippet}
+            <Menu items={[{ label: 'Edit', icon: 'edit', onSelect: () => edit(r) }, { separator: true }, { label: 'Delete', icon: 'delete', danger: true, onSelect: () => remove(r) }]}>
+              {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {r.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Icon name="more-horizontal" size={16} /></button>{/snippet}
             </Menu>
           </div>
         </div>
@@ -162,7 +162,7 @@
     </fieldset>
     <div class="owl-sheet">
       <label class="flex items-center gap-3 px-3.5 py-3">
-        <Eye size={15} class="text-ink-2" />
+        <Icon name="eye" size={16} class="text-ink-2" />
         <span class="min-w-0 flex-1"><span class="block text-[13px] font-medium">Also run when a page changes</span><span class="block text-[12px] text-ink-2">OWL checks the page quietly and starts the routine when its content changes.</span></span>
         <Switch bind:checked={f.watch} label="Also run when a page changes" />
       </label>

@@ -9,7 +9,6 @@
   import Skel from '../Skel.svelte';
   import Note from '../Note.svelte';
   import { patch } from './patch';
-  import { Moon } from '@lucide/svelte';
 
   type Stats = { totalMB: number; tabs: Array<{ id: number; title: string; mb: number; sleeping: boolean }> };
   const s = $derived(store.settings);
@@ -51,7 +50,7 @@
         {#if stats}{tabs.length} {tabs.length === 1 ? 'tab' : 'tabs'} · {asleep} asleep · tabs use {fmtMB(tabsMB)} {tabsMB >= 1024 ? 'GB' : 'MB'}{/if}
       </div>
       <div class="flex-1"></div>
-      <Button size="sm" variant="secondary" icon={Moon} disabled={!tabs.some((t) => !t.sleeping && t.id !== store.win.activeTabId)} onclick={sleepAll}>Sleep all background tabs</Button>
+      <Button size="sm" variant="secondary" icon="weather-moon" disabled={!tabs.some((t) => !t.sleeping && t.id !== store.win.activeTabId)} onclick={sleepAll}>Sleep all background tabs</Button>
     </div>
     {#if error}<Note kind="error" text={error} retry={refresh} class="mt-4" />{/if}
     <ul class="mt-5 flex flex-col">
@@ -68,7 +67,7 @@
             </span>
             <span class="tnum text-right text-[12.5px] {t.sleeping ? 'text-ink-2' : ''}">{t.sleeping ? 'asleep' : `${t.mb} MB`}</span>
             <span class="text-right">
-              {#if !t.sleeping && t.id !== store.win.activeTabId}<Button size="sm" variant="ghost" icon={Moon} onclick={() => sleep(t.id)}>Sleep</Button>{/if}
+              {#if !t.sleeping && t.id !== store.win.activeTabId}<Button size="sm" variant="ghost" icon="weather-moon" onclick={() => sleep(t.id)}>Sleep</Button>{/if}
             </span>
           </li>
         {/each}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState } from '$shared/types';
   import { owl } from '$lib/api';
@@ -10,7 +11,6 @@
   import Note from './kit/Note.svelte';
   import SkillIcon, { ICONS } from './kit/SkillIcon.svelte';
   import { md } from './kit/md';
-  import { Plus, Search, SlidersHorizontal, Play, Copy, Pencil, Trash2, BookOpen, Sparkles, Ellipsis, Eye, Code } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -81,15 +81,15 @@
 
 <Page title="Skills" description="Reusable instructions your companions load when a task calls for them.">
   {#snippet actions()}
-    <button type="button" class="owl-link mr-2" onclick={() => (howOpen = true)}><BookOpen size={14} /> How skills work</button>
-    <Button variant="primary" icon={Plus} onclick={() => edit()}>Create skill</Button>
+    <button type="button" class="owl-link mr-2" onclick={() => (howOpen = true)}><Icon name="book-open" size={14} /> How skills work</button>
+    <Button variant="primary" icon="add" onclick={() => edit()}>Create skill</Button>
   {/snippet}
   {#snippet toolbar()}
     <Segmented bind:value={view} label="Skill source" options={[{ value: 'mine', label: `My skills${mine.length ? ' · ' + mine.length : ''}` }, { value: 'official', label: 'Official skills' }]} />
     <div class="flex-1"></div>
-    <Input bind:value={q} icon={Search} pill placeholder="Search skills" class="w-[280px]" type="search" aria-label="Search skills" />
+    <Input bind:value={q} icon="search" pill placeholder="Search skills" class="w-[280px]" type="search" aria-label="Search skills" />
     <Menu items={[{ heading: 'Sort by' }, { label: (sort === 'newest' ? '✓ ' : '') + 'Newest', onSelect: () => (sort = 'newest') }, { label: (sort === 'name' ? '✓ ' : '') + 'Name', onSelect: () => (sort = 'name') }]}>
-      {#snippet trigger(p)}<button {...p} type="button" aria-label="Sort" class="grid size-[38px] place-items-center rounded-full bg-surface text-ink-2 shadow-[0_0_0_1px_color-mix(in_srgb,var(--ink)_12%,transparent)] hover:text-ink"><SlidersHorizontal size={15} /></button>{/snippet}
+      {#snippet trigger(p)}<button {...p} type="button" aria-label="Sort" class="grid size-[38px] place-items-center rounded-full bg-surface text-ink-2 shadow-[0_0_0_1px_color-mix(in_srgb,var(--ink)_12%,transparent)] hover:text-ink"><Icon name="options" size={16} /></button>{/snippet}
     </Menu>
   {/snippet}
 
@@ -99,13 +99,13 @@
     <div class="grid grid-cols-2 gap-3">{#each Array(6) as _, i (i)}<div class="owl-sheet flex gap-3 p-4"><Skel w={36} h={36} r={10} /><div class="flex flex-1 flex-col gap-2"><Skel w="45%" h={14} /><Skel w="90%" h={11} /><Skel w="70%" h={11} /></div></div>{/each}</div>
   {:else if !shown.length}
     {#if q}
-      <Empty icon={Search} title="No skills match “{q}”" body="Try a different word, or create a skill for it." compact>
+      <Empty icon="search" title="No skills match “{q}”" body="Try a different word, or create a skill for it." compact>
         {#snippet actions()}<Button size="sm" variant="secondary" onclick={() => (q = '')}>Clear search</Button>{/snippet}
       </Empty>
     {:else}
-      <Empty icon={Sparkles} title="No skills yet" body="Write down how you like something done once, and every companion can follow it.">
+      <Empty icon="sparkle" title="No skills yet" body="Write down how you like something done once, and every companion can follow it.">
         {#snippet actions()}
-          <Button variant="primary" icon={Plus} onclick={() => edit()}>Create skill</Button>
+          <Button variant="primary" icon="add" onclick={() => edit()}>Create skill</Button>
           <Button variant="secondary" onclick={() => (view = 'official')}>Browse official skills</Button>
         {/snippet}
       </Empty>
@@ -119,13 +119,13 @@
             <button type="button" class="text-left text-[14px] font-semibold tracking-[-0.01em] after:absolute after:inset-0 after:content-['']" onclick={() => show(s)}>{s.name}</button>
             <p class="mt-0.5 line-clamp-2 text-[12.5px] leading-[18px] text-ink-2">{s.description}</p>
             <div class="relative mt-3 flex items-center gap-1.5">
-              <Button size="sm" variant="secondary" icon={Play} onclick={() => use(s)}>Use</Button>
+              <Button size="sm" variant="secondary" icon="play" onclick={() => use(s)}>Use</Button>
               {#if view === 'official'}
-                <Button size="sm" variant="ghost" icon={Copy} onclick={() => edit(s, true)}>Duplicate</Button>
+                <Button size="sm" variant="ghost" icon="copy" onclick={() => edit(s, true)}>Duplicate</Button>
               {:else}
-                <Button size="sm" variant="ghost" icon={Pencil} onclick={() => edit(s)}>Edit</Button>
-                <Menu items={[{ label: 'Duplicate', icon: Copy, onSelect: () => edit(s, true) }, { separator: true }, { label: 'Delete', icon: Trash2, danger: true, onSelect: () => remove(s) }]}>
-                  {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {s.name}" class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"><Ellipsis size={15} /></button>{/snippet}
+                <Button size="sm" variant="ghost" icon="edit" onclick={() => edit(s)}>Edit</Button>
+                <Menu items={[{ label: 'Duplicate', icon: 'copy', onSelect: () => edit(s, true) }, { separator: true }, { label: 'Delete', icon: 'delete', danger: true, onSelect: () => remove(s) }]}>
+                  {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {s.name}" class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"><Icon name="more-horizontal" size={16} /></button>{/snippet}
                 </Menu>
               {/if}
             </div>
@@ -142,8 +142,8 @@
   {/if}
   {#snippet footer()}
     {#if detail}
-      {#if detail.official}<Button variant="ghost" icon={Copy} onclick={() => detail && edit(detail, true)}>Duplicate and edit</Button>{:else}<Button variant="ghost" icon={Pencil} onclick={() => detail && edit(detail)}>Edit</Button>{/if}
-      <Button variant="primary" icon={Play} onclick={() => { if (detail) use(detail); detailOpen = false; }}>Use skill</Button>
+      {#if detail.official}<Button variant="ghost" icon="copy" onclick={() => detail && edit(detail, true)}>Duplicate and edit</Button>{:else}<Button variant="ghost" icon="edit" onclick={() => detail && edit(detail)}>Edit</Button>{/if}
+      <Button variant="primary" icon="play" onclick={() => { if (detail) use(detail); detailOpen = false; }}>Use skill</Button>
     {/if}
   {/snippet}
 </Dialog>
@@ -166,7 +166,7 @@
     <div>
       <div class="mb-1.5 flex items-center justify-between">
         <label for="sk-ins" class="text-[12.5px] font-medium">Instructions</label>
-        <Segmented size="sm" label="Instructions view" value={preview ? 'preview' : 'write'} onValueChange={(v) => (preview = v === 'preview')} options={[{ value: 'write', label: 'Write', icon: Code }, { value: 'preview', label: 'Preview', icon: Eye }]} />
+        <Segmented size="sm" label="Instructions view" value={preview ? 'preview' : 'write'} onValueChange={(v) => (preview = v === 'preview')} options={[{ value: 'write', label: 'Write', icon: 'code' }, { value: 'preview', label: 'Preview', icon: 'eye' }]} />
       </div>
       {#if preview}
         <div class="owl-md max-h-[300px] min-h-[220px] overflow-y-auto rounded-xl bg-surface-2 p-3.5">{@html md(f.instructions)}</div>

@@ -1,10 +1,10 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { owl, faviconFor } from '../api';
   import { store } from '../stores.svelte';
   import { threads } from '../threads.svelte';
   import { markdown } from '../markdown';
   import { IconButton, Menu, CompanionAvatar, Segmented, Textarea, Tooltip, type MenuItem } from '../ui';
-  import { SquarePen, History, Ellipsis, X, ArrowUp, Plus, Globe, MessageCircle, Zap, ChevronDown, Users, Settings2, Trash2, Check } from '@lucide/svelte';
   import RunView from './RunView.svelte';
   import { runLive } from './prefs.svelte';
 
@@ -109,18 +109,18 @@
   }
 
   const moreItems = $derived<MenuItem[]>([
-    { label: 'Manage companions', icon: Users, onSelect: () => owl.newTab('owl://companions') },
-    { label: 'Models & keys', icon: Settings2, onSelect: () => owl.newTab('owl://settings#models') },
+    { label: 'Manage companions', icon: 'people', onSelect: () => owl.newTab('owl://companions') },
+    { label: 'Models & keys', icon: 'options', onSelect: () => owl.newTab('owl://settings#models') },
     { separator: true },
-    { label: 'Delete this chat', icon: Trash2, danger: true, disabled: !thread, onSelect: () => thread && threads.remove(thread.id) },
+    { label: 'Delete this chat', icon: 'delete', danger: true, disabled: !thread, onSelect: () => thread && threads.remove(thread.id) },
   ]);
   const plusItems = $derived<MenuItem[]>([
-    { label: usePage && pageable ? 'Stop using this page' : 'Use this page', icon: usePage && pageable ? Check : Globe, disabled: !pageable, onSelect: () => (usePage = !usePage) },
-    { label: 'New chat', icon: SquarePen, onSelect: () => threads.clear() },
+    { label: usePage && pageable ? 'Stop using this page' : 'Use this page', icon: usePage && pageable ? 'checkmark' : 'globe', disabled: !pageable, onSelect: () => (usePage = !usePage) },
+    { label: 'New chat', icon: 'compose', onSelect: () => threads.clear() },
   ]);
   const modelItems = $derived<MenuItem[]>([
     { heading: model ? `Using ${model}` : 'No default model yet' },
-    { label: 'Change model…', icon: Settings2, onSelect: () => owl.newTab('owl://settings#models') },
+    { label: 'Change model…', icon: 'options', onSelect: () => owl.newTab('owl://settings#models') },
   ]);
 </script>
 
@@ -143,12 +143,12 @@
       {/each}
     </div>
     <div class="acts">
-      <IconButton icon={SquarePen} label="New chat" size="sm" onclick={() => threads.clear()} />
-      <IconButton icon={History} label="Chat history" size="sm" onclick={() => owl.newTab('owl://chats')} />
+      <IconButton icon="compose" label="New chat" size="sm" onclick={() => threads.clear()} />
+      <IconButton icon="history" label="Chat history" size="sm" onclick={() => owl.newTab('owl://chats')} />
       <Menu items={moreItems}>
-        {#snippet trigger(p)}<IconButton icon={Ellipsis} label="More" size="sm" {...p} />{/snippet}
+        {#snippet trigger(p)}<IconButton icon="more-horizontal" label="More" size="sm" {...p} />{/snippet}
       </Menu>
-      <IconButton icon={X} label="Close" kbd="Ctrl+Shift+J" size="sm" onclick={() => (store.panelOpen = false)} />
+      <IconButton icon="dismiss" label="Close" kbd="Ctrl+Shift+J" size="sm" onclick={() => (store.panelOpen = false)} />
     </div>
   </header>
 
@@ -161,7 +161,7 @@
         <div class="starters">
           {#each starters as s (s.q)}
             <button class="st" onclick={() => starter(s)}>
-              {#if s.mode === 'do'}<Zap size={13} strokeWidth={1.8} />{:else}<MessageCircle size={13} strokeWidth={1.8} />{/if}
+              {#if s.mode === 'do'}<Icon name="flash" size={14} />{:else}<Icon name="chat" size={14} />{/if}
               <span>{s.q}</span>
             </button>
           {/each}
@@ -185,7 +185,7 @@
                   <div class="setup" role="status">
                     <p class="setup-t">{store.companions.find((c) => c.id === m.companionId)?.name ?? 'Your companion'} needs an AI model first</p>
                     <p class="setup-d">Add an API key (OpenRouter, OpenAI, Anthropic…) or run a free local model with Ollama or LM Studio. It takes about a minute.</p>
-                    <button class="setup-b" onclick={() => owl.newTab('owl://settings#models')}><Settings2 size={13} strokeWidth={1.9} /> Set up a model</button>
+                    <button class="setup-b" onclick={() => owl.newTab('owl://settings#models')}><Icon name="options" size={14} /> Set up a model</button>
                   </div>
                 {:else}
                   <div class="owl-prose">{@html markdown(m.content)}</div>
@@ -205,7 +205,7 @@
           <span class="chip" title={tab?.url}>
             <img src={faviconFor(tab!.url, tab!.favicon)} alt="" width="12" height="12" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')} />
             <span class="truncate">{tab?.title}</span>
-            <button aria-label="Don’t use this page" onclick={() => (usePage = false)}><X size={11} strokeWidth={2.2} /></button>
+            <button aria-label="Don’t use this page" onclick={() => (usePage = false)}><Icon name="dismiss" size={12} /></button>
           </span>
         </div>
       {/if}
@@ -213,19 +213,19 @@
         placeholder={mode === 'do' ? (liveRun ? `Add to ${comp?.name}'s task…` : `Tell ${comp?.name ?? 'me'} what to do…`) : msgs.length ? 'Ask a follow-up…' : `Ask ${comp?.name ?? 'anything'}…`} />
       <div class="row">
         <Menu items={plusItems} side="top" align="start">
-          {#snippet trigger(p)}<IconButton icon={Plus} label="Add context" size="sm" side="top" {...p} />{/snippet}
+          {#snippet trigger(p)}<IconButton icon="add" label="Add context" size="sm" side="top" {...p} />{/snippet}
         </Menu>
-        <Segmented size="sm" label="Mode" bind:value={mode} options={[{ value: 'ask', label: 'Ask', icon: MessageCircle }, { value: 'do', label: 'Do it', icon: Zap }]} />
+        <Segmented size="sm" label="Mode" bind:value={mode} options={[{ value: 'ask', label: 'Ask', icon: 'chat' }, { value: 'do', label: 'Do it', icon: 'flash' }]} />
         <span class="flex-1"></span>
         <Menu items={modelItems} side="top" align="end" width={240}>
           {#snippet trigger(p)}
             <button {...p} class="model" aria-label="Model: {modelShort}">
-              <span class="truncate">{modelShort}</span><ChevronDown size={12} strokeWidth={2} />
+              <span class="truncate">{modelShort}</span><Icon name="chevron-down" size={12} />
             </button>
           {/snippet}
         </Menu>
         <button class="send" style:--cc={color} disabled={!text.trim() || busy} aria-label={mode === 'do' ? 'Start task' : 'Send'} onclick={send}>
-          <ArrowUp size={16} strokeWidth={2.2} />
+          <Icon name="arrow-up" size={16} />
         </button>
       </div>
     </div>

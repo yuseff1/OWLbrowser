@@ -1,9 +1,10 @@
 <script lang="ts" module>
-  import type { Component } from 'svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
   /** a row ({label, icon, kbd, danger, disabled, onSelect}), a divider ({separator: true}) or a small heading ({heading}) */
   export type MenuItem = {
     label?: string;
-    icon?: Component<any>;
+    icon?: IconName;
     kbd?: string;
     danger?: boolean;
     disabled?: boolean;
@@ -79,7 +80,7 @@
           <div class="owl-menu-label">{it.heading}</div>
         {:else if it.label}
           <DropdownMenu.Item class="owl-menu-item {it.danger ? 'danger' : ''}" disabled={it.disabled} onSelect={() => it.onSelect?.()}>
-            {#if it.icon}<it.icon size={15} strokeWidth={1.75} />{/if}
+            {#if it.icon}<Icon name={it.icon} size={16} />{/if}
             <span class="truncate">{it.label}</span>
             {#if it.kbd}<span class="k">{kbdLabel(it.kbd)}</span>{/if}
           </DropdownMenu.Item>

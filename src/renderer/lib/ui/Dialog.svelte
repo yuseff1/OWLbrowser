@@ -1,7 +1,7 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { Dialog } from 'bits-ui';
   import type { Snippet } from 'svelte';
-  import { X } from '@lucide/svelte';
   import { store } from '../stores.svelte';
 
   type Props = {
@@ -37,7 +37,7 @@
             {#if description}<Dialog.Description class="mt-1 text-[13px] text-ink-2">{description}</Dialog.Description>{/if}
           </div>
           <Dialog.Close class="-mr-1 -mt-1 grid size-7 place-items-center rounded-lg text-ink-3 hover:bg-[color-mix(in_srgb,var(--ink)_7%,transparent)] hover:text-ink" aria-label="Close">
-            <X size={15} strokeWidth={1.8} />
+            <Icon name="dismiss" size={16} />
           </Dialog.Close>
         </div>
       {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import type { TabState } from '$shared/types';
   import { Input } from '$lib/ui';
   import './kit/kit.css';
@@ -12,21 +13,20 @@
   import Extensions from './kit/settings/Extensions.svelte';
   import Profiles from './kit/settings/Profiles.svelte';
   import About from './kit/settings/About.svelte';
-  import { Settings2, Palette, Cpu, Bot, ShieldCheck, Gauge, Download, Puzzle, UsersRound, Info, Search } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
   const SECTIONS = [
-    { id: 'general', label: 'General', icon: Settings2, C: General, keys: 'default browser search engine startup session bookmarks bar' },
-    { id: 'appearance', label: 'Appearance', icon: Palette, C: Appearance, keys: 'theme dark light colour color layout wallpaper tabs' },
-    { id: 'models', label: 'Models', icon: Cpu, C: Models, keys: 'ai provider api key openrouter openai anthropic gemini ollama lm studio local model vision' },
-    { id: 'agents', label: 'Companions & Agents', icon: Bot, C: AgentsSettings, keys: 'approval autonomous parallel bots computer use' },
-    { id: 'privacy', label: 'Privacy & Security', icon: ShieldCheck, C: Privacy, keys: 'adblock ads trackers do not track passwords clear data cookies cache' },
-    { id: 'performance', label: 'Performance', icon: Gauge, C: Performance, keys: 'memory ram sleep tabs saver speed' },
-    { id: 'import', label: 'Import', icon: Download, C: ImportSection, keys: 'chrome edge brave import bookmarks history passwords csv' },
-    { id: 'extensions', label: 'Extensions', icon: Puzzle, C: Extensions, keys: 'chrome web store unpacked addons' },
-    { id: 'profiles', label: 'Profiles', icon: UsersRound, C: Profiles, keys: 'work personal accounts windows' },
-    { id: 'about', label: 'About', icon: Info, C: About, keys: 'version update chromium electron' },
+    { id: 'general', label: 'General', icon: 'options', C: General, keys: 'default browser search engine startup session bookmarks bar' },
+    { id: 'appearance', label: 'Appearance', icon: 'color', C: Appearance, keys: 'theme dark light colour color layout wallpaper tabs' },
+    { id: 'models', label: 'Models', icon: 'developer-board', C: Models, keys: 'ai provider api key openrouter openai anthropic gemini ollama lm studio local model vision' },
+    { id: 'agents', label: 'Companions & Agents', icon: 'bot', C: AgentsSettings, keys: 'approval autonomous parallel bots computer use' },
+    { id: 'privacy', label: 'Privacy & Security', icon: 'shield-checkmark', C: Privacy, keys: 'adblock ads trackers do not track passwords clear data cookies cache' },
+    { id: 'performance', label: 'Performance', icon: 'gauge', C: Performance, keys: 'memory ram sleep tabs saver speed' },
+    { id: 'import', label: 'Import', icon: 'arrow-download', C: ImportSection, keys: 'chrome edge brave import bookmarks history passwords csv' },
+    { id: 'extensions', label: 'Extensions', icon: 'puzzle-piece', C: Extensions, keys: 'chrome web store unpacked addons' },
+    { id: 'profiles', label: 'Profiles', icon: 'people', C: Profiles, keys: 'work personal accounts windows' },
+    { id: 'about', label: 'About', icon: 'info', C: About, keys: 'version update chromium electron' },
   ] as const;
   type Id = (typeof SECTIONS)[number]['id'];
 
@@ -58,13 +58,13 @@
   <div class="mx-auto grid w-full max-w-[1032px] grid-cols-[216px_minmax(0,1fr)] gap-10 px-8 pb-20 pt-10">
     <aside class="sticky top-10 self-start">
       <div class="mb-3 px-1 text-[20px] font-semibold leading-7 tracking-[-0.015em]">Settings</div>
-      <Input bind:value={q} icon={Search} size="sm" pill placeholder="Find a setting" aria-label="Find a setting" type="search" class="mb-3"
+      <Input bind:value={q} icon="search" size="sm" pill placeholder="Find a setting" aria-label="Find a setting" type="search" class="mb-3"
         onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' && matches[0]) go(matches[0].id); }} />
       <nav aria-label="Settings sections" class="flex flex-col gap-0.5">
         {#each matches as s (s.id)}
           <button type="button" id="set-nav-{s.id}" onclick={() => go(s.id)} onkeydown={navKey} aria-current={section === s.id ? 'page' : undefined}
             class="flex h-[34px] items-center gap-2.5 rounded-[10px] px-2.5 text-left text-[13.5px] transition-colors {section === s.id ? 'bg-[color-mix(in_srgb,var(--ink)_7%,transparent)] font-medium text-ink' : 'text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_4%,transparent)] hover:text-ink'}">
-            <s.icon size={16} strokeWidth={1.75} class="shrink-0" />
+            <Icon name={s.icon} size={16} filled={section === s.id} class="shrink-0" />
             <span class="truncate">{s.label}</span>
           </button>
         {:else}

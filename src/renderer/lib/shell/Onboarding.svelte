@@ -1,8 +1,8 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { owl, art } from '../api';
   import { store } from '../stores.svelte';
   import { Button, Input, Select, Switch, IconButton, Kbd, Spinner, Segmented } from '../ui';
-  import { Shuffle, Check, ArrowLeft, Cpu, KeyRound, ExternalLink } from '@lucide/svelte';
   import type { ImportSource, ImportResult, ModelProvider } from '$shared/types';
 
   let { onDone }: { onDone: (r: { companionId: string }) => void } = $props();
@@ -140,7 +140,7 @@
                   <img src={art.companion(c.id)} alt="" draggable="false" />
                   <span class="nm">{c.name}</span>
                   <span class="rl">{c.role}</span>
-                  {#if c.id === companionId}<span class="ck"><Check size={11} strokeWidth={3} /></span>{/if}
+                  {#if c.id === companionId}<span class="ck"><Icon name="checkmark" size={12} filled /></span>{/if}
                 </button>
               {/each}
             </div>
@@ -151,7 +151,7 @@
                 {#each [chosen?.name ?? 'Hoot', ...chips.filter((c) => c !== chosen?.name)] as n (n)}
                   <button class="nchip" class:on={companionName === n} onclick={() => { companionName = n; nameTouched = true; }}>{n}</button>
                 {/each}
-                <IconButton icon={Shuffle} label="More names" size="sm" side="top" onclick={() => (chips = shuffle())} />
+                <IconButton icon="arrow-shuffle" label="More names" size="sm" side="top" onclick={() => (chips = shuffle())} />
               </div>
             </div>
           {:else if step === 3}
@@ -167,7 +167,7 @@
                 </div>
                 {#if result}
                   <div class="res">
-                    <div class="flex items-center gap-2 text-[13px] font-medium"><Check size={15} strokeWidth={2.2} class="text-[#2f8f5b]" />Imported</div>
+                    <div class="flex items-center gap-2 text-[13px] font-medium"><Icon name="checkmark" size={16} class="text-[#2f8f5b]" />Imported</div>
                     <p class="mt-1 text-[12.5px] text-ink-2 tnum">{fmt(result.bookmarks)} bookmarks · {fmt(result.history)} pages of history · {fmt(result.passwords)} passwords · {fmt(result.extensions)} extensions</p>
                     {#each result.errors as n (n)}<p class="mt-1 text-[12px] text-ink-3">{n}</p>{/each}
                   </div>
@@ -182,7 +182,7 @@
             <div class="bubble"><h1>Connect a brain.</h1></div>
             <div class="bubble sub"><p>I think with a language model. Run one on this computer for privacy, or paste an API key for the strongest models.</p></div>
             <div class="panel">
-              <Segmented full label="Model source" bind:value={brainMode} options={[{ value: 'local', label: 'On this computer', icon: Cpu }, { value: 'key', label: 'API key', icon: KeyRound }]} />
+              <Segmented full label="Model source" bind:value={brainMode} options={[{ value: 'local', label: 'On this computer', icon: 'developer-board' }, { value: 'key', label: 'API key', icon: 'key' }]} />
               {#if brainMode === 'local'}
                 {#if localModels.length}
                   <p class="mt-3 text-[12.5px] text-ink-2">Found {localFound.map((p) => p.name).join(' and ')} running. Pick a model:</p>
@@ -197,7 +197,7 @@
                 </div>
                 <div class="mt-2 flex items-center gap-2">
                   <Button variant="secondary" size="sm" loading={connecting} disabled={!apiKey.trim()} onclick={connect}>{connected ? 'Reconnect' : 'Connect'}</Button>
-                  {#if presets[kind]?.keyUrl}<a class="lnk inline-flex items-center gap-1 text-[12.5px]" href={presets[kind].keyUrl} target="_blank" rel="noreferrer">Get a key <ExternalLink size={12} /></a>{/if}
+                  {#if presets[kind]?.keyUrl}<a class="lnk inline-flex items-center gap-1 text-[12.5px]" href={presets[kind].keyUrl} target="_blank" rel="noreferrer">Get a key <Icon name="open" size={12} /></a>{/if}
                 </div>
                 {#if connected?.models.length}
                   <Select class="mt-3 w-full" items={connected.models.map((m) => ({ value: `${connected!.providerId}::${m}`, label: m }))} bind:value={model} label="Model" />
@@ -217,7 +217,7 @@
 
   <footer class="foot">
     {#if step > 0}
-      <Button variant="ghost" icon={ArrowLeft} onclick={() => (step = Math.max(0, step - 1))}>Back</Button>
+      <Button variant="ghost" icon="arrow-left" onclick={() => (step = Math.max(0, step - 1))}>Back</Button>
     {/if}
     <span class="flex-1"></span>
     {#if step === 3 || step === 4}

@@ -1,14 +1,11 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import type { AgentRun, AgentStep } from '$shared/types';
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { Badge, Button, Input, Dialog, Spinner } from '../ui';
   import { markdown } from '../markdown';
   import { statusLabel, statusVariant, runLive, elapsed } from './prefs.svelte';
-  import {
-    Globe, MousePointerClick, Keyboard, FileText, Search, Camera, Check, CircleAlert, User, ShieldQuestion, Wrench,
-    Hand, Play, Square, CornerDownLeft, ArrowUpRight, ScrollText, Brain,
-  } from '@lucide/svelte';
 
   let { run, showTask = false }: { run: AgentRun; showTask?: boolean } = $props();
 
@@ -29,15 +26,15 @@
 
   function toolIcon(s: AgentStep) {
     const t = (s.tool || '').toLowerCase();
-    if (/nav|open|goto|url/.test(t)) return Globe;
-    if (/click|tap|press/.test(t)) return MousePointerClick;
-    if (/type|fill|input|key/.test(t)) return Keyboard;
-    if (/search|find/.test(t)) return Search;
-    if (/shot|capture|vision/.test(t)) return Camera;
-    if (/scroll/.test(t)) return ScrollText;
-    if (/read|extract|text|page/.test(t)) return FileText;
-    if (/memory|remember/.test(t)) return Brain;
-    return Wrench;
+    if (/nav|open|goto|url/.test(t)) return 'globe';
+    if (/click|tap|press/.test(t)) return 'cursor-click';
+    if (/type|fill|input|key/.test(t)) return 'keyboard';
+    if (/search|find/.test(t)) return 'search';
+    if (/shot|capture|vision/.test(t)) return 'camera';
+    if (/scroll/.test(t)) return 'arrow-autofit-height';
+    if (/read|extract|text|page/.test(t)) return 'document-text';
+    if (/memory|remember/.test(t)) return 'brain-circuit';
+    return 'wrench';
   }
   function sendAnswer() { if (!answer.trim()) return; owl.answerRun(run.id, answer.trim()); answer = ''; }
   function sendFollow() { if (!follow.trim()) return; owl.followUp(run.id, follow.trim()); follow = ''; }
@@ -49,7 +46,7 @@
     <Badge variant={statusVariant(run.status)} dot pulse={run.status === 'running'}>{statusLabel(run.status)}</Badge>
     <span class="meta tnum">{elapsed(run.startedAt, run.endedAt ?? now)}</span>
     {#if run.tabIds?.length && run.tabIds[0] !== store.win.activeTabId}
-      <button class="lnk" onclick={openTab}>Open tab <ArrowUpRight size={12} strokeWidth={2} /></button>
+      <button class="lnk" onclick={openTab}>Open tab <Icon name="arrow-up-right" size={12} /></button>
     {/if}
   </div>
   {#if showTask}<p class="task">{run.task}</p>{/if}
@@ -66,11 +63,11 @@
           <span class="thought">{s.text}</span>
         {:else}
           <span class="ic">
-            {#if s.kind === 'tool'}{@const I = toolIcon(s)}<I size={13} strokeWidth={1.8} />
-            {:else if s.kind === 'result'}<Check size={13} strokeWidth={2} />
-            {:else if s.kind === 'error'}<CircleAlert size={13} strokeWidth={1.9} />
-            {:else if s.kind === 'approval'}<ShieldQuestion size={13} strokeWidth={1.8} />
-            {:else if s.kind === 'user'}<User size={13} strokeWidth={1.8} />{/if}
+            {#if s.kind === 'tool'}{@const ic = toolIcon(s)}<Icon name={ic} size={14} />
+            {:else if s.kind === 'result'}<Icon name="checkmark" size={14} />
+            {:else if s.kind === 'error'}<Icon name="error-circle" size={14} />
+            {:else if s.kind === 'approval'}<Icon name="shield-question" size={14} />
+            {:else if s.kind === 'user'}<Icon name="person" size={14} />{/if}
           </span>
           <span class="txt">{s.kind === 'user' ? `You: ${s.text}` : s.text}</span>
         {/if}
@@ -88,10 +85,10 @@
 
   {#if run.pendingApproval}
     <div class="card warn" role="group" aria-label="Approval needed">
-      <div class="ct"><ShieldQuestion size={15} strokeWidth={1.8} /> {name} wants to {run.pendingApproval.action.charAt(0).toLowerCase() + run.pendingApproval.action.slice(1)}</div>
+      <div class="ct"><Icon name="shield-question" size={16} /> {name} wants to {run.pendingApproval.action.charAt(0).toLowerCase() + run.pendingApproval.action.slice(1)}</div>
       {#if run.pendingApproval.detail}<p class="cd">{run.pendingApproval.detail}</p>{/if}
       <div class="ca">
-        <Button size="sm" variant="primary" icon={Check} onclick={() => owl.approveRun(run.id, true)}>Approve</Button>
+        <Button size="sm" variant="primary" icon="checkmark" onclick={() => owl.approveRun(run.id, true)}>Approve</Button>
         <Button size="sm" variant="secondary" onclick={() => owl.approveRun(run.id, false)}>Deny</Button>
       </div>
     </div>
@@ -114,15 +111,15 @@
   {#if live}
     <div class="ctl">
       {#if run.status === 'paused'}
-        <Button size="sm" variant="secondary" icon={Play} onclick={() => owl.takeover(run.id, false)}>Resume</Button>
+        <Button size="sm" variant="secondary" icon="play" onclick={() => owl.takeover(run.id, false)}>Resume</Button>
       {:else}
-        <Button size="sm" variant="secondary" icon={Hand} onclick={() => { owl.takeover(run.id, true); openTab(); }}>Take over</Button>
+        <Button size="sm" variant="secondary" icon="hand-left" onclick={() => { owl.takeover(run.id, true); openTab(); }}>Take over</Button>
       {/if}
-      <Button size="sm" variant="ghost" icon={Square} onclick={() => owl.stopRun(run.id)}>Stop</Button>
+      <Button size="sm" variant="ghost" icon="stop" onclick={() => owl.stopRun(run.id)}>Stop</Button>
     </div>
     <form class="follow" onsubmit={(e) => { e.preventDefault(); sendFollow(); }}>
       <input bind:value={follow} placeholder="Queue a follow-up…" aria-label="Queue a follow-up for {name}" />
-      <button type="submit" aria-label="Queue follow-up" disabled={!follow.trim()}><CornerDownLeft size={13} strokeWidth={2} /></button>
+      <button type="submit" aria-label="Queue follow-up" disabled={!follow.trim()}><Icon name="arrow-enter-left" size={14} /></button>
     </form>
   {/if}
 </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../../../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import { owl } from '$lib/api';
   import { store } from '$lib/stores.svelte';
@@ -7,7 +8,6 @@
   import Group from './Group.svelte';
   import Skel from '../Skel.svelte';
   import Note from '../Note.svelte';
-  import { FolderInput, Puzzle, Trash2, ExternalLink } from '@lucide/svelte';
 
   type Ext = { id: string; name: string; version: string; path: string };
   let list = $state<Ext[]>([]);
@@ -33,28 +33,28 @@
 </script>
 
 <Section title="Extensions" description="Chrome extensions that work in OWL.">
-  {#snippet actions()}<Button variant="secondary" icon={FolderInput} loading={adding} onclick={loadUnpacked}>Load unpacked…</Button>{/snippet}
+  {#snippet actions()}<Button variant="secondary" icon="folder-arrow-right" loading={adding} onclick={loadUnpacked}>Load unpacked…</Button>{/snippet}
   {#if error}<Note kind="error" text={error} retry={load} />{/if}
   <Group>
     {#if loading}
       {#each Array(2) as _, i (i)}<div class="flex items-center gap-3 px-4 py-3.5"><Skel w={32} h={32} r={9} /><div class="flex flex-1 flex-col gap-1.5"><Skel w="35%" h={13} /><Skel w="50%" h={10} /></div></div>{/each}
     {:else if !list.length}
-      <div class="flex items-center gap-3 px-4 py-5 text-[13px] text-ink-2"><Puzzle size={16} /> No extensions yet. Import them from Chrome, or load an unpacked folder.</div>
+      <div class="flex items-center gap-3 px-4 py-5 text-[13px] text-ink-2"><Icon name="puzzle-piece" size={16} /> No extensions yet. Import them from Chrome, or load an unpacked folder.</div>
     {:else}
       {#each list as e (e.id)}
         <div class="owl-hoverable flex items-center gap-3 px-4 py-3">
-          <span class="owl-tile size-8 text-ink-2"><Puzzle size={15} strokeWidth={1.7} /></span>
+          <span class="owl-tile size-8 text-ink-2"><Icon name="puzzle-piece" size={16} /></span>
           <div class="min-w-0 flex-1">
             <div class="truncate text-[13.5px] font-medium">{e.name} <span class="tnum font-normal text-ink-2">{e.version}</span></div>
             <div class="truncate font-mono text-[11.5px] text-ink-2">{e.id}</div>
           </div>
-          <IconButton icon={Trash2} label="Remove {e.name}" size="sm" onclick={() => remove(e)} />
+          <IconButton icon="delete" label="Remove {e.name}" size="sm" onclick={() => remove(e)} />
         </div>
       {/each}
     {/if}
   </Group>
   <Note kind="info">
     Most Chrome Web Store extensions install directly: open the store, then press “Add to Chrome”. Extensions that need Google sign-in or Chrome-only APIs may not work.
-    <button type="button" class="owl-link mt-1.5" onclick={() => owl.openWebStore()}>Open the Chrome Web Store <ExternalLink size={12} /></button>
+    <button type="button" class="owl-link mt-1.5" onclick={() => owl.openWebStore()}>Open the Chrome Web Store <Icon name="open" size={12} /></button>
   </Note>
 </Section>

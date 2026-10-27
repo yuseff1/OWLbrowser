@@ -1,14 +1,12 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
+  import type { IconName } from '../ui/icons';
   import { Command, Dialog, computeCommandScore } from 'bits-ui';
   import { owl, hostOf } from '../api';
   import { store } from '../stores.svelte';
   import { threads } from '../threads.svelte';
   import { CompanionAvatar, Kbd } from '../ui';
   import TabIcon from './TabIcon.svelte';
-  import {
-    Search, Plus, AppWindow, EyeOff, PanelLeft, MessageCircle, Bookmark, Settings, Clock, Download, Users, Brain, Repeat, Sparkles,
-    Blocks, Library, Bot, MessagesSquare, SunMoon, Columns2, RotateCcw, LayoutPanelTop, Zap, Star, Globe,
-  } from '@lucide/svelte';
 
   let q = $state('');
   let sugg = $state<Array<{ type: string; title: string; url: string }>>([]);
@@ -34,33 +32,34 @@
   function run(fn: () => void) { store.paletteOpen = false; fn(); }
   const page = (id: string) => () => owl.newTab(`owl://${id}`);
 
-  const commands = [
-    { label: 'New tab', icon: Plus, kbd: 'Ctrl+T', act: () => owl.newTab() },
-    { label: 'New window', icon: AppWindow, kbd: 'Ctrl+N', act: () => owl.newWindow({}) },
-    { label: 'New incognito window', icon: EyeOff, kbd: 'Ctrl+Shift+N', act: () => owl.newWindow({ incognito: true }) },
-    { label: 'Reopen closed tab', icon: RotateCcw, kbd: 'Ctrl+Shift+T', act: () => owl.reopenClosed() },
-    { label: 'New chat with companion', icon: MessageCircle, kbd: 'Ctrl+Shift+J', act: () => { threads.clear(); store.panelOpen = true; } },
-    { label: 'Toggle sidebar', icon: PanelLeft, kbd: 'Ctrl+\\', act: () => (store.sidebarOpen = !store.sidebarOpen) },
-    { label: 'Toggle bookmarks bar', icon: Bookmark, kbd: 'Ctrl+Shift+B', act: () => store.onCommand('toggle-bookmarks-bar') },
-    { label: 'Split view', icon: Columns2, kbd: 'Ctrl+Shift+S', act: () => owl.command('toggle-split') },
-    { label: 'Switch to light or dark', icon: SunMoon, act: () => owl.patchSettings({ theme: document.documentElement.classList.contains('dark') ? 'light' : 'dark' }).then((s: any) => s && (store.settings = s)) },
-    { label: 'Switch tab layout', icon: LayoutPanelTop, act: () => store.setLayout(store.layout === 'classic' ? 'modern' : 'classic') },
-    { label: 'Bookmark this tab', icon: Star, kbd: 'Ctrl+D', act: () => owl.command('bookmark') },
+  type Cmd = { label: string; icon: IconName; kbd?: string; act: () => void };
+  const commands: Cmd[] = [
+    { label: 'New tab', icon: 'add', kbd: 'Ctrl+T', act: () => owl.newTab() },
+    { label: 'New window', icon: 'window', kbd: 'Ctrl+N', act: () => owl.newWindow({}) },
+    { label: 'New incognito window', icon: 'eye-off', kbd: 'Ctrl+Shift+N', act: () => owl.newWindow({ incognito: true }) },
+    { label: 'Reopen closed tab', icon: 'arrow-counterclockwise', kbd: 'Ctrl+Shift+T', act: () => owl.reopenClosed() },
+    { label: 'New chat with companion', icon: 'chat', kbd: 'Ctrl+Shift+J', act: () => { threads.clear(); store.panelOpen = true; } },
+    { label: 'Toggle sidebar', icon: 'panel-left', kbd: 'Ctrl+\\', act: () => (store.sidebarOpen = !store.sidebarOpen) },
+    { label: 'Toggle bookmarks bar', icon: 'bookmark', kbd: 'Ctrl+Shift+B', act: () => store.onCommand('toggle-bookmarks-bar') },
+    { label: 'Split view', icon: 'split-vertical', kbd: 'Ctrl+Shift+S', act: () => owl.command('toggle-split') },
+    { label: 'Switch to light or dark', icon: 'dark-theme', act: () => owl.patchSettings({ theme: document.documentElement.classList.contains('dark') ? 'light' : 'dark' }).then((s: any) => s && (store.settings = s)) },
+    { label: 'Switch tab layout', icon: 'panel-top-expand', act: () => store.setLayout(store.layout === 'classic' ? 'modern' : 'classic') },
+    { label: 'Bookmark this tab', icon: 'star', kbd: 'Ctrl+D', act: () => owl.command('bookmark') },
   ];
-  const pages = [
-    { label: 'Settings', icon: Settings, act: page('settings') },
-    { label: 'Models & API keys', icon: Settings, act: page('settings#models') },
-    { label: 'Companions', icon: Users, act: page('companions') },
-    { label: 'Agents', icon: Bot, act: page('agents') },
-    { label: 'Chat history', icon: MessagesSquare, act: page('chats') },
-    { label: 'Routines', icon: Repeat, act: page('routines') },
-    { label: 'Skills', icon: Sparkles, act: page('skills') },
-    { label: 'Apps', icon: Blocks, act: page('apps') },
-    { label: 'Library', icon: Library, act: page('library') },
-    { label: 'Memory', icon: Brain, act: page('memory') },
-    { label: 'History', icon: Clock, kbd: 'Ctrl+H', act: page('history') },
-    { label: 'Downloads', icon: Download, act: page('downloads') },
-    { label: 'Bookmarks', icon: Bookmark, kbd: 'Ctrl+Shift+O', act: page('bookmarks') },
+  const pages: Cmd[] = [
+    { label: 'Settings', icon: 'settings', act: page('settings') },
+    { label: 'Models & API keys', icon: 'settings', act: page('settings#models') },
+    { label: 'Companions', icon: 'people', act: page('companions') },
+    { label: 'Agents', icon: 'bot', act: page('agents') },
+    { label: 'Chat history', icon: 'chat-multiple', act: page('chats') },
+    { label: 'Routines', icon: 'arrow-repeat-all', act: page('routines') },
+    { label: 'Skills', icon: 'sparkle', act: page('skills') },
+    { label: 'Apps', icon: 'apps', act: page('apps') },
+    { label: 'Library', icon: 'library', act: page('library') },
+    { label: 'Memory', icon: 'brain-circuit', act: page('memory') },
+    { label: 'History', icon: 'clock', kbd: 'Ctrl+H', act: page('history') },
+    { label: 'Downloads', icon: 'arrow-download', act: page('downloads') },
+    { label: 'Bookmarks', icon: 'bookmark', kbd: 'Ctrl+Shift+O', act: page('bookmarks') },
   ];
 </script>
 
@@ -70,7 +69,7 @@
     <Dialog.Content class="pal glass-strong glass-lens" aria-label="Command palette">
       <Command.Root class="flex min-h-0 flex-col" loop filter={(value, search, keywords) => (/^(ask|do|search):/.test(value) ? 1 : computeCommandScore(value, search, keywords))}>
         <div class="in">
-          <Search size={16} strokeWidth={1.8} class="text-ink-3" />
+          <Icon name="search" size={16} class="text-ink-3" />
           <Command.Input bind:value={q} placeholder="Search tabs, history, commands — or ask {comp?.name ?? 'your companion'}" class="pal-input" />
           <Kbd keys="Esc" />
         </div>
@@ -87,12 +86,12 @@
                     <span class="hint">Chat</span>
                   </Command.Item>
                   <Command.Item value="do:{q}" forceMount class="item" onSelect={() => run(() => { store.panelOpen = true; if (comp) threads.doIt(comp.id, q.trim()); })}>
-                    <Zap size={16} strokeWidth={1.75} />
+                    <Icon name="flash" size={16} />
                     <span class="t">Have {comp?.name} do it: <b>{q}</b></span>
                     <span class="hint">Agent</span>
                   </Command.Item>
                   <Command.Item value="search:{q}" forceMount class="item" onSelect={() => run(() => owl.newTab(q.trim()))}>
-                    <Globe size={16} strokeWidth={1.75} />
+                    <Icon name="globe" size={16} />
                     <span class="t">Search the web for <b>{q}</b></span>
                   </Command.Item>
                 </Command.GroupItems>
@@ -118,7 +117,7 @@
                 <Command.GroupItems>
                   {#each sugg as s (s.url)}
                     <Command.Item value="url:{s.url}:{s.title}" class="item" onSelect={() => run(() => owl.newTab(s.url))}>
-                      {#if s.type === 'bookmark'}<Star size={16} strokeWidth={1.75} />{:else}<Clock size={16} strokeWidth={1.75} />{/if}
+                      {#if s.type === 'bookmark'}<Icon name="star" size={16} />{:else}<Icon name="clock" size={16} />{/if}
                       <span class="t">{s.title}</span>
                       <span class="hint">{hostOf(s.url)}</span>
                     </Command.Item>
@@ -132,7 +131,7 @@
               <Command.GroupItems>
                 {#each commands as c (c.label)}
                   <Command.Item value={c.label} class="item" onSelect={() => run(c.act)}>
-                    <c.icon size={16} strokeWidth={1.75} />
+                    <Icon name={c.icon} size={16} />
                     <span class="t">{c.label}</span>
                     {#if c.kbd}<Kbd keys={c.kbd} />{/if}
                   </Command.Item>
@@ -145,7 +144,7 @@
               <Command.GroupItems>
                 {#each pages as c (c.label)}
                   <Command.Item value={'Go to ' + c.label} class="item" onSelect={() => run(c.act)}>
-                    <c.icon size={16} strokeWidth={1.75} />
+                    <Icon name={c.icon} size={16} />
                     <span class="t">{c.label}</span>
                     {#if c.kbd}<Kbd keys={c.kbd} />{/if}
                   </Command.Item>

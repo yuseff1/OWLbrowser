@@ -1,8 +1,8 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { ContextMenu, Badge } from '../ui';
-  import { Plus, X, Volume2, VolumeX } from '@lucide/svelte';
   import TabIcon from './TabIcon.svelte';
   import { tabMenu, drag, runFor, dropTab } from './tabActions';
   import { hostOf } from '../api';
@@ -45,10 +45,10 @@
         {#if run && runWaiting(run.status)}<Badge variant="warn" dot>Needs you</Badge>{:else if run}<span class="live" style:--cc={store.companions.find((c) => c.id === run.companionId)?.look.body} title={statusLabel(run.status)}></span>{/if}
         {#if t.audible || t.muted}
           <button class="mini" aria-label={t.muted ? 'Unmute tab' : 'Mute tab'} onmousedown={(e) => e.stopPropagation()} onclick={() => owl.muteTab(t.id)}>
-            {#if t.muted}<VolumeX size={13} strokeWidth={1.8} />{:else}<Volume2 size={13} strokeWidth={1.8} />{/if}
+            {#if t.muted}<Icon name="speaker-mute" size={14} />{:else}<Icon name="speaker-2" size={14} />{/if}
           </button>
         {/if}
-        <button class="mini close" aria-label="Close tab" onmousedown={(e) => e.stopPropagation()} onclick={() => owl.closeTab(t.id)}><X size={13} strokeWidth={2} /></button>
+        <button class="mini close" aria-label="Close tab" onmousedown={(e) => e.stopPropagation()} onclick={() => owl.closeTab(t.id)}><Icon name="dismiss" size={14} /></button>
       </div>
     {/snippet}
   </ContextMenu>
@@ -65,7 +65,7 @@
     </div>
   {/if}
 
-  <button class="newtab" onclick={() => owl.newTab()}><Plus size={15} strokeWidth={1.8} />New tab</button>
+  <button class="newtab" onclick={() => owl.newTab()}><Icon name="add" size={16} />New tab</button>
 
   {#if agentTabs.length}
     <div class="grp">Agents at work</div>

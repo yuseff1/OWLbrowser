@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../../../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { ImportSource, ImportResult } from '$shared/types';
   import { owl } from '$lib/api';
@@ -9,7 +10,6 @@
   import Skel from '../Skel.svelte';
   import Note from '../Note.svelte';
   import { favicon } from './patch';
-  import { Download, CircleCheck, Upload } from '@lucide/svelte';
 
   const NAMES: Record<string, { n: string; d: string }> = { chrome: { n: 'Google Chrome', d: 'google.com/chrome' }, edge: { n: 'Microsoft Edge', d: 'microsoft.com' }, brave: { n: 'Brave', d: 'brave.com' }, opera: { n: 'Opera', d: 'opera.com' }, vivaldi: { n: 'Vivaldi', d: 'vivaldi.com' } };
   let sources = $state<ImportSource[]>([]);
@@ -74,13 +74,13 @@
       </div>
     </Group>
     <div class="flex items-center gap-3">
-      <Button variant="primary" icon={Download} loading={running} disabled={!Object.values(what).some(Boolean)} onclick={run}>{running ? 'Importing…' : 'Import'}</Button>
+      <Button variant="primary" icon="arrow-download" loading={running} disabled={!Object.values(what).some(Boolean)} onclick={run}>{running ? 'Importing…' : 'Import'}</Button>
       <span class="text-[12.5px] text-ink-2">Close the other browser first for the most complete import.</span>
     </div>
   {/if}
   {#if result}
     <section class="owl-sheet p-4" aria-live="polite">
-      <div class="flex items-center gap-2 text-[13.5px] font-medium"><CircleCheck size={16} class="text-[#24855a]" /> Imported</div>
+      <div class="flex items-center gap-2 text-[13.5px] font-medium"><Icon name="checkmark-circle" size={16} class="text-[#24855a]" /> Imported</div>
       <div class="mt-3 grid grid-cols-5 divide-x divide-[var(--line)]">
         {#each [{ l: 'Bookmarks', v: result.bookmarks }, { l: 'History', v: result.history }, { l: 'Passwords', v: result.passwords }, { l: 'Extensions', v: result.extensions }, { l: 'Search engines', v: result.searchEngines }] as x (x.l)}
           <div class="px-3 first:pl-0"><div class="tnum text-[20px] font-medium">{x.v.toLocaleString()}</div><div class="text-[12px] text-ink-2">{x.l}</div></div>
@@ -94,7 +94,7 @@
   <Group label="Passwords from a file">
     <div class="flex items-center gap-4 px-4 py-3.5">
       <p class="flex-1 text-[12.5px] text-ink-2">Export passwords as CSV from any browser or password manager, then pick the file. Delete the CSV afterwards.</p>
-      <Button size="sm" variant="secondary" icon={Upload} onclick={csv}>Choose CSV…</Button>
+      <Button size="sm" variant="secondary" icon="arrow-upload" onclick={csv}>Choose CSV…</Button>
     </div>
   </Group>
 </Section>

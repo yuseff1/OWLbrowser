@@ -1,5 +1,7 @@
 <script lang="ts">
-  import type { Snippet, Component } from 'svelte';
+  import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
   import type { HTMLButtonAttributes } from 'svelte/elements';
   import Spinner from './Spinner.svelte';
 
@@ -8,24 +10,24 @@
     size?: 'sm' | 'md' | 'lg';
     pill?: boolean;
     loading?: boolean;
-    icon?: Component<any>;
-    iconRight?: Component<any>;
+    icon?: IconName;
+    iconRight?: IconName;
     full?: boolean;
     ref?: HTMLButtonElement | null;
     children?: Snippet;
   };
   let {
-    variant = 'secondary', size = 'md', pill = true, loading = false, icon: Icon, iconRight: IconR, full = false,
+    variant = 'secondary', size = 'md', pill = true, loading = false, icon, iconRight, full = false,
     class: cls = '', type = 'button', disabled, ref = $bindable(null), children, ...rest
   }: Props = $props();
-  const is = $derived(size === 'sm' ? 14 : size === 'lg' ? 17 : 15);
+  const is = $derived(size === 'sm' ? 14 : size === 'lg' ? 20 : 16);
 </script>
 
 <button bind:this={ref} {type} disabled={disabled || loading} aria-busy={loading || undefined}
   class="owl-btn {variant} {size} {pill ? 'pill' : ''} {full ? 'full' : ''} {cls}" {...rest}>
-  {#if loading}<Spinner size={is} />{:else if Icon}<Icon size={is} strokeWidth={1.8} />{/if}
+  {#if loading}<Spinner size={is} />{:else if icon}<Icon name={icon} size={is} />{/if}
   {#if children}<span class="truncate">{@render children()}</span>{/if}
-  {#if IconR}<IconR size={is} strokeWidth={1.8} />{/if}
+  {#if iconRight}<Icon name={iconRight} size={is} />{/if}
 </button>
 
 <style>

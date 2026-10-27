@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState, MemoryItem } from '$shared/types';
   import { owl, timeAgo } from '$lib/api';
@@ -9,7 +10,6 @@
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
   import { debounce } from './kit/util';
-  import { Plus, Search, Pin, PinOff, Pencil, Trash2, Lock, Brain, Globe, History } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -105,7 +105,7 @@
 
 <Page title="What OWL remembers" description="What your companions know about you, so you don’t have to repeat yourself.">
   {#snippet actions()}
-    <Button variant="primary" icon={Plus} onclick={() => { newText = ''; newKind = kind === 'all' ? 'fact' : kind; addOpen = true; }}>Add memory</Button>
+    <Button variant="primary" icon="add" onclick={() => { newText = ''; newKind = kind === 'all' ? 'fact' : kind; addOpen = true; }}>Add memory</Button>
   {/snippet}
 
   <!-- summary -->
@@ -118,21 +118,21 @@
         {:else if profile && (profile.static.length || profile.dynamic.length)}
           <ul class="mt-2.5 flex flex-col gap-1.5">
             {#each profile.static.slice(0, 5) as line, i (i)}
-              <li class="flex items-start gap-2 text-[13.5px] leading-snug"><Brain size={12} class="mt-[4px] shrink-0 text-ink-3" />{line}</li>
+              <li class="flex items-start gap-2 text-[13.5px] leading-snug"><Icon name="brain-circuit" size={12} class="mt-[4px] shrink-0 text-ink-3" />{line}</li>
             {/each}
           </ul>
           {#if profile.dynamic.length}
             <p class="mt-3 text-[12px] font-medium text-ink-2">Lately</p>
             <ul class="mt-1 flex flex-col gap-1">
               {#each profile.dynamic.slice(0, 3) as line, i (i)}
-                <li class="flex items-start gap-2 text-[13px] leading-snug text-ink-2"><History size={12} class="mt-[4px] shrink-0 text-ink-3" />{line}</li>
+                <li class="flex items-start gap-2 text-[13px] leading-snug text-ink-2"><Icon name="history" size={12} class="mt-[4px] shrink-0 text-ink-3" />{line}</li>
               {/each}
             </ul>
           {/if}
         {:else if pinned.length || items.length}
           <ul class="mt-2.5 flex flex-col gap-1.5">
             {#each (pinned.length ? pinned : items.slice(0, 3)).slice(0, 4) as m (m.id)}
-              <li class="flex items-start gap-2 text-[13.5px] leading-snug"><Pin size={12} class="mt-[4px] shrink-0 {m.pinned ? 'text-ink' : 'text-ink-3'}" />{m.text}</li>
+              <li class="flex items-start gap-2 text-[13.5px] leading-snug"><Icon name="pin" size={12} class="mt-[4px] shrink-0 {m.pinned ? 'text-ink' : 'text-ink-3'}" />{m.text}</li>
             {/each}
           </ul>
           {#if !pinned.length}<p class="mt-2 text-[12.5px] text-ink-2">Pin the memories that matter most and they appear here.</p>{/if}
@@ -151,14 +151,14 @@
       </div>
     </div>
     <div class="flex items-center gap-2 border-t border-line bg-surface-2 px-5 py-2.5 text-[12.5px] text-ink-2">
-      <Lock size={13} strokeWidth={1.9} class="shrink-0" />
+      <Icon name="lock-closed" size={14} class="shrink-0" />
       Stored only on this PC, inside your OWL profile. Companions get just the memories relevant to the task at hand, and you can change or delete any of them.
     </div>
   </section>
 
   <!-- toolbar -->
   <div class="mt-7 flex flex-wrap items-center gap-3">
-    <Input bind:value={q} icon={Search} pill placeholder="Search memories and activity" class="w-[320px]" type="search" aria-label="Search memory" />
+    <Input bind:value={q} icon="search" pill placeholder="Search memories and activity" class="w-[320px]" type="search" aria-label="Search memory" />
     <Segmented bind:value={kind} size="sm" label="Kind" options={[{ value: 'all', label: 'All' }, ...KINDS.map((k) => ({ value: k.value, label: k.plural }))]} />
   </div>
 
@@ -169,12 +169,12 @@
       <div class="owl-sheet">{#each Array(4) as _, i (i)}<div class="flex flex-col gap-2 px-4 py-3.5"><Skel w="65%" h={13} /><Skel w="30%" h={11} /></div>{/each}</div>
     {:else if !visible.length && !activity.length}
       {#if q.trim()}
-        <Empty icon={Search} title={searching ? 'Searching…' : `Nothing about “${q}”`} body="OWL hasn’t saved anything that matches." compact />
+        <Empty icon="search" title={searching ? 'Searching…' : `Nothing about “${q}”`} body="OWL hasn’t saved anything that matches." compact />
       {:else if items.length}
-        <Empty icon={Brain} title="No {KINDS.find((k) => k.value === kind)?.plural.toLowerCase()} yet" compact />
+        <Empty icon="brain-circuit" title="No {KINDS.find((k) => k.value === kind)?.plural.toLowerCase()} yet" compact />
       {:else}
-        <Empty icon={Brain} title="OWL doesn’t remember anything yet" body="Add something you want every companion to know, like how you like to be addressed.">
-          {#snippet actions()}<Button variant="primary" icon={Plus} onclick={() => (addOpen = true)}>Add memory</Button>{/snippet}
+        <Empty icon="brain-circuit" title="OWL doesn’t remember anything yet" body="Add something you want every companion to know, like how you like to be addressed.">
+          {#snippet actions()}<Button variant="primary" icon="add" onclick={() => (addOpen = true)}>Add memory</Button>{/snippet}
         </Empty>
       {/if}
     {:else}
@@ -195,10 +195,10 @@
                     <p class="tnum mt-1 text-[12px] text-ink-2">{sourceText(m.source)} · used {m.uses} {m.uses === 1 ? 'time' : 'times'} · {timeAgo(m.updatedAt)}{q.trim() ? ` · ${KINDS.find((k) => k.value === m.kind)?.label}` : ''}</p>
                   </div>
                   <div class="flex shrink-0 items-center gap-0.5 {m.pinned ? '' : 'owl-hover-actions'}">
-                    <IconButton icon={Pin} label={m.pinned ? 'Unpin' : 'Pin to About you'} size="sm" active={m.pinned} onclick={() => patch(m, { pinned: !m.pinned })} />
+                    <IconButton icon="pin" label={m.pinned ? 'Unpin' : 'Pin to About you'} size="sm" active={m.pinned} fillActive onclick={() => patch(m, { pinned: !m.pinned })} />
                     <span class="owl-hover-actions flex items-center gap-0.5">
-                      <IconButton icon={Pencil} label="Edit" size="sm" onclick={() => { editing = m.id; editText = m.text; }} />
-                      <IconButton icon={Trash2} label="Forget" size="sm" onclick={() => remove(m)} />
+                      <IconButton icon="edit" label="Edit" size="sm" onclick={() => { editing = m.id; editText = m.text; }} />
+                      <IconButton icon="delete" label="Forget" size="sm" onclick={() => remove(m)} />
                     </span>
                   </div>
                 {/if}
@@ -213,7 +213,7 @@
           <ul class="owl-sheet">
             {#each activity as h (h.id)}
               <li class="flex items-center gap-3 px-4 py-3 text-[13px]">
-                {#if h.layer === 'observation'}<Globe size={14} class="shrink-0 text-ink-2" />{:else}<History size={14} class="shrink-0 text-ink-2" />{/if}
+                {#if h.layer === 'observation'}<Icon name="globe" size={14} class="shrink-0 text-ink-2" />{:else}<Icon name="history" size={14} class="shrink-0 text-ink-2" />{/if}
                 <span class="min-w-0 flex-1 truncate">{h.title}</span>
                 <span class="text-[12px] text-ink-2">{timeAgo(h.at)}</span>
               </li>
@@ -230,7 +230,7 @@
         <h2 id="mem-wipe" class="text-[13.5px] font-medium">Forget everything</h2>
         <p class="text-[12.5px] text-ink-2">Deletes all {items.length} memories from this profile. Your history, bookmarks and chats stay.</p>
       </div>
-      <Button variant="danger" icon={Trash2} onclick={() => (wipeOpen = true)}>Forget everything</Button>
+      <Button variant="danger" icon="delete" onclick={() => (wipeOpen = true)}>Forget everything</Button>
     </section>
   {/if}
 </Page>
@@ -249,6 +249,6 @@
 <Dialog bind:open={wipeOpen} title="Forget all {items.length} memories?" description="Your companions will start from zero: no name, no preferences, no projects. This can’t be undone." width={440}>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (wipeOpen = false)}>Keep them</Button>
-    <Button variant="danger" icon={Trash2} loading={wiping} onclick={wipe}>Forget everything</Button>
+    <Button variant="danger" icon="delete" loading={wiping} onclick={wipe}>Forget everything</Button>
   {/snippet}
 </Dialog>

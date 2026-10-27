@@ -2,7 +2,6 @@
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { IconButton } from '../ui';
-  import { ChevronUp, ChevronDown, X } from '@lucide/svelte';
 
   let q = $state('');
   let res = $state<{ active: number; total: number } | null>(null);
@@ -30,9 +29,9 @@
     onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); step(!e.shiftKey); } else if (e.key === 'Escape') { e.preventDefault(); close(); } }} />
   <span class="n tnum" aria-live="polite">{res ? (res.total ? `${res.active} of ${res.total}` : 'No matches') : ''}</span>
   <span class="sep"></span>
-  <IconButton icon={ChevronUp} label="Previous match" kbd="Shift+Enter" size="sm" disabled={!res?.total} onclick={() => step(false)} />
-  <IconButton icon={ChevronDown} label="Next match" kbd="Enter" size="sm" disabled={!res?.total} onclick={() => step(true)} />
-  <IconButton icon={X} label="Close" kbd="Esc" size="sm" onclick={close} />
+  <IconButton icon="chevron-up" label="Previous match" kbd="Shift+Enter" size="sm" disabled={!res?.total} onclick={() => step(false)} />
+  <IconButton icon="chevron-down" label="Next match" kbd="Enter" size="sm" disabled={!res?.total} onclick={() => step(true)} />
+  <IconButton icon="dismiss" label="Close" kbd="Esc" size="sm" onclick={close} />
 </div>
 
 <style>

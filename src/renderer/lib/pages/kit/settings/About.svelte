@@ -6,7 +6,6 @@
   import Section from './Section.svelte';
   import Group from './Group.svelte';
   import Skel from '../Skel.svelte';
-  import { Copy } from '@lucide/svelte';
 
   type Info = { version: string; electron: string; chrome: string; platform: string; userData: string };
   let info = $state<Info | null>(null);
@@ -40,7 +39,7 @@
     {/if}
   </Group>
   <div class="flex items-center gap-3">
-    <Button size="sm" variant="secondary" icon={Copy} disabled={!info} onclick={copy}>Copy version details</Button>
+    <Button size="sm" variant="secondary" icon="copy" disabled={!info} onclick={copy}>Copy version details</Button>
     <span class="text-[12px] text-ink-2">© 2026 Varsen · MIT licence</span>
   </div>
 </Section>

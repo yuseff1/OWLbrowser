@@ -1,8 +1,9 @@
 <script lang="ts">
+  import type { IconName } from '../ui/icons';
+  import Icon from '../ui/Icon.svelte';
   import { owl, hostOf, faviconFor } from '../api';
   import { store } from '../stores.svelte';
   import { CompanionAvatar, Badge } from '../ui';
-  import { Lock, Info, Star, Search, Clock, AppWindow, Globe, CornerDownLeft, Sparkles } from '@lucide/svelte';
   import { art } from '../api';
   import { hasPopupLayer, showPopup, iconMarkup, type PopupHandle, type PopupSuggestItem } from '../ui/popup';
 
@@ -63,10 +64,10 @@
   let handle: PopupHandle | null = null;
   function popupItems(): PopupSuggestItem[] {
     return sugg.map((s) => {
-      if (s.type === 'ask') return { title: s.title, prefix: `Ask ${comp?.name ?? 'Hoot'}: `, avatar: art.face(comp?.id ?? 'hoot'), trail: iconMarkup(Sparkles, 13, 1.8) };
+      if (s.type === 'ask') return { title: s.title, prefix: `Ask ${comp?.name ?? 'Hoot'}: `, avatar: art.face(comp?.id ?? 'hoot'), trail: iconMarkup('sparkle', 14) };
       const u = urlOf(s);
       const fav = (s.type === 'history' || s.type === 'bookmark' || s.type === 'tab') && u ? faviconFor(u, s.favicon ?? tabOf(s)?.favicon) : '';
-      return { title: s.title, meta: metaOf(s) || undefined, favicon: fav || undefined, icon: fav ? undefined : iconMarkup(iconFor[s.type] ?? Globe) };
+      return { title: s.title, meta: metaOf(s) || undefined, favicon: fav || undefined, icon: fav ? undefined : iconMarkup(iconFor[s.type] ?? 'globe') };
     });
   }
   $effect(() => {
@@ -126,7 +127,7 @@
     starred = !!(await owl.toggleBookmark(tab.url, tab.title, tab.favicon));
     store.toast(starred ? 'Bookmarked' : 'Bookmark removed', starred ? tab.title : undefined, starred ? 'success' : 'info');
   }
-  const iconFor = { history: Clock, bookmark: Star, search: Search, url: Globe, tab: AppWindow, command: CornerDownLeft } as Record<string, any>;
+  const iconFor = { history: 'clock', bookmark: 'star', search: 'search', url: 'globe', tab: 'window', command: 'arrow-enter-left' } as Record<string, IconName>;
 </script>
 
 <div class="omni-wrap no-drag" bind:this={wrap}>
@@ -135,11 +136,11 @@
       {#if tab?.internal}
         <img src={art.mark} alt="" width="15" height="15" draggable="false" />
       {:else if focused}
-        <Search size={14} strokeWidth={1.9} />
+        <Icon name="search" size={14} />
       {:else if secure}
-        <Lock size={13} strokeWidth={2} />
+        <Icon name="lock-closed" size={14} />
       {:else if tab}
-        <Info size={14} strokeWidth={1.9} />
+        <Icon name="info" size={14} />
       {/if}
     </span>
     <input bind:this={input} bind:value={text} spellcheck="false" autocomplete="off" aria-label="Search or enter address"
@@ -163,7 +164,7 @@
     {/if}
     {#if tab && !tab.internal && !focused}
       <button class="star" class:on={starred} aria-label={starred ? 'Remove bookmark' : 'Bookmark this tab'} aria-pressed={starred} onclick={toggleStar}>
-        <Star size={15} strokeWidth={1.8} fill={starred ? 'currentColor' : 'none'} />
+        <Icon name="star" size={16} filled={starred} />
       </button>
     {/if}
   </div>
@@ -176,13 +177,13 @@
           {#if s.type === 'ask'}
             <CompanionAvatar companion={comp} size={20} />
             <span class="t">Ask {comp?.name ?? 'Hoot'}: <span class="text-ink">{s.title}</span></span>
-            <Sparkles size={13} strokeWidth={1.8} class="text-ink-3" />
+            <Icon name="sparkle" size={14} class="text-ink-3" />
           {:else}
-            {@const Ico = iconFor[s.type] ?? Globe}
+            {@const ic = iconFor[s.type] ?? 'globe'}
             {#if (s.type === 'history' || s.type === 'bookmark' || s.type === 'tab') && urlOf(s)}
               <img src={faviconFor(urlOf(s), s.favicon)} alt="" width="16" height="16" class="rounded-[4px]" onerror={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = 'hidden')} />
             {:else}
-              <span class="ic"><Ico size={15} strokeWidth={1.8} /></span>
+              <span class="ic"><Icon name={ic} size={16} /></span>
             {/if}
             <span class="t">{s.title}</span>
             {#if metaOf(s)}<span class="meta">{metaOf(s)}</span>{/if}

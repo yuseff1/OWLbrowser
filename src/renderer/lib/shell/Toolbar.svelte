@@ -2,7 +2,6 @@
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { IconButton, Menu, Popover, CompanionAvatar, Tooltip, type MenuItem } from '../ui';
-  import { ArrowLeft, ArrowRight, RotateCw, X, PanelLeft, Ellipsis, Plus, AppWindow, EyeOff, Clock, Download, Bookmark, Search, Printer, Columns2, Settings, ZoomIn, ZoomOut, Code, Maximize } from '@lucide/svelte';
   import Omnibox from './Omnibox.svelte';
   import WindowControls from './WindowControls.svelte';
   import AgentsIndicator from './AgentsIndicator.svelte';
@@ -17,23 +16,23 @@
   let profileOpen = $state(false);
 
   const more = $derived<MenuItem[]>([
-    { label: 'New tab', icon: Plus, kbd: 'Ctrl+T', onSelect: () => owl.newTab() },
-    { label: 'New window', icon: AppWindow, kbd: 'Ctrl+N', onSelect: () => owl.newWindow({}) },
-    { label: 'New incognito window', icon: EyeOff, kbd: 'Ctrl+Shift+N', onSelect: () => owl.newWindow({ incognito: true }) },
+    { label: 'New tab', icon: 'add', kbd: 'Ctrl+T', onSelect: () => owl.newTab() },
+    { label: 'New window', icon: 'window', kbd: 'Ctrl+N', onSelect: () => owl.newWindow({}) },
+    { label: 'New incognito window', icon: 'eye-off', kbd: 'Ctrl+Shift+N', onSelect: () => owl.newWindow({ incognito: true }) },
     { separator: true },
-    { label: 'History', icon: Clock, kbd: 'Ctrl+H', onSelect: () => owl.newTab('owl://history') },
-    { label: 'Downloads', icon: Download, kbd: 'Ctrl+J', onSelect: () => owl.newTab('owl://downloads') },
-    { label: 'Bookmarks', icon: Bookmark, kbd: 'Ctrl+Shift+O', onSelect: () => owl.newTab('owl://bookmarks') },
+    { label: 'History', icon: 'clock', kbd: 'Ctrl+H', onSelect: () => owl.newTab('owl://history') },
+    { label: 'Downloads', icon: 'arrow-download', kbd: 'Ctrl+J', onSelect: () => owl.newTab('owl://downloads') },
+    { label: 'Bookmarks', icon: 'bookmark', kbd: 'Ctrl+Shift+O', onSelect: () => owl.newTab('owl://bookmarks') },
     { separator: true },
-    { label: 'Find in page', icon: Search, kbd: 'Ctrl+F', disabled: !tab || !!tab.internal, onSelect: () => (store.findOpen = true) },
-    { label: 'Zoom in', icon: ZoomIn, kbd: 'Ctrl+=', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.zoom(tab.id, 0.1) },
-    { label: 'Zoom out', icon: ZoomOut, kbd: 'Ctrl+-', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.zoom(tab.id, -0.1) },
-    { label: store.win.splitTabId ? 'Exit split view' : 'Split view', icon: Columns2, kbd: 'Ctrl+Shift+S', disabled: store.win.tabs.length < 2 && !store.win.splitTabId, onSelect: splitToggle },
-    { label: 'Full screen', icon: Maximize, kbd: 'F11', onSelect: () => owl.windowControl('fullscreen') },
-    { label: 'Print…', icon: Printer, kbd: 'Ctrl+P', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.print(tab.id) },
-    { label: 'Developer tools', icon: Code, kbd: 'F12', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.devtools(tab.id) },
+    { label: 'Find in page', icon: 'search', kbd: 'Ctrl+F', disabled: !tab || !!tab.internal, onSelect: () => (store.findOpen = true) },
+    { label: 'Zoom in', icon: 'zoom-in', kbd: 'Ctrl+=', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.zoom(tab.id, 0.1) },
+    { label: 'Zoom out', icon: 'zoom-out', kbd: 'Ctrl+-', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.zoom(tab.id, -0.1) },
+    { label: store.win.splitTabId ? 'Exit split view' : 'Split view', icon: 'split-vertical', kbd: 'Ctrl+Shift+S', disabled: store.win.tabs.length < 2 && !store.win.splitTabId, onSelect: splitToggle },
+    { label: 'Full screen', icon: 'maximize', kbd: 'F11', onSelect: () => owl.windowControl('fullscreen') },
+    { label: 'Print…', icon: 'print', kbd: 'Ctrl+P', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.print(tab.id) },
+    { label: 'Developer tools', icon: 'code', kbd: 'F12', disabled: !tab || !!tab.internal, onSelect: () => tab && owl.devtools(tab.id) },
     { separator: true },
-    { label: 'Settings', icon: Settings, onSelect: () => owl.newTab('owl://settings') },
+    { label: 'Settings', icon: 'settings', onSelect: () => owl.newTab('owl://settings') },
   ]);
   function splitToggle() {
     if (store.win.splitTabId) return owl.setSplit(null);
@@ -44,15 +43,15 @@
 
 <div class="bar drag" class:modern class:mac={mac && !store.sidebarOpen}>
   {#if modern && !store.sidebarOpen}
-    <div class="no-drag"><IconButton icon={PanelLeft} label="Show sidebar" kbd={'Ctrl+\\'} onclick={() => (store.sidebarOpen = true)} /></div>
+    <div class="no-drag"><IconButton icon="panel-left" label="Show sidebar" kbd={'Ctrl+\\'} onclick={() => (store.sidebarOpen = true)} /></div>
   {/if}
   <div class="nav no-drag">
-    <IconButton icon={ArrowLeft} label="Back" kbd="Alt+Left" disabled={!tab?.canGoBack} onclick={() => tab && owl.back(tab.id)} />
-    <IconButton icon={ArrowRight} label="Forward" kbd="Alt+Right" disabled={!tab?.canGoForward} onclick={() => tab && owl.forward(tab.id)} />
+    <IconButton icon="arrow-left" label="Back" kbd="Alt+Left" disabled={!tab?.canGoBack} onclick={() => tab && owl.back(tab.id)} />
+    <IconButton icon="arrow-right" label="Forward" kbd="Alt+Right" disabled={!tab?.canGoForward} onclick={() => tab && owl.forward(tab.id)} />
     {#if tab?.loading}
-      <IconButton icon={X} label="Stop loading" onclick={() => tab && owl.stop(tab.id)} />
+      <IconButton icon="dismiss" label="Stop loading" onclick={() => tab && owl.stop(tab.id)} />
     {:else}
-      <IconButton icon={RotateCw} label="Reload" kbd="Ctrl+R" disabled={!tab || tab.internal === 'newtab'} onclick={() => tab && owl.reload(tab.id)} />
+      <IconButton icon="arrow-clockwise" label="Reload" kbd="Ctrl+R" disabled={!tab || tab.internal === 'newtab'} onclick={() => tab && owl.reload(tab.id)} />
     {/if}
   </div>
 
@@ -71,7 +70,7 @@
       {/snippet}
     </Tooltip>
     <Menu items={more} bind:open={store.appMenuOpen} overlay width={240}>
-      {#snippet trigger(p)}<IconButton icon={Ellipsis} label="More" {...p} />{/snippet}
+      {#snippet trigger(p)}<IconButton icon="more-horizontal" label="More" {...p} />{/snippet}
     </Menu>
     {#if !store.sidebarOpen}
       <Popover bind:open={profileOpen} width={300}>

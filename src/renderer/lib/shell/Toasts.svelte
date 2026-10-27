@@ -1,6 +1,6 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { store } from '../stores.svelte';
-  import { CircleCheck, CircleAlert, Info, X } from '@lucide/svelte';
   let { top = 44, right = 8 }: { top?: number; right?: number } = $props();
 </script>
 
@@ -8,10 +8,10 @@
 <div class="toasts" style:top="{top}px" style:right="{right}px" role="status" aria-live="polite">
   {#each store.toasts.slice(-2) as t (t.id)}
     <div class="toast glass-strong animate-in {t.kind}">
-      {#if t.kind === 'success'}<CircleCheck size={15} strokeWidth={1.9} class="ok" />{:else if t.kind === 'error'}<CircleAlert size={15} strokeWidth={1.9} class="err" />{:else}<Info size={15} strokeWidth={1.9} class="inf" />{/if}
+      {#if t.kind === 'success'}<Icon name="checkmark-circle" size={16} class="ok" />{:else if t.kind === 'error'}<Icon name="error-circle" size={16} class="err" />{:else}<Icon name="info" size={16} class="inf" />{/if}
       <span class="t">{t.title}</span>
       {#if t.body}<span class="b">{t.body}</span>{/if}
-      <button aria-label="Dismiss" onclick={() => (store.toasts = store.toasts.filter((x) => x.id !== t.id))}><X size={12} strokeWidth={2} /></button>
+      <button aria-label="Dismiss" onclick={() => (store.toasts = store.toasts.filter((x) => x.id !== t.id))}><Icon name="dismiss" size={12} /></button>
     </div>
   {/each}
 </div>

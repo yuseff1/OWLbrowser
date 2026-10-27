@@ -1,8 +1,8 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { owl, faviconFor } from '../api';
   import { store } from '../stores.svelte';
   import { ContextMenu, type MenuItem } from '../ui';
-  import { ExternalLink, Trash2, Bookmark as BIcon } from '@lucide/svelte';
   import type { Bookmark } from '$shared/types';
 
   let items = $state<Bookmark[]>([]);
@@ -18,9 +18,9 @@
     else owl.newTab(b.url);
   }
   const menu = (b: Bookmark): MenuItem[] => [
-    { label: 'Open in new tab', icon: ExternalLink, onSelect: () => owl.newTab(b.url) },
+    { label: 'Open in new tab', icon: 'open', onSelect: () => owl.newTab(b.url) },
     { separator: true },
-    { label: 'Delete', icon: Trash2, danger: true, onSelect: async () => { await owl.removeBookmark(b.id); load(); } },
+    { label: 'Delete', icon: 'delete', danger: true, onSelect: async () => { await owl.removeBookmark(b.id); load(); } },
   ];
 </script>
 
@@ -37,7 +37,7 @@
       </ContextMenu>
     {/each}
   {:else}
-    <span class="hint"><BIcon size={13} strokeWidth={1.8} />Press Ctrl+D to bookmark a page — it shows up here.</span>
+    <span class="hint"><Icon name="bookmark" size={14} />Press Ctrl+D to bookmark a page — it shows up here.</span>
   {/if}
 </nav>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState, DownloadItem } from '$shared/types';
   import { owl, hostOf } from '$lib/api';
@@ -8,7 +9,6 @@
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
   import { groupByDay, fmtBytes, clock } from './kit/util';
-  import { Search, FolderOpen, X, Download, FileText, FileArchive, FileImage, FileVideo, FileAudio, File, FileCode, RotateCcw, Trash2 } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -43,13 +43,13 @@
 
   function iconFor(name: string) {
     const ext = name.split('.').pop()?.toLowerCase() || '';
-    if (['zip', 'rar', '7z', 'gz', 'tar', 'exe', 'msi'].includes(ext)) return FileArchive;
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'].includes(ext)) return FileImage;
-    if (['mp4', 'mov', 'webm', 'mkv'].includes(ext)) return FileVideo;
-    if (['mp3', 'wav', 'flac', 'm4a'].includes(ext)) return FileAudio;
-    if (['pdf', 'doc', 'docx', 'txt', 'md', 'csv', 'xlsx'].includes(ext)) return FileText;
-    if (['js', 'ts', 'json', 'html', 'css', 'py', 'gguf'].includes(ext)) return FileCode;
-    return File;
+    if (['zip', 'rar', '7z', 'gz', 'tar', 'exe', 'msi'].includes(ext)) return 'folder-zip';
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'].includes(ext)) return 'image';
+    if (['mp4', 'mov', 'webm', 'mkv'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'flac', 'm4a'].includes(ext)) return 'music-note-2';
+    if (['pdf', 'doc', 'docx', 'txt', 'md', 'csv', 'xlsx'].includes(ext)) return 'document-text';
+    if (['js', 'ts', 'json', 'html', 'css', 'py', 'gguf'].includes(ext)) return 'code-block';
+    return 'document';
   }
   function detail(d: DownloadItem) {
     if (d.state === 'progressing') {
@@ -67,10 +67,10 @@
 
 <Page title="Downloads" description="Files saved from the web. Clearing the list keeps the files on disk.">
   {#snippet actions()}
-    {#if finished}<Button variant="secondary" icon={Trash2} onclick={clearAll}>Clear list</Button>{/if}
+    {#if finished}<Button variant="secondary" icon="delete" onclick={clearAll}>Clear list</Button>{/if}
   {/snippet}
   {#snippet toolbar()}
-    <Input bind:value={q} icon={Search} pill placeholder="Search downloads" class="w-[340px]" type="search" aria-label="Search downloads" />
+    <Input bind:value={q} icon="search" pill placeholder="Search downloads" class="w-[340px]" type="search" aria-label="Search downloads" />
   {/snippet}
 
   {#if error}<Note kind="error" text={error} retry={load} class="mb-4" />{/if}
@@ -78,7 +78,7 @@
   {#if loading}
     <div class="owl-sheet">{#each Array(4) as _, i (i)}<div class="flex items-center gap-3.5 px-4 py-3.5"><Skel w={36} h={36} r={10} /><div class="flex flex-1 flex-col gap-2"><Skel w="45%" h={13} /><Skel w="30%" h={11} /></div></div>{/each}</div>
   {:else if !shown.length}
-    {#if q.trim()}<Empty icon={Search} title="No downloads match “{q}”" compact />{:else}<Empty icon={Download} title="No downloads" body="Files you download appear here with their progress." />{/if}
+    {#if q.trim()}<Empty icon="search" title="No downloads match “{q}”" compact />{:else}<Empty icon="arrow-download" title="No downloads" body="Files you download appear here with their progress." />{/if}
   {:else}
     <div class="flex flex-col gap-6">
       {#each groups as g (g.key)}
@@ -86,10 +86,10 @@
           <h2 class="owl-group-label">{g.label}</h2>
           <ul class="owl-sheet">
             {#each g.items as d (d.id)}
-              {@const I = iconFor(d.filename)}
+              {@const ic = iconFor(d.filename)}
               {@const pct = d.total > 0 ? Math.min(100, (d.received / d.total) * 100) : 0}
               <li class="flex items-center gap-3.5 px-4 py-3" class:opacity-60={d.state === 'cancelled'}>
-                <span class="owl-tile size-9 text-ink-2"><I size={17} strokeWidth={1.7} /></span>
+                <span class="owl-tile size-9 text-ink-2"><Icon name={ic} size={20} /></span>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-baseline gap-2">
                     {#if d.state === 'completed'}
@@ -108,11 +108,11 @@
                 </div>
                 <div class="flex shrink-0 items-center gap-0.5">
                   {#if d.state === 'progressing'}
-                    <IconButton icon={X} label="Cancel download" size="sm" onclick={() => cancel(d)} />
+                    <IconButton icon="dismiss" label="Cancel download" size="sm" onclick={() => cancel(d)} />
                   {:else if d.state === 'completed'}
-                    <IconButton icon={FolderOpen} label="Show in folder" size="sm" onclick={() => owl.showDownload(d.id)} />
+                    <IconButton icon="folder-open" label="Show in folder" size="sm" onclick={() => owl.showDownload(d.id)} />
                   {:else}
-                    <IconButton icon={RotateCcw} label="Download again" size="sm" onclick={() => owl.newTab(d.url, { background: true })} />
+                    <IconButton icon="arrow-counterclockwise" label="Download again" size="sm" onclick={() => owl.newTab(d.url, { background: true })} />
                   {/if}
                 </div>
               </li>

@@ -1,11 +1,14 @@
 <script lang="ts">
-  import type { Component } from 'svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
   import type { HTMLButtonAttributes } from 'svelte/elements';
   import Tooltip from './Tooltip.svelte';
   import { mergeProps } from 'svelte-toolbelt';
 
   type Props = Omit<HTMLButtonAttributes, 'children'> & {
-    icon: Component<any>;
+    icon: IconName;
+    /** filled art while active (stars, pins) */
+    fillActive?: boolean;
     /** accessible name + tooltip text */
     label: string;
     kbd?: string;
@@ -19,11 +22,11 @@
     ref?: HTMLButtonElement | null;
   };
   let {
-    icon: Icon, label, kbd, size = 'md', active = false, side = 'bottom', tooltip = true, variant = 'ghost',
+    icon, fillActive = false, label, kbd, size = 'md', active = false, side = 'bottom', tooltip = true, variant = 'ghost',
     badge = null, class: cls = '', ref = $bindable(null), onclick, ...rest
   }: Props = $props();
   const dim = $derived({ xs: 22, sm: 28, md: 32, lg: 38 }[size]);
-  const is = $derived({ xs: 13, sm: 15, md: 16.5, lg: 19 }[size]);
+  const is = $derived({ xs: 14, sm: 16, md: 20, lg: 20 }[size]);
 </script>
 
 <Tooltip text={tooltip ? label : ''} {side} {kbd}>
@@ -31,7 +34,7 @@
     <button bind:this={ref} type="button" aria-label={label} aria-pressed={active || undefined}
       {...mergeProps(tp, rest, { onclick })}
       class="owl-ib {variant} {cls}" class:on={active} style:width="{dim}px" style:height="{dim}px">
-      <Icon size={is} strokeWidth={1.75} />
+      <Icon name={icon} size={is} filled={fillActive && active} />
       {#if badge !== null && badge !== false}
         <span class="b" class:dot={badge === true}>{badge === true ? '' : badge}</span>
       {/if}

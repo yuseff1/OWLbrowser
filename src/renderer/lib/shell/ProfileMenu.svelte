@@ -1,9 +1,9 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { Slider } from 'bits-ui';
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { Segmented } from '../ui';
-  import { Sun, Moon, Monitor, Settings, Users, ChevronRight, EyeOff, Brain } from '@lucide/svelte';
   import { prefs } from './prefs.svelte';
   import { profile } from './profile.svelte';
 
@@ -28,7 +28,7 @@
   <div class="sec">
     <div class="lbl">Theme</div>
     <Segmented full size="sm" label="Theme" value={theme} onValueChange={setTheme}
-      options={[{ value: 'light', label: 'Light', icon: Sun }, { value: 'dark', label: 'Dark', icon: Moon }, { value: 'system', label: 'System', icon: Monitor }]} />
+      options={[{ value: 'light', label: 'Light', icon: 'weather-sunny' }, { value: 'dark', label: 'Dark', icon: 'weather-moon' }, { value: 'system', label: 'System', icon: 'desktop' }]} />
   </div>
 
   <div class="sec">
@@ -59,10 +59,10 @@
   </div>
 
   <div class="mt-1 border-t border-line pt-1.5">
-    <button class="link" onclick={() => openPage('owl://companions')}><Users size={15} strokeWidth={1.75} />Companions<ChevronRight size={14} class="ml-auto text-ink-3" /></button>
-    <button class="link" onclick={() => openPage('owl://memory')}><Brain size={15} strokeWidth={1.75} />Memory<ChevronRight size={14} class="ml-auto text-ink-3" /></button>
-    <button class="link" onclick={() => { owl.newWindow({ incognito: true }); close(); }}><EyeOff size={15} strokeWidth={1.75} />New incognito window</button>
-    <button class="link" onclick={() => openPage('owl://settings')}><Settings size={15} strokeWidth={1.75} />Settings<ChevronRight size={14} class="ml-auto text-ink-3" /></button>
+    <button class="link" onclick={() => openPage('owl://companions')}><Icon name="people" size={16} />Companions<Icon name="chevron-right" size={14} class="ml-auto text-ink-3" /></button>
+    <button class="link" onclick={() => openPage('owl://memory')}><Icon name="brain-circuit" size={16} />Memory<Icon name="chevron-right" size={14} class="ml-auto text-ink-3" /></button>
+    <button class="link" onclick={() => { owl.newWindow({ incognito: true }); close(); }}><Icon name="eye-off" size={16} />New incognito window</button>
+    <button class="link" onclick={() => openPage('owl://settings')}><Icon name="settings" size={16} />Settings<Icon name="chevron-right" size={14} class="ml-auto text-ink-3" /></button>
   </div>
 </div>
 

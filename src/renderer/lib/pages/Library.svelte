@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState, Artifact } from '$shared/types';
   import { owl, timeAgo } from '$lib/api';
@@ -7,7 +8,6 @@
   import Page from './kit/Page.svelte';
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
-  import { Search, Ellipsis, Download, Trash2, ExternalLink, LibraryBig, Plus } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -38,10 +38,10 @@
 
 <Page title="Library" description="Pages, charts and documents your companions built for you." width={1000}>
   {#snippet actions()}
-    <Button variant="primary" icon={Plus} onclick={() => { store.panelPrefill = 'Build me a page that '; store.panelOpen = true; }}>Ask for an artifact</Button>
+    <Button variant="primary" icon="add" onclick={() => { store.panelPrefill = 'Build me a page that '; store.panelOpen = true; }}>Ask for an artifact</Button>
   {/snippet}
   {#snippet toolbar()}
-    <Input bind:value={q} icon={Search} pill placeholder="Search by title" class="w-[300px]" type="search" aria-label="Search artifacts" />
+    <Input bind:value={q} icon="search" pill placeholder="Search by title" class="w-[300px]" type="search" aria-label="Search artifacts" />
     <Select items={companionItems} bind:value={who} label="Made by" class="w-[170px]" />
   {/snippet}
 
@@ -51,12 +51,12 @@
     <div class="grid grid-cols-3 gap-4">{#each Array(6) as _, i (i)}<div class="owl-sheet overflow-hidden"><div class="aspect-[3/2] bg-surface-2"></div><div class="flex items-center gap-2 p-3.5"><Skel w={22} h={22} r={99} /><Skel w="60%" h={13} /></div></div>{/each}</div>
   {:else if !shown.length}
     {#if q || who !== 'all'}
-      <Empty icon={Search} title="Nothing matches" body="Try another title or show everyone’s work." compact>
+      <Empty icon="search" title="Nothing matches" body="Try another title or show everyone’s work." compact>
         {#snippet actions()}<Button size="sm" variant="secondary" onclick={() => { q = ''; who = 'all'; }}>Clear filters</Button>{/snippet}
       </Empty>
     {:else}
-      <Empty icon={LibraryBig} title="Your library is empty" body="Ask a companion for a chart, a comparison table or a one-page report; it lands here.">
-        {#snippet actions()}<Button variant="primary" icon={Plus} onclick={() => { store.panelPrefill = 'Build me a page that '; store.panelOpen = true; }}>Ask for an artifact</Button>{/snippet}
+      <Empty icon="library" title="Your library is empty" body="Ask a companion for a chart, a comparison table or a one-page report; it lands here.">
+        {#snippet actions()}<Button variant="primary" icon="add" onclick={() => { store.panelPrefill = 'Build me a page that '; store.panelOpen = true; }}>Ask for an artifact</Button>{/snippet}
       </Empty>
     {/if}
   {:else}
@@ -75,8 +75,8 @@
               <div class="text-[12px] text-ink-2">{c ? `${c.name} · ` : ''}{timeAgo(a.createdAt)}</div>
             </div>
             <div class="relative">
-              <Menu items={[{ label: 'Open', icon: ExternalLink, onSelect: () => owl.openArtifact(a.id) }, { label: 'Export as HTML…', icon: Download, onSelect: () => exp(a) }, { separator: true }, { label: 'Delete', icon: Trash2, danger: true, onSelect: () => del(a) }]}>
-                {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {a.title}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Ellipsis size={16} /></button>{/snippet}
+              <Menu items={[{ label: 'Open', icon: 'open', onSelect: () => owl.openArtifact(a.id) }, { label: 'Export as HTML…', icon: 'arrow-download', onSelect: () => exp(a) }, { separator: true }, { label: 'Delete', icon: 'delete', danger: true, onSelect: () => del(a) }]}>
+                {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {a.title}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Icon name="more-horizontal" size={16} /></button>{/snippet}
               </Menu>
             </div>
           </div>

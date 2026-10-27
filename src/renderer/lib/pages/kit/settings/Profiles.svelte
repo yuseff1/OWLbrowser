@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../../../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { Profile } from '$shared/types';
   import { owl, timeAgo } from '$lib/api';
@@ -9,7 +10,6 @@
   import Field from '../Field.svelte';
   import Skel from '../Skel.svelte';
   import Note from '../Note.svelte';
-  import { Plus, Ellipsis, Pencil, Trash2, AppWindow } from '@lucide/svelte';
 
   const COLORS = ['#5B8CFF', '#FF7A59', '#22C3A6', '#B57BFF', '#F5B83D', '#FF5C8A', '#3DB2FF'];
   let list = $state<Profile[]>([]);
@@ -48,7 +48,7 @@
 </script>
 
 <Section title="Profiles" description="Separate history, logins, companions and memory, e.g. one for work and one for you.">
-  {#snippet actions()}<Button variant="primary" icon={Plus} onclick={create}>New profile</Button>{/snippet}
+  {#snippet actions()}<Button variant="primary" icon="add" onclick={create}>New profile</Button>{/snippet}
   {#if error}<Note kind="error" text={error} retry={load} />{/if}
   <Group>
     {#if loading}
@@ -61,9 +61,9 @@
             <div class="flex items-center gap-2"><span class="truncate text-[13.5px] font-medium">{p.name}</span>{#if p.id === current}<Badge variant="neutral">This window</Badge>{/if}</div>
             <div class="text-[12px] text-ink-2">Created {timeAgo(p.createdAt)}</div>
           </div>
-          {#if p.id !== current}<Button size="sm" variant="secondary" icon={AppWindow} onclick={() => owl.openProfile(p.id)}>Open</Button>{/if}
-          <Menu items={[{ label: 'Rename', icon: Pencil, onSelect: () => rename(p) }, ...(p.id !== current && p.id !== 'default' ? [{ separator: true as const }, { label: 'Delete', icon: Trash2, danger: true, onSelect: () => { del = p; delOpen = true; } }] : [])]}>
-            {#snippet trigger(pp)}<button {...pp} type="button" aria-label="More for {p.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Ellipsis size={16} /></button>{/snippet}
+          {#if p.id !== current}<Button size="sm" variant="secondary" icon="window" onclick={() => owl.openProfile(p.id)}>Open</Button>{/if}
+          <Menu items={[{ label: 'Rename', icon: 'edit' as const, onSelect: () => rename(p) }, ...(p.id !== current && p.id !== 'default' ? [{ separator: true as const }, { label: 'Delete', icon: 'delete' as const, danger: true, onSelect: () => { del = p; delOpen = true; } }] : [])]}>
+            {#snippet trigger(pp)}<button {...pp} type="button" aria-label="More for {p.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Icon name="more-horizontal" size={16} /></button>{/snippet}
           </Menu>
         </div>
       {/each}
@@ -89,6 +89,6 @@
 <Dialog bind:open={delOpen} title="Delete “{del?.name}”?" description="Its history, passwords, companions, memory and routines are deleted from this PC. This can’t be undone." width={440}>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (delOpen = false)}>Keep it</Button>
-    <Button variant="danger" icon={Trash2} onclick={remove}>Delete profile</Button>
+    <Button variant="danger" icon="delete" onclick={remove}>Delete profile</Button>
   {/snippet}
 </Dialog>

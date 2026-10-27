@@ -2,7 +2,6 @@
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { Popover, CompanionAvatar, Badge, Button, IconButton, Empty } from '../ui';
-  import { Bot, Square, ArrowUpRight, LayoutGrid } from '@lucide/svelte';
   import { statusLabel, statusVariant, runWaiting, elapsed } from './prefs.svelte';
 
   let open = $state(false);
@@ -34,7 +33,7 @@
         {#if waiting}<span class="dot" aria-hidden="true"></span>{/if}
       </button>
     {:else}
-      <span class="no-drag inline-flex"><IconButton icon={Bot} label="Agents" size="md" {...p} /></span>
+      <span class="no-drag inline-flex"><IconButton icon="bot" label="Agents" size="md" {...p} /></span>
     {/if}
   {/snippet}
   {#snippet children({ close })}
@@ -56,18 +55,18 @@
                 </div>
                 <p class="task">{r.task}</p>
                 <div class="mt-1.5 flex gap-1">
-                  <Button size="sm" variant="secondary" icon={ArrowUpRight} onclick={() => openRun(r)}>{runWaiting(r.status) ? 'Review' : 'Open'}</Button>
-                  <Button size="sm" variant="ghost" icon={Square} onclick={() => owl.stopRun(r.id)}>Stop</Button>
+                  <Button size="sm" variant="secondary" icon="arrow-up-right" onclick={() => openRun(r)}>{runWaiting(r.status) ? 'Review' : 'Open'}</Button>
+                  <Button size="sm" variant="ghost" icon="stop" onclick={() => owl.stopRun(r.id)}>Stop</Button>
                 </div>
               </div>
             </li>
           {/each}
         </ul>
       {:else}
-        <Empty compact icon={Bot} title="No agents running" body="Give a companion a task and it works in its own tab while you keep browsing." />
+        <Empty compact icon="bot" title="No agents running" body="Give a companion a task and it works in its own tab while you keep browsing." />
       {/if}
       <div class="mt-1 flex gap-1 border-t border-line px-1 pt-2">
-        <Button size="sm" variant="ghost" icon={LayoutGrid} onclick={() => { owl.newTab('owl://agents'); close(); }}>Open Agents</Button>
+        <Button size="sm" variant="ghost" icon="grid" onclick={() => { owl.newTab('owl://agents'); close(); }}>Open Agents</Button>
         <Button size="sm" variant="ghost" class="ml-auto" onclick={() => { store.panelOpen = true; close(); }}>New task</Button>
       </div>
     </div>

@@ -8,7 +8,7 @@
  *
  * In the browser preview (mock) there is no popup layer: callers fall back to their in-DOM rendering.
  */
-import { mount, unmount, type Component } from 'svelte';
+import { iconSvg, type IconName } from './icons';
 import { owl } from '../api';
 import { isMock } from '../env';
 import { kbdLabel } from './cn';
@@ -84,21 +84,9 @@ export function showPopup(spec: PopupSpec, onEvent: (e: PopupEvent) => void): Po
   };
 }
 
-// ---- icons: lucide components → static SVG markup (rendered once per component)
-const iconCache = new Map<Component<any>, string>();
-export function iconMarkup(icon: Component<any> | undefined, size = 15, strokeWidth = 1.75): string | undefined {
-  if (!icon) return undefined;
-  const hit = iconCache.get(icon);
-  if (hit !== undefined) return hit;
-  const host = document.createElement('div');
-  let html = '';
-  try {
-    const inst = mount(icon, { target: host, props: { size, strokeWidth } });
-    html = host.innerHTML.replace(/<!--[^]*?-->/g, '');
-    unmount(inst);
-  } catch { html = ''; }
-  iconCache.set(icon, html);
-  return html;
+// ---- icons: Fluent names → static SVG markup for the popup layer
+export function iconMarkup(icon: IconName | undefined, size = 16): string | undefined {
+  return iconSvg(icon, size);
 }
 
 export function toPopupItems(items: MenuItem[]): PopupMenuItem[] {

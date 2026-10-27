@@ -9,7 +9,6 @@
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
   import { isLive, groupByDay } from './kit/util';
-  import { Play, Bot, Sparkles } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -94,7 +93,7 @@
         {/if}
         <label class="flex items-center gap-2 text-[12.5px] text-ink-2"><Switch bind:checked={background} label="Run in background" /> Background</label>
         <div class="flex-1"></div>
-        <Button variant="primary" icon={Play} type="submit" loading={starting} disabled={!task.trim() || !hired.length}>{+copies > 1 ? `Start ${copies} bots` : 'Start'}</Button>
+        <Button variant="primary" icon="play" type="submit" loading={starting} disabled={!task.trim() || !hired.length}>{+copies > 1 ? `Start ${copies} bots` : 'Start'}</Button>
       </div>
     </form>
   </section>
@@ -142,7 +141,7 @@
         {/if}
       </div>
     {:else}
-      <Empty icon={Bot} title="Nothing finished yet" body="Results from your bots land here, with every step they took." compact />
+      <Empty icon="bot" title="Nothing finished yet" body="Results from your bots land here, with every step they took." compact />
     {/if}
   </section>
 </Page>

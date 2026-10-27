@@ -1,6 +1,6 @@
 <script lang="ts">
+  import Icon from '../../ui/Icon.svelte';
   import { Select } from 'bits-ui';
-  import { Check, ChevronDown } from '@lucide/svelte';
   type Group = { heading: string; items: Array<{ value: string; label: string }> };
   type Props = { groups: Group[]; value?: string; placeholder?: string; label?: string; onValueChange?: (v: string) => void; class?: string; disabled?: boolean; size?: 'sm' | 'md' };
   let { groups, value = $bindable(''), placeholder = 'Select…', label, onValueChange, class: cls = '', disabled = false, size = 'md' }: Props = $props();
@@ -11,7 +11,7 @@
 <Select.Root type="single" bind:value items={flat} disabled={disabled || !flat.length} onValueChange={(v) => onValueChange?.(v)}>
   <Select.Trigger aria-label={label || placeholder} class="owl-gsel {size} {cls}">
     <span class="truncate" class:ph={!current}>{current?.label ?? (flat.length ? placeholder : 'No models yet')}</span>
-    <ChevronDown size={14} strokeWidth={1.8} class="shrink-0 opacity-60" />
+    <Icon name="chevron-down" size={14} class="shrink-0 opacity-60" />
   </Select.Trigger>
   <Select.Portal>
     <Select.Content sideOffset={6} class="owl-menu glass-strong z-[90] max-h-[340px] min-w-[var(--bits-select-anchor-width)] animate-in">
@@ -23,7 +23,7 @@
               <Select.Item value={it.value} label={it.label} class="owl-menu-item">
                 {#snippet children({ selected })}
                   <span class="flex-1 truncate">{it.label}</span>
-                  <Check size={14} strokeWidth={2} class={selected ? '' : 'invisible'} />
+                  <Icon name="checkmark" size={14} class={selected ? '' : 'invisible'} />
                 {/snippet}
               </Select.Item>
             {/each}

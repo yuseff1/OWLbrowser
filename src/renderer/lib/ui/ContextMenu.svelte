@@ -4,6 +4,7 @@
   import type { MenuItem } from './Menu.svelte';
   import { store } from '../stores.svelte';
   import { kbdLabel } from './cn';
+  import Icon from './Icon.svelte';
   import { hasPopupLayer, openMenu, type PopupHandle } from './popup';
 
   type Props = {
@@ -55,7 +56,7 @@
           <div class="owl-menu-label">{it.heading}</div>
         {:else if it.label}
           <ContextMenu.Item class="owl-menu-item {it.danger ? 'danger' : ''}" disabled={it.disabled} onSelect={() => it.onSelect?.()}>
-            {#if it.icon}<it.icon size={15} strokeWidth={1.75} />{/if}
+            {#if it.icon}<Icon name={it.icon} size={16} />{/if}
             <span class="truncate">{it.label}</span>
             {#if it.kbd}<span class="k">{kbdLabel(it.kbd)}</span>{/if}
           </ContextMenu.Item>

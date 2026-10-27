@@ -6,7 +6,6 @@
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
   import './kit/kit.css';
-  import { Download, LibraryBig, RotateCw, FileX2, MessageCircle } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -44,13 +43,13 @@
         <h1 class="truncate text-[14px] font-semibold tracking-[-0.01em]">{a.title}</h1>
       </div>
       <span class="hidden text-[12px] text-ink-2 md:inline">{c ? `By ${c.name} · ` : ''}{timeAgo(a.createdAt)}</span>
-      <IconButton icon={RotateCw} label="Reload" size="sm" onclick={() => nonce++} />
-      {#if a.companionId}<IconButton icon={MessageCircle} label="Ask {c?.name ?? 'companion'} to change it" size="sm" onclick={() => { store.setCompanion(a!.companionId!); store.panelPrefill = `Update the artifact “${a!.title}”: `; store.panelOpen = true; }} />{/if}
-      <Button size="sm" variant="secondary" icon={Download} onclick={exp}>Export</Button>
-      <Button size="sm" variant="ghost" icon={LibraryBig} onclick={() => owl.newTab('owl://library')}>Open in Library</Button>
+      <IconButton icon="arrow-clockwise" label="Reload" size="sm" onclick={() => nonce++} />
+      {#if a.companionId}<IconButton icon="chat" label="Ask {c?.name ?? 'companion'} to change it" size="sm" onclick={() => { store.setCompanion(a!.companionId!); store.panelPrefill = `Update the artifact “${a!.title}”: `; store.panelOpen = true; }} />{/if}
+      <Button size="sm" variant="secondary" icon="arrow-download" onclick={exp}>Export</Button>
+      <Button size="sm" variant="ghost" icon="library" onclick={() => owl.newTab('owl://library')}>Open in Library</Button>
     {:else}
       <div class="flex-1 text-[14px] font-semibold">Artifact</div>
-      <Button size="sm" variant="ghost" icon={LibraryBig} onclick={() => owl.navigate(tab.id, 'owl://library')}>Open Library</Button>
+      <Button size="sm" variant="ghost" icon="library" onclick={() => owl.navigate(tab.id, 'owl://library')}>Open Library</Button>
     {/if}
   </header>
   <div class="relative min-h-0 flex-1 bg-white">
@@ -60,7 +59,7 @@
       <div class="mx-auto max-w-[520px] p-10"><Note kind="error" text={error} retry={() => load(tab.artifactId)} /></div>
     {:else if missing || !a}
       <div class="absolute inset-0 bg-ground">
-        <Empty icon={FileX2} title="This artifact isn’t here any more" body="It may have been deleted. Everything that’s left is in your Library." />
+        <Empty icon="document-dismiss" title="This artifact isn’t here any more" body="It may have been deleted. Everything that’s left is in your Library." />
       </div>
     {:else}
       {#key nonce}

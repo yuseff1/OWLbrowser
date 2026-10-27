@@ -1,8 +1,9 @@
 <script lang="ts" generics="T extends string">
   import { ToggleGroup } from 'bits-ui';
-  import type { Component } from 'svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
 
-  type Opt = { value: T; label: string; icon?: Component<any> };
+  type Opt = { value: T; label: string; icon?: IconName };
   type Props = { options: Opt[]; value?: T; size?: 'sm' | 'md'; full?: boolean; label?: string; onValueChange?: (v: T) => void; class?: string };
   let { options, value = $bindable(), size = 'md', full = false, label = 'Options', onValueChange, class: cls = '' }: Props = $props();
 </script>
@@ -13,7 +14,7 @@
   class="owl-seg neu-in {size} {full ? 'full' : ''} {cls}">
   {#each options as o (o.value)}
     <ToggleGroup.Item value={o.value} class="owl-seg-item" aria-label={o.label}>
-      {#if o.icon}<o.icon size={size === 'sm' ? 13 : 14} strokeWidth={1.8} />{/if}
+      {#if o.icon}<Icon name={o.icon} size={14} />{/if}
       <span>{o.label}</span>
     </ToggleGroup.Item>
   {/each}

@@ -1,8 +1,8 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { Popover, IconButton, Button, Empty } from '../ui';
-  import { Download, FolderOpen, X, FileDown } from '@lucide/svelte';
   import type { DownloadItem } from '$shared/types';
 
   let open = $state(false);
@@ -23,7 +23,7 @@
   <Popover bind:open width={340} align="end">
     {#snippet trigger(p)}
       <span class="relative inline-flex no-drag">
-        <IconButton icon={Download} label="Downloads" kbd="Ctrl+J" {...p} />
+        <IconButton icon="arrow-download" label="Downloads" kbd="Ctrl+J" {...p} />
         {#if active.length}
           <svg class="dlring" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="16" pathLength="100" stroke-dasharray="{pct} 100" /></svg>
         {/if}
@@ -36,7 +36,7 @@
           <ul class="flex max-h-[320px] flex-col overflow-auto">
             {#each items.slice(0, 8) as d (d.id)}
               <li class="row">
-                <FileDown size={18} strokeWidth={1.6} class="text-ink-3" />
+                <Icon name="document-arrow-down" size={20} class="text-ink-3" />
                 <button class="min-w-0 flex-1 text-left" disabled={d.state !== 'completed'} onclick={() => owl.openDownload(d.id)}>
                   <div class="truncate text-[13px]">{d.filename}</div>
                   {#if d.state === 'progressing'}
@@ -47,15 +47,15 @@
                   {/if}
                 </button>
                 {#if d.state === 'progressing'}
-                  <IconButton icon={X} label="Cancel" size="sm" onclick={() => owl.cancelDownload(d.id)} />
+                  <IconButton icon="dismiss" label="Cancel" size="sm" onclick={() => owl.cancelDownload(d.id)} />
                 {:else if d.state === 'completed'}
-                  <IconButton icon={FolderOpen} label="Show in folder" size="sm" onclick={() => owl.showDownload(d.id)} />
+                  <IconButton icon="folder-open" label="Show in folder" size="sm" onclick={() => owl.showDownload(d.id)} />
                 {/if}
               </li>
             {/each}
           </ul>
         {:else}
-          <Empty compact icon={Download} title="No downloads yet" />
+          <Empty compact icon="arrow-download" title="No downloads yet" />
         {/if}
         <div class="mt-1 border-t border-line px-1 pt-2">
           <Button size="sm" variant="ghost" onclick={() => { owl.newTab('owl://downloads'); close(); }}>All downloads</Button>

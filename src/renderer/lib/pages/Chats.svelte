@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState, AgentRun } from '$shared/types';
   import { owl } from '$lib/api';
@@ -10,7 +11,6 @@
   import Note from './kit/Note.svelte';
   import { groupByDay, clock, statusMeta, isLive } from './kit/util';
   import { md, extLinks } from './kit/md';
-  import { Search, MessagesSquare, Plus, RotateCcw, ChevronRight, PanelRight, Trash2, Bot } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -82,10 +82,10 @@
 
 <Page title="Chats" description="Your conversations and the tasks you gave companions, newest first.">
   {#snippet actions()}
-    <Button variant="primary" icon={Plus} onclick={newChat}>New chat</Button>
+    <Button variant="primary" icon="add" onclick={newChat}>New chat</Button>
   {/snippet}
   {#snippet toolbar()}
-    <Input bind:value={q} icon={Search} pill placeholder="Search chats and tasks" class="w-[320px]" aria-label="Search chats" type="search" />
+    <Input bind:value={q} icon="search" pill placeholder="Search chats and tasks" class="w-[320px]" aria-label="Search chats" type="search" />
     <Segmented bind:value={kind} size="sm" label="Show" options={[{ value: 'all', label: 'All' }, { value: 'chat', label: 'Chats' }, { value: 'task', label: 'Tasks' }]} />
     <div class="flex-1"></div>
     <Select items={companionItems} bind:value={who} label="Companion" size="sm" class="w-[180px]" />
@@ -97,12 +97,12 @@
     <div class="owl-sheet">{#each Array(5) as _, i (i)}<div class="flex items-center gap-3 px-4 py-3.5"><Skel w={28} h={28} r={99} /><div class="flex flex-1 flex-col gap-2"><Skel w="50%" h={13} /><Skel w="75%" h={11} /></div><Skel w={40} h={11} /></div>{/each}</div>
   {:else if !filtered.length}
     {#if q || who !== 'all' || kind !== 'all'}
-      <Empty icon={Search} title="Nothing matches" body="Try other words, or clear the filters." compact>
+      <Empty icon="search" title="Nothing matches" body="Try other words, or clear the filters." compact>
         {#snippet actions()}<Button size="sm" variant="secondary" onclick={() => { q = ''; who = 'all'; kind = 'all'; }}>Clear filters</Button>{/snippet}
       </Empty>
     {:else}
-      <Empty icon={MessagesSquare} title="No chats yet" body="Ask a companion anything from the new tab page, or press Ctrl+Shift+J on any site.">
-        {#snippet actions()}<Button variant="primary" icon={Plus} onclick={newChat}>Start a chat</Button>{/snippet}
+      <Empty icon="chat-multiple" title="No chats yet" body="Ask a companion anything from the new tab page, or press Ctrl+Shift+J on any site.">
+        {#snippet actions()}<Button variant="primary" icon="add" onclick={newChat}>Start a chat</Button>{/snippet}
       </Empty>
     {/if}
   {:else}
@@ -121,13 +121,13 @@
                   <span class="min-w-0 flex-1">
                     <span class="flex items-center gap-2">
                       <span class="truncate text-[13.5px] font-medium">{it.title}</span>
-                      {#if it.kind === 'task'}<Bot size={13} strokeWidth={1.8} class="shrink-0 text-ink-2" aria-label="Task" />{/if}
+                      {#if it.kind === 'task'}<Icon name="bot" size={14} class="shrink-0 text-ink-2" aria-label="Task" />{/if}
                     </span>
                     <span class="block truncate text-[12.5px] text-ink-2">{c?.name ?? 'Companion'}{it.preview ? ' — ' + it.preview : ''}</span>
                   </span>
                   {#if st && (st.live || it.run?.status === 'failed')}<Badge variant={st.variant} dot={st.live}>{st.label}</Badge>{/if}
                   <span class="tnum w-[64px] shrink-0 whitespace-nowrap text-right text-[12px] text-ink-2">{clock(it.at)}</span>
-                  <ChevronRight size={15} class="text-ink-2 transition-transform {open ? 'rotate-90' : ''}" />
+                  <Icon name="chevron-right" size={16} class="text-ink-2 transition-transform {open ? 'rotate-90' : ''}" />
                 </button>
                 {#if open}
                   <div class="flex flex-col gap-3 border-t border-line bg-surface-2 px-5 py-4">
@@ -142,10 +142,10 @@
                       {/if}
                     {/each}
                     <div class="mt-1 flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="primary" icon={PanelRight} onclick={() => continueIn(it)}>{it.run && isLive(it.run) ? 'Follow in panel' : 'Continue'}</Button>
-                      {#if it.run && !isLive(it.run)}<Button size="sm" variant="ghost" icon={RotateCcw} onclick={() => owl.startRun(it.run!.companionId, it.run!.task, { useCurrentTab: false, background: it.run!.background })}>Run again</Button>{/if}
+                      <Button size="sm" variant="primary" icon="panel-right" onclick={() => continueIn(it)}>{it.run && isLive(it.run) ? 'Follow in panel' : 'Continue'}</Button>
+                      {#if it.run && !isLive(it.run)}<Button size="sm" variant="ghost" icon="arrow-counterclockwise" onclick={() => owl.startRun(it.run!.companionId, it.run!.task, { useCurrentTab: false, background: it.run!.background })}>Run again</Button>{/if}
                       <div class="flex-1"></div>
-                      {#if it.threadId}<IconButton icon={Trash2} label="Delete chat" size="sm" onclick={() => remove(it)} />{/if}
+                      {#if it.threadId}<IconButton icon="delete" label="Delete chat" size="sm" onclick={() => remove(it)} />{/if}
                     </div>
                   </div>
                 {/if}

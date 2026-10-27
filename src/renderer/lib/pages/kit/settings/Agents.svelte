@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../../../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import { owl } from '$lib/api';
   import { store } from '$lib/stores.svelte';
@@ -8,16 +9,15 @@
   import Row from '../Row.svelte';
   import Note from '../Note.svelte';
   import { patch } from './patch';
-  import { ShieldCheck, ShieldQuestion, Zap } from '@lucide/svelte';
 
   const s = $derived(store.settings);
   let available = $state<boolean | null>(null);
   onMount(() => { owl.appInfo().then((i: any) => (available = i?.computerUse ?? true)).catch(() => (available = true)); });
 
   const MODES = [
-    { v: 'ask-risky', l: 'Ask before risky actions', d: 'Buying, sending, posting, deleting or signing in need your OK. Reading and browsing don’t.', icon: ShieldCheck },
-    { v: 'ask-always', l: 'Ask before every action', d: 'You approve each click and form. Slow, but nothing happens without you.', icon: ShieldQuestion },
-    { v: 'autonomous', l: 'Autonomous', d: 'Companions act on their own. Best for trusted, repeatable tasks.', icon: Zap },
+    { v: 'ask-risky', l: 'Ask before risky actions', d: 'Buying, sending, posting, deleting or signing in need your OK. Reading and browsing don’t.', icon: 'shield-checkmark' },
+    { v: 'ask-always', l: 'Ask before every action', d: 'You approve each click and form. Slow, but nothing happens without you.', icon: 'shield-question' },
+    { v: 'autonomous', l: 'Autonomous', d: 'Companions act on their own. Best for trusted, repeatable tasks.', icon: 'flash' },
   ] as const;
   let par = $state(4);
   $effect(() => { par = s?.maxParallelAgents ?? 4; });
@@ -30,7 +30,7 @@
         {@const on = (s?.approvalMode ?? 'ask-risky') === m.v}
         <button type="button" role="radio" aria-checked={on} onclick={() => patch({ approvalMode: m.v })}
           class="flex flex-col gap-2 rounded-2xl p-4 text-left transition-shadow {on ? 'bg-surface shadow-[0_0_0_1.5px_var(--ink)]' : 'bg-surface shadow-[0_0_0_1px_var(--line)] hover:shadow-[0_0_0_1px_color-mix(in_srgb,var(--ink)_20%,transparent)]'}">
-          <m.icon size={18} strokeWidth={1.7} class={on ? 'text-ink' : 'text-ink-2'} />
+          <Icon name={m.icon} size={20} class={on ? 'text-ink' : 'text-ink-2'} />
           <span class="text-[13.5px] font-medium">{m.l}</span>
           <span class="text-[12.5px] leading-snug text-ink-2">{m.d}</span>
         </button>

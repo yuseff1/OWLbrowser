@@ -8,7 +8,8 @@ import { Button, IconButton, Tooltip, Input, Textarea, Switch, Segmented, Select
 
 | Component | Props |
 | --- | --- |
-| `Button` | `variant` primary \| secondary \| ghost \| danger \| accent · `size` sm \| md \| lg · `pill` (default true) · `icon`, `iconRight` (lucide) · `loading` · `full` · bind:`ref`. Primary = black pill on light, white pill on dark. |
+| `Button` | `variant` primary \| secondary \| ghost \| danger \| accent · `size` sm \| md \| lg · `pill` (default true) · `icon`, `iconRight` (Fluent icon name, see `Icon.svelte`) · `loading` · `full` · bind:`ref`. Primary = black pill on light, white pill on dark. |
+| `Icon` | `name` (Fluent UI System Icons, regular; typed `IconName`), `size` 14 \| 16 \| 20 (12 for inline hints, 24/32 for empty states), `filled` for active/selected only. Art comes from `icons.generated.ts`; to add one, list it in `scripts/fluent-icons.json` and run `npm run icons`. |
 | `IconButton` | `icon`, `label` (aria + tooltip), `kbd`, `size` xs \| sm \| md \| lg, `active`, `side`, `badge` (true = dot, number = count), `variant` ghost \| solid \| glass. Accepts trigger props from Popover/Menu (spread `{...p}`). |
 | `Tooltip` | `text`, `side`, `kbd`; `{#snippet children(p)}<button {...p}>…</button>{/snippet}` |
 | `Input` | bind:`value`, `icon`, `size` sm \| md \| lg, `pill`, `inset` (neumorphic well), bind:`ref`, `trailing` snippet |

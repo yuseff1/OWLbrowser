@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
+  import type { MenuItem } from '$lib/ui';
+  import type { IconName } from '../ui/icons';
   import { onMount } from 'svelte';
   import type { TabState, HistoryEntry, ModelProvider } from '$shared/types';
   import { owl, art, hostOf, faviconFor } from '$lib/api';
@@ -7,7 +10,6 @@
   import GroupedSelect from './kit/GroupedSelect.svelte';
   import { openPage, looksLikeUrl, statusMeta, lastStep, fmtDuration, modelGroups, refKey, parseRef } from './kit/util';
   import './kit/kit.css';
-  import { Plus, Pencil, ArrowUp, Mic, Search, Globe, Sparkles, Bot, Blocks, CircleHelp, ChevronLeft, ChevronRight, CalendarClock, Telescope, Cable, Download, PanelRight, CornerDownLeft } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -97,19 +99,19 @@
     await store.refreshCompanions();
   }
 
-  const ideas = [
-    { icon: CalendarClock, title: 'Set up a routine', body: 'A morning brief or a price check that runs on its own.', act: () => openPage('owl://routines', tab.id) },
-    { icon: Telescope, title: 'Do online research', body: 'Ask a question; get a sourced answer from several sites.', act: () => { text = 'Research and compare '; ta?.focus(); } },
-    { icon: Cable, title: 'Connect my apps', body: 'Give your companions Notion, GitHub, Linear and more.', act: () => openPage('owl://apps', tab.id) },
-    { icon: Download, title: 'Import from Chrome', body: 'Bring bookmarks, history and passwords across.', act: () => openPage('owl://settings#import', tab.id) },
-    { icon: PanelRight, title: 'Work in this tab', body: 'Open any site, then press Ctrl+Shift+J to hand it to a companion.', act: () => { store.panelOpen = true; } },
+  const ideas: { icon: IconName; title: string; body: string; act: () => void }[] = [
+    { icon: 'calendar-clock', title: 'Set up a routine', body: 'A morning brief or a price check that runs on its own.', act: () => openPage('owl://routines', tab.id) },
+    { icon: 'search-sparkle', title: 'Do online research', body: 'Ask a question; get a sourced answer from several sites.', act: () => { text = 'Research and compare '; ta?.focus(); } },
+    { icon: 'plug-connected', title: 'Connect my apps', body: 'Give your companions Notion, GitHub, Linear and more.', act: () => openPage('owl://apps', tab.id) },
+    { icon: 'arrow-download', title: 'Import from Chrome', body: 'Bring bookmarks, history and passwords across.', act: () => openPage('owl://settings#import', tab.id) },
+    { icon: 'panel-right', title: 'Work in this tab', body: 'Open any site, then press Ctrl+Shift+J to hand it to a companion.', act: () => { store.panelOpen = true; } },
   ];
   function scrollIdeas(dir: 1 | -1) { carousel?.scrollBy({ left: dir * 260, behavior: 'smooth' }); }
 
-  const plusItems = $derived([
-    { label: 'Search the web instead', icon: Search, onSelect: () => submit('search') },
-    { label: 'Use a skill…', icon: Sparkles, onSelect: () => openPage('owl://skills', tab.id) },
-    { label: 'Spin up several bots…', icon: Bot, onSelect: () => openPage('owl://agents', tab.id) },
+  const plusItems = $derived<MenuItem[]>([
+    { label: 'Search the web instead', icon: 'search', onSelect: () => submit('search') },
+    { label: 'Use a skill…', icon: 'sparkle', onSelect: () => openPage('owl://skills', tab.id) },
+    { label: 'Spin up several bots…', icon: 'bot', onSelect: () => openPage('owl://agents', tab.id) },
   ]);
 </script>
 
@@ -136,7 +138,7 @@
       {/each}
       <span class="mx-1 h-4 w-px bg-line" aria-hidden="true"></span>
       <button type="button" onclick={() => openPage('owl://companions', tab.id)} class="flex h-8 items-center gap-1 rounded-full px-3 text-[13px] font-medium text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink">
-        <Plus size={14} strokeWidth={2} /> Add
+        <Icon name="add" size={14} /> Add
       </button>
     </div>
 
@@ -149,7 +151,7 @@
         {#snippet children(p)}
           <button {...p} type="button" aria-label="Edit {active?.name ?? 'companion'}" onclick={() => openPage('owl://companions', tab.id)}
             class="glass absolute -right-2 bottom-1 grid size-7 place-items-center rounded-full text-ink-2 hover:text-ink">
-            <Pencil size={13} strokeWidth={1.9} />
+            <Icon name="edit" size={14} />
           </button>
         {/snippet}
       </Tooltip>
@@ -166,7 +168,7 @@
       <div class="mt-2 flex items-center gap-2">
         <Menu items={plusItems} side="bottom" align="start">
           {#snippet trigger(p)}
-            <button {...p} type="button" aria-label="More options" class="grid size-8 place-items-center rounded-full text-ink-2 shadow-[0_0_0_1px_var(--line)] hover:bg-surface hover:text-ink"><Plus size={16} strokeWidth={1.9} /></button>
+            <button {...p} type="button" aria-label="More options" class="grid size-8 place-items-center rounded-full text-ink-2 shadow-[0_0_0_1px_var(--line)] hover:bg-surface hover:text-ink"><Icon name="add" size={16} /></button>
           {/snippet}
         </Menu>
         <div class="w-[170px]">
@@ -175,16 +177,16 @@
         <div class="flex-1"></div>
         {#if text.trim()}
           <span class="hidden items-center gap-1 text-[12px] text-ink-2 sm:flex" aria-live="polite">
-            {#if isUrl}<Globe size={13} strokeWidth={1.8} /> Open {hostOf(text.includes('://') ? text : 'https://' + text.trim())}{:else}Alt <CornerDownLeft size={12} /> searches the web{/if}
+            {#if isUrl}<Icon name="globe" size={14} /> Open {hostOf(text.includes('://') ? text : 'https://' + text.trim())}{:else}Alt <Icon name="arrow-enter-left" size={12} /> searches the web{/if}
           </span>
         {/if}
         {#if text.trim()}
           <button type="submit" aria-label={isUrl ? 'Open' : `Send to ${active?.name ?? 'companion'}`} class="owl-send grid size-9 place-items-center rounded-full shadow-[0_2px_8px_-2px_rgba(0,0,0,.3)] transition-transform active:scale-95">
-            {#if isUrl}<Globe size={17} strokeWidth={2} />{:else}<ArrowUp size={18} strokeWidth={2.2} />{/if}
+            {#if isUrl}<Icon name="globe" size={20} />{:else}<Icon name="arrow-up" size={20} />{/if}
           </button>
         {:else}
           <button type="button" onclick={voice} aria-label="Speak your request" aria-pressed={listening} class="owl-send grid size-9 place-items-center rounded-full shadow-[0_2px_8px_-2px_rgba(0,0,0,.3)] transition-transform active:scale-95" class:animate-pulse-soft={listening}>
-            <Mic size={17} strokeWidth={2} />
+            <Icon name="mic" size={20} />
           </button>
         {/if}
       </div>
@@ -192,10 +194,10 @@
 
     <!-- quick row -->
     <nav class="mt-4 flex flex-wrap items-center justify-center gap-2" aria-label="Shortcuts">
-      {#each [{ l: 'Skills', i: Sparkles, u: 'owl://skills' }, { l: 'Agents', i: Bot, u: 'owl://agents' }, { l: 'Apps', i: Blocks, u: 'owl://apps' }, { l: 'Help', i: CircleHelp, u: 'https://github.com/varsen/owl#readme' }] as s (s.l)}
+      {#each [{ l: 'Skills', i: 'sparkle' as const, u: 'owl://skills' }, { l: 'Agents', i: 'bot' as const, u: 'owl://agents' }, { l: 'Apps', i: 'apps' as const, u: 'owl://apps' }, { l: 'Help', i: 'question-circle' as const, u: 'https://github.com/varsen/owl#readme' }] as s (s.l)}
         <button type="button" onclick={() => (s.u.startsWith('owl://') ? openPage(s.u, tab.id) : owl.newTab(s.u))}
           class="flex h-8 items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] px-3.5 text-[13px] font-medium text-ink-2 shadow-[0_0_0_1px_var(--line)] hover:bg-surface hover:text-ink">
-          <s.i size={14} strokeWidth={1.8} /> {s.l}
+          <Icon name={s.i} size={14} /> {s.l}
         </button>
       {/each}
     </nav>
@@ -253,13 +255,13 @@
           <h2 id="nt-ideas" class="text-[14px] font-semibold tracking-[-0.01em]">Some ideas for you</h2>
           <p class="text-[12.5px] text-ink-2">Your first week in OWL</p>
         </div>
-        <button type="button" aria-label="Previous ideas" onclick={() => scrollIdeas(-1)} class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><ChevronLeft size={16} /></button>
-        <button type="button" aria-label="Next ideas" onclick={() => scrollIdeas(1)} class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><ChevronRight size={16} /></button>
+        <button type="button" aria-label="Previous ideas" onclick={() => scrollIdeas(-1)} class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><Icon name="chevron-left" size={16} /></button>
+        <button type="button" aria-label="Next ideas" onclick={() => scrollIdeas(1)} class="grid size-7 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><Icon name="chevron-right" size={16} /></button>
       </div>
       <div bind:this={carousel} class="-mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-1 pb-2 [scrollbar-width:none]">
         {#each ideas as it (it.title)}
           <button type="button" onclick={it.act} class="flex w-[228px] shrink-0 snap-start flex-col gap-2 rounded-2xl bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] p-3.5 text-left shadow-[0_0_0_1px_var(--line)] transition-[background-color,transform] hover:bg-surface active:scale-[.99]">
-            <span class="text-ink-2"><it.icon size={18} strokeWidth={1.7} /></span>
+            <span class="text-ink-2"><Icon name={it.icon} size={20} /></span>
             <span class="text-[13.5px] font-medium">{it.title}</span>
             <span class="text-[12.5px] leading-snug text-ink-2">{it.body}</span>
           </button>

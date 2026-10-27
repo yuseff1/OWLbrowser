@@ -1,9 +1,9 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import WindowControls from './WindowControls.svelte';
   import { owl, hostOf } from '../api';
   import { store } from '../stores.svelte';
   import { IconButton, ContextMenu } from '../ui';
-  import { PanelLeft, Plus, X, Volume2, VolumeX } from '@lucide/svelte';
   import TabIcon from './TabIcon.svelte';
   import { tabMenu, drag, dropTab } from './tabActions';
   import type { TabState } from '$shared/types';
@@ -63,7 +63,7 @@
 <div class="strip drag" class:mac={mac && !store.sidebarOpen} role="presentation" ondblclick={(e) => { if (e.target === e.currentTarget) owl.windowControl('maximize'); }}>
   {#if !store.sidebarOpen}
     <div class="no-drag flex items-center pl-1.5">
-      <IconButton icon={PanelLeft} label="Show sidebar" kbd={'Ctrl+\\'} size="sm" onclick={() => (store.sidebarOpen = true)} />
+      <IconButton icon="panel-left" label="Show sidebar" kbd={'Ctrl+\\'} size="sm" onclick={() => (store.sidebarOpen = true)} />
     </div>
   {/if}
 
@@ -82,18 +82,18 @@
             <span class="ico">
               <TabIcon tab={t} size={15} />
               {#if t.pinned && (t.audible || t.muted)}
-                <span class="pin-audio" aria-hidden="true">{#if t.muted}<VolumeX size={9} strokeWidth={2.4} />{:else}<Volume2 size={9} strokeWidth={2.4} />{/if}</span>
+                <span class="pin-audio" aria-hidden="true">{#if t.muted}<Icon name="speaker-mute" size={10} filled />{:else}<Icon name="speaker-2" size={10} filled />{/if}</span>
               {/if}
             </span>
             {#if !t.pinned}
               <span class="title">{t.title || t.url}</span>
               {#if t.audible || t.muted}
                 <button class="mini" aria-label={t.muted ? 'Unmute tab' : 'Mute tab'} onmousedown={(e) => e.stopPropagation()} onclick={() => owl.muteTab(t.id)}>
-                  {#if t.muted}<VolumeX size={13} strokeWidth={1.8} />{:else}<Volume2 size={13} strokeWidth={1.8} />{/if}
+                  {#if t.muted}<Icon name="speaker-mute" size={14} />{:else}<Icon name="speaker-2" size={14} />{/if}
                 </button>
               {/if}
               <button class="mini close" aria-label="Close tab" onmousedown={(e) => e.stopPropagation()} onclick={() => owl.closeTab(t.id)}>
-                <X size={13} strokeWidth={2} />
+                <Icon name="dismiss" size={14} />
               </button>
             {/if}
           </div>
@@ -101,7 +101,7 @@
       </ContextMenu>
     {/each}
     <div class="no-drag flex items-center pl-0.5">
-      <IconButton icon={Plus} label="New tab" kbd="Ctrl+T" size="sm" onclick={() => owl.newTab()} />
+      <IconButton icon="add" label="New tab" kbd="Ctrl+T" size="sm" onclick={() => owl.newTab()} />
     </div>
   </div>
   <!-- window controls (titleBarOverlay) live here on Windows; Linux gets drawn ones -->

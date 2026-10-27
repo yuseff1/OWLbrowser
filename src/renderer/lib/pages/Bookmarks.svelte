@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { TabState, Bookmark } from '$shared/types';
   import { owl, hostOf, faviconFor, timeAgo } from '$lib/api';
@@ -8,7 +9,6 @@
   import Field from './kit/Field.svelte';
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
-  import { Search, Folder, FolderOpen, Star, Pencil, Trash2, Globe, Bookmark as BookmarkIcon, Download } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
@@ -75,10 +75,10 @@
 
 <Page title="Bookmarks" description="Sites you saved. Press Ctrl+D on any page to add it." width={980}>
   {#snippet actions()}
-    <Button variant="secondary" icon={Download} onclick={() => owl.newTab('owl://settings#import')}>Import from another browser</Button>
+    <Button variant="secondary" icon="arrow-download" onclick={() => owl.newTab('owl://settings#import')}>Import from another browser</Button>
   {/snippet}
   {#snippet toolbar()}
-    <Input bind:value={q} icon={Search} pill placeholder="Search bookmarks" class="w-[340px]" type="search" aria-label="Search bookmarks" />
+    <Input bind:value={q} icon="search" pill placeholder="Search bookmarks" class="w-[340px]" type="search" aria-label="Search bookmarks" />
   {/snippet}
 
   {#if error}<Note kind="error" text={error} retry={load} class="mb-4" />{/if}
@@ -88,10 +88,10 @@
       {#if loading}
         {#each Array(4) as _, i (i)}<div class="flex h-9 items-center gap-2 px-3"><Skel w={15} h={15} r={4} /><Skel w="60%" h={12} /></div>{/each}
       {:else}
-        {#each [{ id: ALL, label: 'All bookmarks', n: items.length, icon: Star }, ...folders.map(([f, n]) => ({ id: f, label: f, n, icon: folder === f ? FolderOpen : Folder })), ...(unsorted ? [{ id: NONE, label: 'Other bookmarks', n: unsorted, icon: Folder }] : [])] as f (f.id)}
+        {#each [{ id: ALL, label: 'All bookmarks', n: items.length, icon: 'star' as const }, ...folders.map(([f, n]) => ({ id: f, label: f, n, icon: folder === f ? 'folder-open' as const : 'folder' as const })), ...(unsorted ? [{ id: NONE, label: 'Other bookmarks', n: unsorted, icon: 'folder' as const }] : [])] as f (f.id)}
           <button type="button" onclick={() => { folder = f.id; q = ''; }} aria-current={folder === f.id && !q.trim() ? 'page' : undefined}
             class="flex h-9 items-center gap-2.5 rounded-[10px] px-3 text-left text-[13.5px] {folder === f.id && !q.trim() ? 'bg-[color-mix(in_srgb,var(--ink)_7%,transparent)] font-medium text-ink' : 'text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_4%,transparent)] hover:text-ink'}">
-            <f.icon size={15} strokeWidth={1.8} class="shrink-0" />
+            <Icon name={f.icon} size={16} class="shrink-0" />
             <span class="min-w-0 flex-1 truncate">{f.label}</span>
             <span class="tnum text-[12px] text-ink-2">{f.n}</span>
           </button>
@@ -104,26 +104,26 @@
       {#if loading}
         <div class="owl-sheet">{#each Array(6) as _, i (i)}<div class="flex items-center gap-3 px-4 py-3"><Skel w={16} h={16} r={4} /><div class="flex flex-1 flex-col gap-1.5"><Skel w="40%" h={13} /><Skel w="25%" h={11} /></div></div>{/each}</div>
       {:else if !shown.length}
-        {#if q.trim()}<Empty icon={Search} title="No bookmarks match" compact />
+        {#if q.trim()}<Empty icon="search" title="No bookmarks match" compact />
         {:else if !items.length}
-          <Empty icon={BookmarkIcon} title="No bookmarks yet" body="Press Ctrl+D or the star in the address bar to save a page.">
-            {#snippet actions()}<Button variant="secondary" icon={Download} onclick={() => owl.newTab('owl://settings#import')}>Import bookmarks</Button>{/snippet}
+          <Empty icon="bookmark" title="No bookmarks yet" body="Press Ctrl+D or the star in the address bar to save a page.">
+            {#snippet actions()}<Button variant="secondary" icon="arrow-download" onclick={() => owl.newTab('owl://settings#import')}>Import bookmarks</Button>{/snippet}
           </Empty>
-        {:else}<Empty icon={Folder} title="This folder is empty" compact />{/if}
+        {:else}<Empty icon="folder" title="This folder is empty" compact />{/if}
       {:else}
         <ul class="owl-sheet">
           {#each shown as b (b.id)}
             {@const fav = faviconFor(b.url, b.favicon)}
             <li class="owl-hoverable flex items-center gap-3 px-4 py-2.5">
-              <span class="grid size-4 shrink-0 place-items-center">{#if fav && !broken[b.id]}<img src={fav} alt="" class="size-4 rounded-[3px]" loading="lazy" onerror={() => (broken[b.id] = true)} />{:else}<Globe size={14} class="text-ink-2" />{/if}</span>
+              <span class="grid size-4 shrink-0 place-items-center">{#if fav && !broken[b.id]}<img src={fav} alt="" class="size-4 rounded-[3px]" loading="lazy" onerror={() => (broken[b.id] = true)} />{:else}<Icon name="globe" size={14} class="text-ink-2" />{/if}</span>
               <a href={b.url} onclick={(e) => { e.preventDefault(); open(b, e); }} onauxclick={(e) => { e.preventDefault(); open(b, e); }} class="min-w-0 flex-1">
                 <span class="block truncate text-[13.5px] hover:underline hover:underline-offset-2">{b.title || b.url}</span>
                 <span class="block truncate text-[12px] text-ink-2">{hostOf(b.url)}{q.trim() && b.folder ? ` · ${b.folder}` : ''}</span>
               </a>
               <span class="shrink-0 text-[12px] text-ink-2">{timeAgo(b.createdAt)}</span>
               <span class="owl-hover-actions flex items-center gap-0.5">
-                <IconButton icon={Pencil} label="Rename" size="sm" onclick={() => rename(b)} />
-                <IconButton icon={Trash2} label="Remove bookmark" size="sm" onclick={() => remove(b)} />
+                <IconButton icon="edit" label="Rename" size="sm" onclick={() => rename(b)} />
+                <IconButton icon="delete" label="Remove bookmark" size="sm" onclick={() => remove(b)} />
               </span>
             </li>
           {/each}

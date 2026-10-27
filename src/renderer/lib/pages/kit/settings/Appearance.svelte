@@ -6,7 +6,6 @@
   import Group from './Group.svelte';
   import Row from '../Row.svelte';
   import { patch } from './patch';
-  import { Monitor, Sun, Moon } from '@lucide/svelte';
 
   const s = $derived(store.settings);
   const WALLS = [
@@ -20,7 +19,7 @@
 <Section title="Appearance" description="How OWL looks on this PC.">
   <Group>
     <Row title="Theme" description="System follows your Windows setting.">
-      <Segmented value={s?.theme ?? 'system'} onValueChange={(v) => patch({ theme: v as any })} label="Theme" options={[{ value: 'system', label: 'System', icon: Monitor }, { value: 'light', label: 'Light', icon: Sun }, { value: 'dark', label: 'Dark', icon: Moon }]} />
+      <Segmented value={s?.theme ?? 'system'} onValueChange={(v) => patch({ theme: v as any })} label="Theme" options={[{ value: 'system', label: 'System', icon: 'desktop' }, { value: 'light', label: 'Light', icon: 'weather-sunny' }, { value: 'dark', label: 'Dark', icon: 'weather-moon' }]} />
     </Row>
     <Row title="Profile colour" description="Tints focus rings, progress and a few highlights.">
       <div class="flex w-[300px] items-center gap-3">

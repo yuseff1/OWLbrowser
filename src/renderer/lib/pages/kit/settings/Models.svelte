@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../../../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import type { ModelProvider, ProviderKind } from '$shared/types';
   import { owl, hostOf } from '$lib/api';
@@ -13,7 +14,6 @@
   import GroupedSelect from '../GroupedSelect.svelte';
   import { modelGroups, refKey, parseRef } from '../util';
   import { patch, PROVIDER_DOMAIN, favicon } from './patch';
-  import { Plus, Ellipsis, Trash2, KeyRound, ScanSearch, FlaskConical, ExternalLink, Server, Cpu, ChevronLeft, CircleCheck, CircleAlert, Laptop, Cloud } from '@lucide/svelte';
 
   type Preset = { name: string; baseUrl: string; local: boolean; models: string[]; keyUrl?: string };
   const CLOUD: ProviderKind[] = ['openrouter', 'openai', 'anthropic', 'google', 'xai', 'groq', 'mistral', 'deepseek', 'nvidia'];
@@ -100,7 +100,7 @@
 </script>
 
 <Section title="Models" description="Bring your own AI. Use cloud providers with your key, or run models locally for free and private.">
-  {#snippet actions()}<Button variant="primary" icon={Plus} onclick={add}>Add provider</Button>{/snippet}
+  {#snippet actions()}<Button variant="primary" icon="add" onclick={add}>Add provider</Button>{/snippet}
 
   {#if error}<Note kind="error" text={error} retry={load} />{/if}
 
@@ -128,12 +128,12 @@
         <div class="px-4 py-3.5" class:opacity-60={!p.enabled}>
           <div class="flex items-center gap-3.5">
             <span class="owl-tile size-9">
-              {#if d && !iconFail[p.id]}<img src={favicon(d)} alt="" onerror={() => (iconFail[p.id] = true)} />{:else if p.kind === 'llamacpp'}<Cpu size={16} class="text-ink-2" />{:else}<Server size={16} class="text-ink-2" />{/if}
+              {#if d && !iconFail[p.id]}<img src={favicon(d)} alt="" onerror={() => (iconFail[p.id] = true)} />{:else if p.kind === 'llamacpp'}<Icon name="developer-board" size={16} class="text-ink-2" />{:else}<Icon name="server" size={16} class="text-ink-2" />{/if}
             </span>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="truncate text-[13.5px] font-medium">{p.name}</span>
-                <Badge variant="outline">{#if p.local}<Laptop size={11} /> Local{:else}<Cloud size={11} /> Cloud{/if}</Badge>
+                <Badge variant="outline">{#if p.local}<Icon name="laptop" size={12} /> Local{:else}<Icon name="cloud" size={12} /> Cloud{/if}</Badge>
                 {#if !p.local}{#if p.hasKey}<Badge variant="ok">Key saved</Badge>{:else}<Badge variant="warn">No key</Badge>{/if}{/if}
               </div>
               <div class="mt-0.5 flex items-center gap-2 text-[12px] text-ink-2">
@@ -143,20 +143,20 @@
               </div>
             </div>
             <Switch checked={p.enabled} label="Use {p.name}" onCheckedChange={(v) => setEnabled(p, v)} />
-            <Menu items={[{ label: p.local ? 'Edit address' : 'Change key or address', icon: KeyRound, onSelect: () => edit(p) }, { separator: true }, { label: 'Remove', icon: Trash2, danger: true, onSelect: () => remove(p) }]}>
-              {#snippet trigger(pp)}<button {...pp} type="button" aria-label="More for {p.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Ellipsis size={16} /></button>{/snippet}
+            <Menu items={[{ label: p.local ? 'Edit address' : 'Change key or address', icon: 'key', onSelect: () => edit(p) }, { separator: true }, { label: 'Remove', icon: 'delete', danger: true, onSelect: () => remove(p) }]}>
+              {#snippet trigger(pp)}<button {...pp} type="button" aria-label="More for {p.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"><Icon name="more-horizontal" size={16} /></button>{/snippet}
             </Menu>
           </div>
           <div class="ml-[50px] mt-2.5 flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" icon={ScanSearch} loading={busy[p.id] === 'detect'} disabled={!p.enabled} onclick={() => detect(p)}>Detect models</Button>
+            <Button size="sm" variant="secondary" icon="developer-board-search" loading={busy[p.id] === 'detect'} disabled={!p.enabled} onclick={() => detect(p)}>Detect models</Button>
             {#if p.models.length}
               <Select items={p.models.map((m) => ({ value: m, label: m }))} value={testModel[p.id] || p.models[0]} onValueChange={(v) => (testModel[p.id] = v)} size="sm" label="Model to test" class="w-[220px]" />
             {/if}
-            <Button size="sm" variant="ghost" icon={FlaskConical} loading={busy[p.id] === 'test'} disabled={!p.enabled || !p.models.length} onclick={() => test(p)}>Test</Button>
+            <Button size="sm" variant="ghost" icon="beaker" loading={busy[p.id] === 'test'} disabled={!p.enabled || !p.models.length} onclick={() => test(p)}>Test</Button>
             {#if t}
               <span class="flex min-w-0 items-center gap-1.5 text-[12.5px]" role="status">
-                {#if t.ok}<CircleCheck size={14} class="shrink-0 text-[#24855a]" /><span class="truncate">“{t.text}”</span><span class="tnum shrink-0 text-ink-2">{t.ms.toLocaleString()} ms</span>
-                {:else}<CircleAlert size={14} class="shrink-0 text-[#d43a3f]" /><span class="truncate text-[#c4242a] dark:text-[#ff7a7e]" title={t.error}>{t.error}</span>{/if}
+                {#if t.ok}<Icon name="checkmark-circle" size={14} class="shrink-0 text-[#24855a]" /><span class="truncate">“{t.text}”</span><span class="tnum shrink-0 text-ink-2">{t.ms.toLocaleString()} ms</span>
+                {:else}<Icon name="error-circle" size={14} class="shrink-0 text-[#d43a3f]" /><span class="truncate text-[#c4242a] dark:text-[#ff7a7e]" title={t.error}>{t.error}</span>{/if}
               </span>
             {/if}
           </div>
@@ -175,7 +175,7 @@
           {@const pr = presets[k]}
           {@const d = iconFor(k)}
           <button type="button" onclick={() => pick(k)} class="flex items-center gap-2.5 rounded-xl bg-surface p-2.5 text-left shadow-[0_0_0_1px_var(--line)] hover:shadow-[0_0_0_1px_color-mix(in_srgb,var(--ink)_22%,transparent)] active:scale-[.98]">
-            <span class="owl-tile size-8">{#if d && !iconFail['p' + k]}<img src={favicon(d)} alt="" onerror={() => (iconFail['p' + k] = true)} />{:else if k === 'llamacpp'}<Cpu size={15} class="text-ink-2" />{:else}<Server size={15} class="text-ink-2" />{/if}</span>
+            <span class="owl-tile size-8">{#if d && !iconFail['p' + k]}<img src={favicon(d)} alt="" onerror={() => (iconFail['p' + k] = true)} />{:else if k === 'llamacpp'}<Icon name="developer-board" size={16} class="text-ink-2" />{:else}<Icon name="server" size={16} class="text-ink-2" />{/if}</span>
             <span class="min-w-0 truncate text-[13px] font-medium">{(pr?.name ?? k).replace(' (local)', '').replace(' (OpenAI-compatible)', '')}</span>
           </button>
         {/each}
@@ -183,7 +183,7 @@
     {/each}
   {:else}
     <form id="prov-form" class="flex flex-col gap-3.5" onsubmit={(e) => { e.preventDefault(); save(); }}>
-      {#if !f.id}<button type="button" class="owl-link -mt-1 self-start" onclick={() => (step = 'pick')}><ChevronLeft size={14} /> All providers</button>{/if}
+      {#if !f.id}<button type="button" class="owl-link -mt-1 self-start" onclick={() => (step = 'pick')}><Icon name="chevron-left" size={14} /> All providers</button>{/if}
       <Field label="Name" for="pv-name"><Input id="pv-name" bind:value={f.name} /></Field>
       <Field label="Base URL" for="pv-url" hint={preset?.local ? 'Where the local server listens. Start it before detecting models.' : 'OpenAI-compatible endpoint. The preset is right for most people.'}>
         <Input id="pv-url" bind:value={f.baseUrl} class="font-mono" spellcheck="false" />
@@ -192,7 +192,7 @@
         <Field label={f.kind === 'custom' ? 'API key (if the server needs one)' : 'API key'} for="pv-key" hint={f.hasKey ? 'A key is saved. Leave empty to keep it.' : 'Stored encrypted on this PC; never shown again.'}>
           <Input id="pv-key" type="password" bind:value={f.apiKey} placeholder={f.hasKey ? '••••••••••••' : 'sk-…'} autocomplete="off" />
         </Field>
-        {#if preset?.keyUrl}<button type="button" class="owl-link self-start" onclick={() => owl.newTab(preset.keyUrl!)}>Get a key on {hostOf(preset.keyUrl)} <ExternalLink size={12} /></button>{/if}
+        {#if preset?.keyUrl}<button type="button" class="owl-link self-start" onclick={() => owl.newTab(preset.keyUrl!)}>Get a key on {hostOf(preset.keyUrl)} <Icon name="open" size={12} /></button>{/if}
       {/if}
       {#if formError}<Note kind="error" text={formError} />{/if}
     </form>

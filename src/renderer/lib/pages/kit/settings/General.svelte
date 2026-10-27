@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../../../ui/Icon.svelte';
   import { onMount } from 'svelte';
   import { owl } from '$lib/api';
   import { store } from '$lib/stores.svelte';
@@ -7,7 +8,6 @@
   import Group from './Group.svelte';
   import Row from '../Row.svelte';
   import { patch } from './patch';
-  import { Check } from '@lucide/svelte';
 
   const s = $derived(store.settings);
   let isDefault = $state<boolean | null>(null);
@@ -30,7 +30,7 @@
   <Group>
     <Row title="Default browser" description={isDefault ? 'Links from other apps open in OWL.' : 'Links from email, chat and other apps open in another browser.'}>
       {#if isDefault === null}<span class="text-[12.5px] text-ink-2">Checking…</span>
-      {:else if isDefault}<Badge variant="ok"><Check size={12} strokeWidth={2.4} /> OWL is your default</Badge>
+      {:else if isDefault}<Badge variant="ok"><Icon name="checkmark" size={12} /> OWL is your default</Badge>
       {:else}<Button size="sm" variant="primary" loading={setting} onclick={makeDefault}>Make default</Button>{/if}
     </Row>
     <Row title="Search engine" description="Used when you type words instead of an address.">

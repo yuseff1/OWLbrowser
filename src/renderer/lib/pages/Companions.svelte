@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
+  import type { IconName } from '../ui/icons';
+  import type { MenuItem } from '$lib/ui';
   import { onMount } from 'svelte';
   import type { TabState, Companion, ModelProvider } from '$shared/types';
   import { owl, art } from '$lib/api';
@@ -10,16 +13,15 @@
   import Skel from './kit/Skel.svelte';
   import Note from './kit/Note.svelte';
   import { modelGroups, refKey, parseRef, COMPANION_SWATCHES, shade } from './kit/util';
-  import { Plus, Check, MessageCircle, Send, Ellipsis, Pencil, Copy, Trash2, Globe, Brain, MousePointer2, Blocks, FileCode2 } from '@lucide/svelte';
 
   let { tab }: { tab: TabState } = $props();
 
-  const TOOLS = [
-    { id: 'browser', label: 'Browser', hint: 'Open tabs, read and act on websites', icon: Globe },
-    { id: 'memory', label: 'Memory', hint: 'Remember and recall what matters to you', icon: Brain },
-    { id: 'computer', label: 'Computer use', hint: 'Drive the mouse and keyboard outside OWL', icon: MousePointer2 },
-    { id: 'apps', label: 'Apps', hint: 'Use your connected apps (MCP)', icon: Blocks },
-    { id: 'artifacts', label: 'Artifacts', hint: 'Build pages, charts and documents', icon: FileCode2 },
+  const TOOLS: { id: string; label: string; hint: string; icon: IconName }[] = [
+    { id: 'browser', label: 'Browser', hint: 'Open tabs, read and act on websites', icon: 'globe' },
+    { id: 'memory', label: 'Memory', hint: 'Remember and recall what matters to you', icon: 'brain-circuit' },
+    { id: 'computer', label: 'Computer use', hint: 'Drive the mouse and keyboard outside OWL', icon: 'cursor' },
+    { id: 'apps', label: 'Apps', hint: 'Use your connected apps (MCP)', icon: 'apps' },
+    { id: 'artifacts', label: 'Artifacts', hint: 'Build pages, charts and documents', icon: 'code-block' },
   ];
 
   let filter = $state<'all' | 'hired' | 'mine'>('all');
@@ -77,16 +79,16 @@
     try { await owl.removeCompanion(c.id); await store.refreshCompanions(); store.toast(`${c.name} removed`); }
     catch (e: any) { store.toast('Couldn’t remove ' + c.name, e?.message, 'error'); }
   }
-  const menuFor = (c: Companion) => [
-    { label: 'Edit', icon: Pencil, onSelect: () => edit(c) },
-    { label: 'Duplicate', icon: Copy, onSelect: () => edit(c, true) },
-    ...(c.official ? [] : [{ separator: true as const }, { label: 'Remove', icon: Trash2, danger: true, onSelect: () => remove(c) }]),
+  const menuFor = (c: Companion): MenuItem[] => [
+    { label: 'Edit', icon: 'edit', onSelect: () => edit(c) },
+    { label: 'Duplicate', icon: 'copy', onSelect: () => edit(c, true) },
+    ...(c.official ? [] : [{ separator: true as const }, { label: 'Remove', icon: 'delete' as const, danger: true, onSelect: () => remove(c) }]),
   ];
 </script>
 
 <Page title="Hire your AI colleagues" description="Each companion has its own role, tools and model. Hire the ones you want to work with." width={960}>
   {#snippet actions()}
-    <Button variant="primary" icon={Plus} onclick={() => edit()}>Create companion</Button>
+    <Button variant="primary" icon="add" onclick={() => edit()}>Create companion</Button>
   {/snippet}
   {#snippet toolbar()}
     <Segmented bind:value={filter} label="Show" options={[{ value: 'all', label: 'All' }, { value: 'hired', label: `Hired · ${hiredCount}` }, { value: 'mine', label: 'Made by you' }]} />
@@ -108,7 +110,7 @@
             {#if c.hired}<span class="absolute left-3 top-3"><Badge variant="ok" dot>Hired</Badge></span>{/if}
             <div class="absolute right-2 top-2">
               <Menu items={menuFor(c)}>
-                {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {c.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><Ellipsis size={16} /></button>{/snippet}
+                {#snippet trigger(p)}<button {...p} type="button" aria-label="More for {c.name}" class="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-surface hover:text-ink"><Icon name="more-horizontal" size={16} /></button>{/snippet}
               </Menu>
             </div>
           </div>
@@ -120,14 +122,14 @@
             <p class="mt-1 line-clamp-2 min-h-[38px] text-[13px] leading-[19px] text-ink-2">{c.tagline || 'No description yet.'}</p>
             <ul class="mt-3 flex gap-1.5 text-ink-2" aria-label="Tools">
               {#each TOOLS.filter((t) => c.tools.includes(t.id)) as t (t.id)}
-                <li title={t.label} class="grid size-6 place-items-center rounded-md bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"><t.icon size={13} strokeWidth={1.8} aria-label={t.label} /></li>
+                <li title={t.label} class="grid size-6 place-items-center rounded-md bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"><Icon name={t.icon} size={14} aria-label={t.label} /></li>
               {/each}
             </ul>
             <div class="mt-4 flex items-center gap-1.5">
-              <Button size="sm" variant={c.hired ? 'secondary' : 'primary'} icon={c.hired ? Check : Plus} aria-pressed={c.hired} onclick={() => toggleHire(c)}>{c.hired ? 'Hired' : 'Hire'}</Button>
+              <Button size="sm" variant={c.hired ? 'secondary' : 'primary'} icon={c.hired ? 'checkmark' : 'add'} aria-pressed={c.hired} onclick={() => toggleHire(c)}>{c.hired ? 'Hired' : 'Hire'}</Button>
               <div class="flex-1"></div>
-              <Button size="sm" variant="ghost" icon={MessageCircle} onclick={() => chat(c)} disabled={!c.hired}>Chat</Button>
-              <Button size="sm" variant="ghost" icon={Send} onclick={() => giveTask(c)} disabled={!c.hired}>Give a task</Button>
+              <Button size="sm" variant="ghost" icon="chat" onclick={() => chat(c)} disabled={!c.hired}>Chat</Button>
+              <Button size="sm" variant="ghost" icon="send" onclick={() => giveTask(c)} disabled={!c.hired}>Give a task</Button>
             </div>
           </div>
         </article>
@@ -163,7 +165,7 @@
       <div class="owl-sheet">
         {#each TOOLS as t (t.id)}
           <label class="flex items-center gap-3 px-3.5 py-2.5">
-            <t.icon size={15} strokeWidth={1.8} class="text-ink-2" />
+            <Icon name={t.icon} size={16} class="text-ink-2" />
             <span class="min-w-0 flex-1"><span class="block text-[13px] font-medium">{t.label}</span><span class="block text-[12px] text-ink-2">{t.hint}</span></span>
             <Switch checked={draft.tools.includes(t.id)} label={t.label} onCheckedChange={(v) => toggleTool(t.id, v)} />
           </label>

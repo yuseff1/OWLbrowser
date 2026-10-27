@@ -1,8 +1,8 @@
 <script lang="ts">
+  import Icon from '../ui/Icon.svelte';
   import { owl } from '../api';
   import { store } from '../stores.svelte';
   import { IconButton, Popover, CompanionAvatar } from '../ui';
-  import { SquarePen, MessagesSquare, Bot, Repeat, Sparkles, Blocks, Library, PanelLeftClose, ChevronsUpDown } from '@lucide/svelte';
   import OwlMark from './OwlMark.svelte';
   import VerticalTabs from './VerticalTabs.svelte';
   import ProfileMenu from './ProfileMenu.svelte';
@@ -16,12 +16,12 @@
   const live = $derived(store.liveRuns.length);
 
   const nav = [
-    { id: 'chats', label: 'Chat history', icon: MessagesSquare },
-    { id: 'agents', label: 'Agents', icon: Bot },
-    { id: 'routines', label: 'Routines', icon: Repeat },
-    { id: 'skills', label: 'Skills', icon: Sparkles },
-    { id: 'apps', label: 'Apps', icon: Blocks },
-    { id: 'library', label: 'Library', icon: Library },
+    { id: 'chats', label: 'Chat history', icon: 'chat-multiple' },
+    { id: 'agents', label: 'Agents', icon: 'bot' },
+    { id: 'routines', label: 'Routines', icon: 'arrow-repeat-all' },
+    { id: 'skills', label: 'Skills', icon: 'sparkle' },
+    { id: 'apps', label: 'Apps', icon: 'apps' },
+    { id: 'library', label: 'Library', icon: 'library' },
   ] as const;
 
   function openPage(id: string) {
@@ -38,15 +38,15 @@
   <div class="head drag" class:modern class:mac>
     <span class="brand"><OwlMark size={20} /><span>OWL</span></span>
     <span class="no-drag ml-auto">
-      <IconButton icon={PanelLeftClose} label="Hide sidebar" kbd={'Ctrl+\\'} size="sm" onclick={() => (store.sidebarOpen = false)} />
+      <IconButton icon="panel-left-contract" label="Hide sidebar" kbd={'Ctrl+\\'} size="sm" onclick={() => (store.sidebarOpen = false)} />
     </span>
   </div>
 
   <nav class="nav" aria-label="OWL">
-    <button class="item" onclick={newChat}><SquarePen size={16} strokeWidth={1.7} /><span>New chat</span></button>
+    <button class="item" onclick={newChat}><Icon name="compose" size={16} /><span>New chat</span></button>
     {#each nav as n (n.id)}
       <button class="item" class:active={internal === n.id} aria-current={internal === n.id ? 'page' : undefined} onclick={() => openPage(n.id)}>
-        <n.icon size={16} strokeWidth={1.7} /><span>{n.label}</span>
+        <Icon name={n.icon} size={16} filled={internal === n.id} /><span>{n.label}</span>
         {#if n.id === 'agents' && live}<span class="count tnum" aria-label="{live} running">{live}</span>{/if}
       </button>
     {/each}
@@ -81,7 +81,7 @@
             <span class="block truncate text-[13px] font-medium text-ink">{profile.name}</span>
             <span class="block truncate text-[11.5px] text-ink-3">{store.win.incognito ? 'Incognito' : profile.subtitle}</span>
           </span>
-          <ChevronsUpDown size={14} strokeWidth={1.8} class="text-ink-3" />
+          <Icon name="chevron-up-down" size={14} class="text-ink-3" />
         </button>
       {/snippet}
       {#snippet children({ close })}<ProfileMenu {close} />{/snippet}
