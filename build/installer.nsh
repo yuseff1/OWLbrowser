@@ -36,3 +36,45 @@
 !macro customUnInit
   !insertmacro owlStopRunningApp
 !macroend
+
+; Replace electron-builder's CHECK_APP_RUNNING (install + uninstall) with a stronger one.
+; Their version can fail to kill: per-user taskkill filter, PowerShell .Count bug, and a path
+; prefix match without the trailing backslash. Ours: graceful close, then force-kill the whole
+; tree by image name AND by path inside "$INSTDIR\" (any user we have rights for), retrying for
+; ~12 s before ever asking the user.
+!macro customCheckAppRunning
+  !define /redef owlCK ${__COUNTER__}
+  Push $R1
+  Push $R2
+  StrCpy $R1 0
+  owlKillLoop_${owlCK}:
+    nsExec::Exec `"$SYSDIR\cmd.exe" /C tasklist /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
+    Pop $R2
+    ${if} $R2 != 0
+      Goto owlKillDone_${owlCK}
+    ${endIf}
+    ${if} $R1 == 0
+      DetailPrint `Closing running "${PRODUCT_NAME}"...`
+      nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /IM "${APP_EXECUTABLE_FILENAME}"`
+      Pop $R2
+      Sleep 1500
+    ${endIf}
+    nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /F /T /IM "${APP_EXECUTABLE_FILENAME}"`
+    Pop $R2
+    nsExec::Exec `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -C "$$d = '$INSTDIR'.TrimEnd('\') + '\'; Get-CimInstance Win32_Process | ? { $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$d, 'OrdinalIgnoreCase') -and $$_.ProcessId -ne $$PID } | % { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
+    Pop $R2
+    Sleep 1000
+    IntOp $R1 $R1 + 1
+    ${if} $R1 < 10
+      Goto owlKillLoop_${owlCK}
+    ${endIf}
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(appCannotBeClosed)" /SD IDCANCEL IDRETRY owlKillRetry_${owlCK}
+    Quit
+  owlKillRetry_${owlCK}:
+    StrCpy $R1 1
+    Goto owlKillLoop_${owlCK}
+  owlKillDone_${owlCK}:
+  Pop $R2
+  Pop $R1
+  !undef owlCK
+!macroend
