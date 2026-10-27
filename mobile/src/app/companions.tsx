@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Check } from 'lucide-react-native';
-import { useTheme, radius } from '@/lib/theme';
+import { useTheme, radius, space } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
 import { COMPANIONS, artFor } from '@/lib/companions';
@@ -20,24 +20,23 @@ export default function CompanionsScreen() {
       data={COMPANIONS}
       keyExtractor={(c) => c.id}
       numColumns={2}
-      columnWrapperStyle={{ gap: 12 }}
-      contentContainerStyle={{ padding: 16, gap: 12 }}
+      columnWrapperStyle={{ gap: space.sm }}
+      contentContainerStyle={{ padding: space.md, gap: space.sm }}
       renderItem={({ item }) => {
         const on = item.id === current;
         return (
           <Tap
             label={`${item.name}, ${item.role}${on ? ', selected' : ''}`}
-            onPress={() => { haptic('success'); app.patchSettings({ companionId: item.id }); router.back(); }}
-            style={[styles.card, { backgroundColor: t.surface, borderColor: on ? item.look.body : t.line, borderWidth: on ? 2.5 : StyleSheet.hairlineWidth }]}
+            onPress={() => { haptic('selection'); app.patchSettings({ companionId: item.id }); router.back(); }}
+            style={[styles.card, { backgroundColor: t.surface, borderColor: on ? t.accentFill : 'transparent' }]}
           >
-            <View style={[styles.art, { backgroundColor: item.look.body + (t.dark ? '26' : '1F') }]}>
-              <Image source={artFor(item.id)} style={{ width: '88%', height: '88%' }} contentFit="contain" />
-              {on ? <View style={[styles.check, { backgroundColor: item.look.body }]}><Check size={14} color="#fff" strokeWidth={3} /></View> : null}
+            <View style={styles.art}>
+              <Image source={artFor(item.id)} style={{ width: '72%', height: '72%' }} contentFit="contain" />
+              {on ? <View style={[styles.check, { backgroundColor: t.accentFill }]}><Check size={14} color={t.accentInk} /></View> : null}
             </View>
-            <View style={{ padding: 12, gap: 2 }}>
-              <T style={{ fontSize: 17, fontWeight: '700' }}>{item.name}</T>
-              <T kind="small" color={item.look.body} style={{ fontWeight: '600' }}>{item.role}</T>
-              <T kind="small" numberOfLines={3}>{item.tagline}</T>
+            <View style={{ paddingHorizontal: space.md, paddingBottom: space.md }}>
+              <T kind="headline">{item.name}</T>
+              <T kind="footnote" numberOfLines={1}>{item.role}</T>
             </View>
           </Tap>
         );
@@ -47,7 +46,7 @@ export default function CompanionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, borderRadius: radius.lg, overflow: 'hidden' },
-  art: { height: 150, alignItems: 'center', justifyContent: 'center' },
+  card: { flex: 1, borderRadius: radius.lg, borderCurve: 'continuous', overflow: 'hidden', borderWidth: 2 },
+  art: { height: 140, alignItems: 'center', justifyContent: 'center' },
   check: { position: 'absolute', top: 10, right: 10, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

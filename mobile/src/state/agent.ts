@@ -141,7 +141,7 @@ async function runTool(run: AgentRun, name: string, args: any, ctx: ToolCtx): Pr
     }
   }
   if (name === 'snapshot' || name === 'click' || name === 'type') {
-    await setCursor(ctx.tabId, true, companionById(run.companionId).look.body);
+    await setCursor(ctx.tabId, true, '#E8A317');
   }
   return runBrowserTool(name, args, ctx);
 }
@@ -199,7 +199,7 @@ async function execute(id: string) {
       if (status === 'done') addStep(id, { kind: 'message', text: result || 'Done.' });
       update(id, { status, result, endedAt: Date.now(), pendingApproval: undefined, pendingQuestion: undefined });
     }
-    setCursor(run.tabId, false, c.look.body);
+    setCursor(run.tabId, false, '#E8A317');
     live.delete(id);
     agentStore.set((s) => ({ activeRunId: s.activeRunId === id ? null : s.activeRunId }));
   }

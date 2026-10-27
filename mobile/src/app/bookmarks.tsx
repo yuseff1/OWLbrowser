@@ -2,13 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { Trash2, Star } from 'lucide-react-native';
-import { useTheme, radius } from '@/lib/theme';
+import { Trash2 } from 'lucide-react-native';
+import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
 import { browser } from '@/state/browser';
 import { faviconFor, hostOf } from '@/lib/url';
-import { IconButton, T, Tap } from '@/components/ui';
+import { Empty, IconButton, T, Tap, fieldStyle } from '@/components/ui';
 
 export default function BookmarksScreen() {
   const t = useTheme();
@@ -25,24 +25,18 @@ export default function BookmarksScreen() {
       style={{ backgroundColor: t.ground }}
       data={list}
       keyExtractor={(b) => b.id}
-      contentContainerStyle={{ padding: 16 }}
+      contentContainerStyle={{ padding: space.md }}
       keyboardShouldPersistTaps="handled"
-      ListHeaderComponent={<TextInput value={q} onChangeText={setQ} placeholder="Search bookmarks" placeholderTextColor={t.ink3} style={[styles.search, { backgroundColor: t.surface2, color: t.ink }]} accessibilityLabel="Search bookmarks" />}
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <Star size={34} color={t.ink3} />
-          <T style={{ fontWeight: '600' }}>No bookmarks yet</T>
-          <T kind="small" style={{ textAlign: 'center' }}>Open the page menu (☰ in the address bar) and tap Bookmark.</T>
-        </View>
-      }
+      ListHeaderComponent={<TextInput value={q} onChangeText={setQ} placeholder="Search bookmarks" placeholderTextColor={t.ink3} selectionColor={t.accentFill} style={[fieldStyle(t), { marginBottom: space.md }]} accessibilityLabel="Search bookmarks" />}
+      ListEmptyComponent={<Empty text={q ? 'No matches' : 'No bookmarks'} />}
       renderItem={({ item }) => (
-        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} style={[styles.row, { backgroundColor: t.surface, borderColor: t.line }]}>
+        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} feedback="highlight" haptics={false} style={styles.row}>
           <Image source={{ uri: faviconFor(item.url) || undefined }} style={styles.fav} contentFit="contain" />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <T numberOfLines={1} style={{ fontSize: 15, fontWeight: '500' }}>{item.title}</T>
-            <T kind="small" numberOfLines={1}>{hostOf(item.url)}</T>
+            <T numberOfLines={1}>{item.title}</T>
+            <T kind="footnote" numberOfLines={1}>{hostOf(item.url)}</T>
           </View>
-          <IconButton label={`Delete ${item.title}`} icon={<Trash2 size={18} color={t.ink3} />} onPress={() => app.removeBookmark(item.id)} />
+          <IconButton label={`Delete ${item.title}`} icon={<Trash2 size={icon.sm} color={t.ink3} />} onPress={() => app.removeBookmark(item.id)} />
         </Tap>
       )}
     />
@@ -50,8 +44,6 @@ export default function BookmarksScreen() {
 }
 
 const styles = StyleSheet.create({
-  search: { height: 44, borderRadius: radius.md, paddingHorizontal: 14, fontSize: 16, marginBottom: 14 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 14, paddingVertical: 6, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
-  fav: { width: 22, height: 22, borderRadius: 4 },
-  empty: { alignItems: 'center', gap: 8, marginTop: 80, paddingHorizontal: 30 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 56, paddingLeft: space.xs, borderRadius: radius.sm },
+  fav: { width: 20, height: 20, borderRadius: 5 },
 });

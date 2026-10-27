@@ -13,18 +13,38 @@ export async function loadJson<T>(key: string, fallback: T): Promise<T> {
 }
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
+const pendingValues = new Map<string, unknown>();
+
+function write(key: string, value: unknown) {
+  let raw: string;
+  try { raw = JSON.stringify(value); } catch { return; }
+  AsyncStorage.setItem('owl:' + key, raw).catch(() => {});
+}
 
 /** Debounced write: browsing generates many small updates (history, tab titles). */
 export function saveJson(key: string, value: unknown, delay = 300) {
   const prev = timers.get(key);
   if (prev) clearTimeout(prev);
+  pendingValues.set(key, value);
   timers.set(
     key,
     setTimeout(() => {
       timers.delete(key);
-      AsyncStorage.setItem('owl:' + key, JSON.stringify(value)).catch(() => {});
+      pendingValues.delete(key);
+      write(key, value);
     }, delay),
   );
+}
+
+/** Write every debounced value now (app going to background, or about to handle a crash). */
+export function flushAll() {
+  for (const [key, value] of pendingValues) {
+    const tm = timers.get(key);
+    if (tm) clearTimeout(tm);
+    timers.delete(key);
+    write(key, value);
+  }
+  pendingValues.clear();
 }
 
 export async function removeKey(key: string) {

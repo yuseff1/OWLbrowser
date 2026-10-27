@@ -3,7 +3,7 @@ import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'reac
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { ChevronRight, KeyRound } from 'lucide-react-native';
-import { useTheme, radius } from '@/lib/theme';
+import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { appStore } from '@/state/app';
 import { browserStore } from '@/state/browser';
@@ -11,7 +11,7 @@ import { agent, agentStore } from '@/state/agent';
 import { companionById, faceFor } from '@/lib/companions';
 import { hostOf } from '@/lib/url';
 import { Composer } from '@/components/Composer';
-import { T, Tap } from '@/components/ui';
+import { IconWell, T, Tap } from '@/components/ui';
 
 /** Ask the companion to work on the current page, plus recent runs. */
 export default function AskScreen() {
@@ -24,7 +24,7 @@ export default function AskScreen() {
   const c = companionById(companionId);
   const host = tab?.url ? hostOf(tab.url) : '';
   const suggestions = host
-    ? [`Summarise this page`, `What are the key facts on ${host}?`, `Find the contact details on this site`]
+    ? ['Summarise this page', 'Key facts on this page', 'Find contact details']
     : c.ideas;
 
   const start = (task: string) => {
@@ -37,39 +37,38 @@ export default function AskScreen() {
       <FlatList
         data={runs}
         keyExtractor={(r) => r.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        contentContainerStyle={{ padding: space.md, paddingBottom: space.xl }}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
-          <View style={{ gap: 14, marginBottom: 18 }}>
+          <View style={{ gap: space.sm, marginBottom: space.xl }}>
             {!hasModel ? (
-              <Tap label="Set up a model" onPress={() => router.push('/settings/models')} style={[styles.warn, { backgroundColor: t.accentSoft }]}>
-                <KeyRound size={18} color={t.accent} />
-                <T style={{ flex: 1, fontSize: 14 }} color={t.ink}>Add an AI model first (API key or a model on your network).</T>
-                <ChevronRight size={16} color={t.accent} />
+              <Tap label="Add a model" onPress={() => router.push('/settings/models')} style={[styles.warn, { backgroundColor: t.surface }]}>
+                <IconWell tint={t.accentSoft}><KeyRound size={icon.md} color={t.accent} /></IconWell>
+                <T style={{ flex: 1 }}>Add a model</T>
+                <ChevronRight size={icon.sm} color={t.ink3} />
               </Tap>
             ) : null}
-            <T kind="small">{host ? `${c.name} will work in this tab (${host}).` : `${c.name} will work in this tab.`}</T>
             <Composer companionId={companionId} onSubmit={start} onPickCompanion={() => router.push('/companions')} autoFocus />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
               {suggestions.map((s) => (
-                <Tap key={s} label={s} onPress={() => start(s)} style={[styles.chip, { backgroundColor: t.surface, borderColor: t.line }]}>
-                  <T style={{ fontSize: 14 }}>{s}</T>
+                <Tap key={s} label={s} onPress={() => start(s)} style={[styles.chip, { backgroundColor: t.surface }]}>
+                  <T kind="callout" numberOfLines={1}>{s}</T>
                 </Tap>
               ))}
             </View>
-            {runs.length ? <T kind="tiny" color={t.ink3} style={{ marginTop: 10 }}>Recent</T> : null}
+            {runs.length ? <T kind="section" style={{ marginTop: space.md, marginLeft: space.xxs }}>Recent</T> : null}
           </View>
         }
         renderItem={({ item }) => {
           const rc = companionById(item.companionId);
           return (
-            <Tap label={item.task} onPress={() => { agent.view(item.id); router.back(); }} style={[styles.run, { backgroundColor: t.surface, borderColor: t.line }]}>
-              <Image source={faceFor(rc.id)} style={{ width: 30, height: 30 }} contentFit="contain" />
+            <Tap label={item.task} onPress={() => { agent.view(item.id); router.back(); }} feedback="highlight" style={[styles.run, { backgroundColor: t.surface }]}>
+              <Image source={faceFor(rc.id)} style={{ width: 36, height: 36, borderRadius: 18 }} contentFit="cover" />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <T numberOfLines={1} style={{ fontSize: 15, fontWeight: '500' }}>{item.task}</T>
-                <T kind="small" numberOfLines={1}>{rc.name} · {item.status}{item.result ? ' · ' + item.result.replace(/\s+/g, ' ').slice(0, 80) : ''}</T>
+                <T numberOfLines={1}>{item.task}</T>
+                <T kind="footnote" numberOfLines={1}>{rc.name} · {item.status}</T>
               </View>
-              <ChevronRight size={16} color={t.ink3} />
+              <ChevronRight size={icon.sm} color={t.ink3} />
             </Tap>
           );
         }}
@@ -79,7 +78,7 @@ export default function AskScreen() {
 }
 
 const styles = StyleSheet.create({
-  warn: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: radius.md },
-  chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
-  run: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
+  warn: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.sm, borderRadius: radius.lg, borderCurve: 'continuous' },
+  chip: { maxWidth: '100%', paddingHorizontal: space.md, height: 40, justifyContent: 'center', borderRadius: radius.pill },
+  run: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.sm, borderRadius: radius.lg, borderCurve: 'continuous', marginBottom: space.xs },
 });

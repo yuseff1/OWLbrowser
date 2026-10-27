@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Check, Cloud, Wifi, Plus, KeyRound } from 'lucide-react-native';
-import { useTheme } from '@/lib/theme';
+import { useTheme, space, radius, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { appStore } from '@/state/app';
 import { PROVIDER_PRESETS, CLOUD_KINDS, LOCAL_KINDS } from '@/lib/providers';
@@ -16,37 +16,34 @@ export default function ModelsScreen() {
   const def = useStore(appStore, (s) => s.settings.defaultModel);
 
   return (
-    <ScrollView style={{ backgroundColor: t.ground }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView style={{ backgroundColor: t.ground }} contentContainerStyle={{ padding: space.md, paddingBottom: space.xxxl }}>
       {providers.length ? (
-        <Section title="Your models" footer="The default model powers every companion run.">
+        <Section title="Your models">
           {providers.map((p, i) => (
             <Row
               key={p.id}
               last={i === providers.length - 1}
-              icon={p.local ? <Wifi size={20} color={t.ink2} /> : <Cloud size={20} color={t.ink2} />}
+              icon={p.local ? <Wifi size={icon.md} color={t.ink} /> : <Cloud size={icon.md} color={t.ink} />}
               title={p.name}
-              subtitle={def?.providerId === p.id ? `Default · ${def.model}` : !p.local && !p.hasKey ? 'No API key yet' : `${p.models.length} model${p.models.length === 1 ? '' : 's'}`}
-              right={def?.providerId === p.id ? <Check size={18} color={t.accent} /> : !p.local && !p.hasKey ? <KeyRound size={16} color={t.warn} /> : null}
+              subtitle={def?.providerId === p.id ? def.model : !p.local && !p.hasKey ? 'No key' : `${p.models.length} models`}
+              right={def?.providerId === p.id ? <Check size={icon.md} color={t.accent} /> : !p.local && !p.hasKey ? <KeyRound size={icon.sm} color={t.ink3} /> : null}
               onPress={() => router.push({ pathname: '/settings/provider', params: { id: p.id } })}
             />
           ))}
         </Section>
       ) : (
-        <View style={[styles.intro, { backgroundColor: t.accentSoft }]}>
-          <T style={{ fontWeight: '600' }}>Connect a model to wake up your companions</T>
-          <T kind="small" style={{ marginTop: 4 }}>Paste an API key from any provider below, or point OWL at Ollama / LM Studio running on a computer on your Wi-Fi. Keys stay in your phone's secure keychain.</T>
-        </View>
+        <T kind="title" style={styles.intro}>Add a model</T>
       )}
 
-      <Section title="Local on my network" footer="Runs on your own computer: free and private. Your phone must be on the same Wi-Fi.">
+      <Section title="On your network" footer="Same Wi-Fi as this phone.">
         {LOCAL_KINDS.map((k, i) => (
-          <Row key={k} last={i === LOCAL_KINDS.length - 1} icon={<Wifi size={20} color={t.success} />} title={PROVIDER_PRESETS[k].name} subtitle={PROVIDER_PRESETS[k].hint} right={<Plus size={18} color={t.accent} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
+          <Row key={k} last={i === LOCAL_KINDS.length - 1} icon={<Wifi size={icon.md} color={t.ink} />} title={PROVIDER_PRESETS[k].name} subtitle={PROVIDER_PRESETS[k].hint} right={<Plus size={icon.md} color={t.ink3} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
         ))}
       </Section>
 
-      <Section title="Cloud providers">
+      <Section title="Cloud">
         {CLOUD_KINDS.map((k, i) => (
-          <Row key={k} last={i === CLOUD_KINDS.length - 1} icon={<Cloud size={20} color={t.ink2} />} title={PROVIDER_PRESETS[k].name} subtitle={PROVIDER_PRESETS[k].hint || PROVIDER_PRESETS[k].models.slice(0, 2).join(', ')} right={<Plus size={18} color={t.accent} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
+          <Row key={k} last={i === CLOUD_KINDS.length - 1} icon={<Cloud size={icon.md} color={t.ink} />} title={PROVIDER_PRESETS[k].name} right={<Plus size={icon.md} color={t.ink3} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
         ))}
       </Section>
     </ScrollView>
@@ -54,5 +51,5 @@ export default function ModelsScreen() {
 }
 
 const styles = StyleSheet.create({
-  intro: { padding: 16, borderRadius: 16, marginBottom: 22 },
+  intro: { marginTop: space.xs, marginBottom: space.xl, marginLeft: space.xxs },
 });

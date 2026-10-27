@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Check, ExternalLink, RefreshCw, Zap } from 'lucide-react-native';
+import { Check, ExternalLink, RefreshCw } from 'lucide-react-native';
 import { useTheme, radius } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
@@ -95,7 +95,7 @@ export default function ProviderScreen() {
           ) : null}
           <View style={[styles.field, { flexDirection: 'row', gap: 10 }]}>
             <Button title="Save" kind="secondary" onPress={async () => { setBusy('save'); await save(); setBusy(''); setStatus({ ok: true, text: 'Saved.' }); }} style={{ flex: 1 }} />
-            <Button title="Test" icon={<Zap size={16} color={t.accentInk} />} onPress={test} style={{ flex: 1 }} />
+            <Button title="Test" onPress={test} style={{ flex: 1 }} />
           </View>
           {busy ? <ActivityIndicator color={t.accent} style={{ marginBottom: 12 }} /> : null}
           {status ? <T kind="small" color={status.ok ? t.success : t.danger} style={{ paddingHorizontal: 16, paddingBottom: 14 }}>{status.text}</T> : null}
@@ -113,7 +113,7 @@ export default function ProviderScreen() {
             const on = def?.providerId === providerId && def?.model === m;
             return <Row key={m} last={i === Math.min(shown.length, 200) - 1} title={m} right={on ? <Check size={18} color={t.accent} /> : null} onPress={() => useModel(m)} />;
           })}
-          {!shown.length ? <T kind="small" style={{ padding: 16 }}>No models yet — tap Discover.</T> : null}
+          {!shown.length ? <T kind="small" style={{ padding: 16 }}>No models</T> : null}
         </Section>
 
         {existing ? <Button title="Remove provider" kind="ghost" onPress={remove} /> : null}
@@ -124,6 +124,6 @@ export default function ProviderScreen() {
 
 const styles = StyleSheet.create({
   field: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 6 },
-  input: { height: 46, borderRadius: radius.md, paddingHorizontal: 14, fontSize: 15 },
+  input: { height: 44, borderRadius: radius.sm, paddingHorizontal: 14, fontSize: 16 },
   link: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6 },
 });

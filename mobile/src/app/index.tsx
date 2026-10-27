@@ -13,19 +13,22 @@ import { Home } from '@/components/Home';
 import { RunSheet } from '@/components/RunSheet';
 import { MenuSheet } from '@/components/MenuSheet';
 import { ControlRing } from '@/components/ControlRing';
+import { useKeyboardLift } from '@/lib/keyboard';
 
 /** The browser: live WebViews (most-recent tabs stay mounted), OWL Home for empty tabs, glass bottom bar. */
 export default function BrowserScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState(false);
+  const [rootH, setRootH] = useState(0);
+  const kb = useKeyboardLift(rootH);
   const tabs = useStore(browserStore, (s) => s.tabs);
   const activeId = useStore(browserStore, (s) => s.activeId);
   const alive = useStore(browserStore, (s) => s.alive);
   const { adblock, desktopMode } = useStore(appStore, (s) => ({ adblock: s.settings.adblock, desktopMode: s.settings.desktopMode }));
   const isolated = useStore(appStore, (s) => !!s.profiles.find((p) => p.id === s.profileId)?.isolated);
   const run = useStore(agentStore, (s) => s.runs.find((r) => r.id === s.activeRunId) || null);
-  const active = tabs.find((x) => x.id === activeId) || tabs[0];
+  const active = tabs.find((x) => x.id === activeId) || tabs[0] || { id: '', url: '', src: '', private: false, title: '', nonce: 0, createdAt: 0, lastActive: 0 };
 
   // Android hardware back: close sheet → page back → home
   useEffect(() => {
@@ -40,14 +43,14 @@ export default function BrowserScreen() {
     return () => sub.remove();
   }, []);
 
-  const bottomInset = BAR_HEIGHT + Math.max(insets.bottom, 10);
+  const bottomInset = BAR_HEIGHT + Math.max(insets.bottom, 12);
   // The WebView sits under the glass bar on iOS (contentInset keeps content reachable). Android can't inset, so stop above it.
   const webBottom = Platform.OS === 'ios' ? 0 : bottomInset;
   const mounted = tabs.filter((x) => x.src && (alive.includes(x.id) || x.id === run?.tabId));
   const c = run ? companionById(run.companionId) : null;
 
   return (
-    <View style={[styles.root, { backgroundColor: t.ground, paddingTop: insets.top }]}>
+    <View style={[styles.root, { backgroundColor: t.ground, paddingTop: insets.top }]} onLayout={(e) => setRootH(e.nativeEvent.layout.height)}>
       <View style={[styles.page, { marginBottom: webBottom }]}>
         {mounted.map((tab) => (
           <BrowserWebView
@@ -66,11 +69,11 @@ export default function BrowserScreen() {
           </View>
         ) : null}
         {run && c && run.tabId === active.id && active.src ? (
-          <ControlRing name={c.name} companionId={c.id} color={c.look.body} onPress={() => agent.openSheet(true)} />
+          <ControlRing name={c.name} companionId={c.id} onPress={() => agent.openSheet(true)} />
         ) : null}
       </View>
-      <BottomBar onOpenMenu={() => setMenu(true)} />
-      <RunSheet />
+      <BottomBar onOpenMenu={() => setMenu(true)} lift={kb.lift} liftAnim={kb.anim} />
+      <RunSheet lift={kb.lift} />
       <MenuSheet visible={menu} onClose={() => setMenu(false)} />
     </View>
   );

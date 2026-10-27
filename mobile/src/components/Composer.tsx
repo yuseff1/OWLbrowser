@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
 import { ArrowUp } from 'lucide-react-native';
 import { Image } from 'expo-image';
-import { useTheme, radius } from '@/lib/theme';
+import { useTheme, radius, space, icon } from '@/lib/theme';
 import { faceFor, companionById } from '@/lib/companions';
 import { Tap, haptic } from './ui';
 
-/** Soft neumorphic composer: "Work with Hoot…". */
+/** Flat message field: companion face (tap to switch), text, send. */
 export function Composer({ companionId, onSubmit, onPickCompanion, autoFocus, placeholder }: {
   companionId: string;
   onSubmit: (text: string) => void;
@@ -17,6 +17,7 @@ export function Composer({ companionId, onSubmit, onPickCompanion, autoFocus, pl
   const t = useTheme();
   const [text, setText] = useState('');
   const c = companionById(companionId);
+  const ready = !!text.trim();
   const send = () => {
     const v = text.trim();
     if (!v) return;
@@ -25,26 +26,16 @@ export function Composer({ companionId, onSubmit, onPickCompanion, autoFocus, pl
     setText('');
   };
   return (
-    <View
-      style={[
-        styles.outer,
-        {
-          backgroundColor: t.neuBg,
-          shadowColor: t.neuDark,
-          borderColor: t.dark ? 'rgba(255,240,225,0.06)' : 'rgba(255,255,255,0.9)',
-        },
-      ]}
-    >
-      {/* the light edge of the neumorphic pair */}
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.highlight, { borderColor: t.neuLight }]} />
-      <Tap label={`Choose companion (now ${c.name})`} onPress={onPickCompanion} style={[styles.face, { backgroundColor: c.look.body + '33' }]}>
-        <Image source={faceFor(companionId)} style={{ width: 30, height: 30 }} contentFit="contain" />
+    <View style={[styles.box, { backgroundColor: t.surface }]}>
+      <Tap label={`Companion: ${c.name}. Change`} onPress={onPickCompanion} style={styles.face} feedback="opacity">
+        <Image source={faceFor(companionId)} style={{ width: 30, height: 30, borderRadius: 15 }} contentFit="cover" />
       </Tap>
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder={placeholder ?? `Work with ${c.name}…`}
+        placeholder={placeholder ?? `Ask ${c.name}`}
         placeholderTextColor={t.ink3}
+        selectionColor={t.accentFill}
         style={[styles.input, { color: t.ink }]}
         multiline
         autoFocus={autoFocus}
@@ -53,28 +44,16 @@ export function Composer({ companionId, onSubmit, onPickCompanion, autoFocus, pl
         onSubmitEditing={send}
         accessibilityLabel={`Message ${c.name}`}
       />
-      <Tap label="Send" onPress={send} disabled={!text.trim()} style={[styles.send, { backgroundColor: text.trim() ? t.accent : t.surface2 }]}>
-        <ArrowUp size={20} color={text.trim() ? t.accentInk : t.ink3} strokeWidth={2.5} />
+      <Tap label="Send" onPress={send} disabled={!ready} style={[styles.send, { backgroundColor: ready ? t.accentFill : t.surface2 }]}>
+        <ArrowUp size={icon.md} color={ready ? t.accentInk : t.ink3} />
       </Tap>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  outer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    padding: 8,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowOffset: { width: 6, height: 8 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.35 : 0,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  highlight: { borderRadius: radius.xl, borderTopWidth: 1, borderLeftWidth: 1 },
-  face: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, fontSize: 17, minHeight: 40, maxHeight: 140, paddingTop: Platform.OS === 'ios' ? 10 : 8, paddingBottom: 8 },
-  send: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  box: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xxs, padding: 6, borderRadius: radius.xl, borderCurve: 'continuous' },
+  face: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, fontSize: 16, minHeight: 44, maxHeight: 140, paddingTop: Platform.OS === 'ios' ? 12 : 10, paddingBottom: 10 },
+  send: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });

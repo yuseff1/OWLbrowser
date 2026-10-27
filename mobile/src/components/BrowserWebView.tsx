@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useRef } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Alert, Linking, StyleSheet, View } from 'react-native';
 import type { ShouldStartLoadRequest, WebViewMessageEvent, WebViewNavigation, WebViewNavigationEvent, WebViewProgressEvent } from 'react-native-webview/lib/WebViewTypes';
 import { WebView, type WebViewHandle } from './WebViewBase';
 import { browser, webviews, type BrowserTab } from '@/state/browser';
@@ -8,6 +8,30 @@ import { useTheme } from '@/lib/theme';
 
 const DESKTOP_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
 const PASSTHROUGH = /^(https?|about|data|blob|file|javascript):/i;
+
+/**
+ * Links to other apps (mailto:, tel:, market:, intent:, app schemes). These used to be handed to the OS straight
+ * from onShouldStartLoadWithRequest, so any redirect, ad frame or script on a results page could throw the user
+ * out of OWL into another app without a tap. Now: intent: links use their https fallback inside the tab, iframes
+ * are ignored, and anything else asks first (at most one prompt at a time).
+ */
+let promptOpen = false;
+function handOff(url: string, tabId: string, topFrame: boolean) {
+  if (url.startsWith('intent:')) {
+    const m = url.match(/;S\.browser_fallback_url=([^;]+)/);
+    let fallback = '';
+    try { fallback = m ? decodeURIComponent(m[1]) : ''; } catch {}
+    if (topFrame && /^https?:\/\//i.test(fallback)) setTimeout(() => browser.navigate(tabId, fallback), 0);
+    return;
+  }
+  if (!topFrame || promptOpen) return;
+  const scheme = (url.match(/^([a-z][a-z0-9+.-]*):/i)?.[1] || '').toLowerCase();
+  promptOpen = true;
+  Alert.alert('Open in another app?', scheme === 'mailto' ? 'Email' : scheme === 'tel' ? 'Phone' : scheme, [
+    { text: 'Cancel', style: 'cancel', onPress: () => { promptOpen = false; } },
+    { text: 'Open', onPress: () => { promptOpen = false; Linking.openURL(url).catch(() => {}); } },
+  ], { cancelable: true, onDismiss: () => { promptOpen = false; } });
+}
 
 type Props = {
   tab: BrowserTab;
@@ -56,13 +80,12 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
   const onShouldStart = useCallback((req: ShouldStartLoadRequest) => {
     const url = req.url || '';
     if (!PASSTHROUGH.test(url)) {
-      // mailto:, tel:, intent:, app links… hand off to the OS
-      Linking.openURL(url.startsWith('intent:') ? url.replace(/^intent:/, 'https:').replace(/#Intent;.*$/, '') : url).catch(() => {});
+      handOff(url, id, req.isTopFrame !== false);
       return false;
     }
     if (adblock && isBlocked(url) && url !== tab.src) return false;
     return true;
-  }, [adblock, tab.src]);
+  }, [adblock, tab.src, id]);
 
   const onOpenWindow = useCallback((e: any) => {
     const url = e.nativeEvent?.targetUrl;
@@ -101,9 +124,7 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
       mediaPlaybackRequiresUserAction
       setSupportMultipleWindows
       javaScriptCanOpenWindowsAutomatically={false}
-      pullToRefreshEnabled
-      refreshControlLightMode={t.dark}
-      decelerationRate="normal"
+      pullToRefreshEnabled={false}
       contentInset={{ bottom: bottomInset }}
       automaticallyAdjustContentInsets={false}
       contentInsetAdjustmentBehavior="never"

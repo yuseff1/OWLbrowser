@@ -3,15 +3,18 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View, useColorScheme } 
 import { Stack, SplashScreen, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LucideProvider } from 'lucide-react-native';
+import { installCrashGuard } from '@/lib/crashguard';
 import { useStore } from '@/lib/store';
-import { useTheme } from '@/lib/theme';
+import { useTheme, icon } from '@/lib/theme';
 import { app, appStore } from '@/state/app';
 import { browser, browserStore } from '@/state/browser';
 
 /** Startup must never hang: if storage is slow or broken, start with defaults after this long. */
 const STARTUP_TIMEOUT_MS = 6000;
+
+installCrashGuard();
 
 let startupPromise: Promise<void> | null = null;
 function startup(): Promise<void> {
@@ -47,14 +50,15 @@ export default function RootLayout() {
     presentation: 'modal' as const,
     headerShown: true,
     headerStyle: { backgroundColor: t.ground },
-    headerTintColor: t.accent,
-    headerTitleStyle: { color: t.ink },
+    headerTintColor: t.ink,
+    headerTitleStyle: { color: t.ink, fontSize: 17, fontWeight: '600' as const },
     headerShadowVisible: false,
     contentStyle: { backgroundColor: t.ground },
   };
 
   return (
     <SafeAreaProvider>
+      <LucideProvider strokeWidth={icon.stroke}>
       <StatusBar style={t.dark ? 'light' : 'dark'} />
       {ready && tabsReady ? (
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.ground } }}>
@@ -76,6 +80,7 @@ export default function RootLayout() {
           <ActivityIndicator color={t.accent} />
         </View>
       )}
+      </LucideProvider>
     </SafeAreaProvider>
   );
 }
@@ -86,43 +91,36 @@ export default function RootLayout() {
  */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const dark = useColorScheme() !== 'light';
-  const bg = dark ? '#12110F' : '#F5F3EF';
-  const ink = dark ? '#F3EEE8' : '#1C1A17';
-  const ink2 = dark ? '#B3AAA0' : '#5C5650';
-  const accent = dark ? '#E8A317' : '#9A6400';
+  const bg = dark ? '#0E0D0C' : '#F6F5F2';
+  const ink = dark ? '#F5F2EE' : '#141317';
+  const ink2 = dark ? '#A39C94' : '#5E5953';
+  const surface = dark ? '#1A1917' : '#FFFFFF';
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
-  const startFresh = async () => {
-    // Saved tabs are the most likely corrupt state; drop them (bookmarks, history and settings are kept).
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const tabKeys = keys.filter((k) => k.startsWith('owl:') && k.endsWith(':tabs'));
-      if (tabKeys.length) await AsyncStorage.multiRemove(tabKeys);
-    } catch {}
-    try { await browser.init(); } catch {}
+  // Never deletes anything: saved tabs, history, bookmarks, settings and keys all stay. It only opens a fresh
+  // tab (in case the page in the current one is what broke) and redraws.
+  const newTab = async () => {
+    try { browser.newTab(); } catch {}
     await retry();
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: bg, paddingTop: 72, paddingHorizontal: 24 }}>
-      <Text style={{ color: ink, fontSize: 24, fontWeight: '700', marginBottom: 8 }}>OWL hit a problem</Text>
-      <Text style={{ color: ink2, fontSize: 15, marginBottom: 16 }}>
-        Something went wrong while drawing the screen. You can try again, or start fresh with a new tab.
-      </Text>
-      <ScrollView style={{ maxHeight: 220, marginBottom: 20, borderRadius: 12, backgroundColor: dark ? '#1B1916' : '#FFFFFF', padding: 12 }}>
+    <View style={{ flex: 1, backgroundColor: bg, paddingTop: 96, paddingHorizontal: 24 }}>
+      <Text style={{ color: ink, fontSize: 22, fontWeight: '600', letterSpacing: -0.4, marginBottom: 6 }}>Something went wrong</Text>
+      <Text style={{ color: ink2, fontSize: 15, marginBottom: 20 }}>Your tabs and data are safe.</Text>
+      <ScrollView style={{ maxHeight: 160, marginBottom: 24, borderRadius: 12, backgroundColor: surface, padding: 12 }}>
         <Text selectable style={{ color: ink2, fontSize: 12, fontFamily: 'monospace' }}>
           {String(error?.name || 'Error')}: {String(error?.message || error)}
-          {error?.stack ? '\n\n' + String(error.stack).split('\n').slice(0, 12).join('\n') : ''}
         </Text>
       </ScrollView>
-      <Pressable accessibilityRole="button" onPress={() => { retry(); }} style={{ backgroundColor: accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 12 }}>
-        <Text style={{ color: dark ? '#141317' : '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Try again</Text>
+      <Pressable accessibilityRole="button" onPress={() => { retry(); }} style={{ backgroundColor: '#E8A317', borderRadius: 999, height: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+        <Text style={{ color: '#141317', fontSize: 16, fontWeight: '600' }}>Try again</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" onPress={startFresh} style={{ borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: ink2 }}>
-        <Text style={{ color: ink, fontSize: 16, fontWeight: '600' }}>Start fresh (close all tabs)</Text>
+      <Pressable accessibilityRole="button" onPress={newTab} style={{ borderRadius: 999, height: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: surface }}>
+        <Text style={{ color: ink, fontSize: 16, fontWeight: '600' }}>Open a new tab</Text>
       </Pressable>
     </View>
   );

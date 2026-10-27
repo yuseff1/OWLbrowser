@@ -1,58 +1,58 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, Platform, Share, StyleSheet, TextInput, View, type KeyboardEvent } from 'react-native';
+import { Animated, BackHandler, FlatList, Keyboard, Platform, Share, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ChevronLeft, ChevronRight, Share as ShareIcon, Copy, Lock, RotateCw, X, Search, Globe, Menu, Sparkles, ShieldCheck, EyeOff } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Share as ShareIcon, Copy, Lock, RotateCw, X, Search, Globe, Ellipsis, EyeOff } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useTheme, radius } from '@/lib/theme';
+import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { appStore } from '@/state/app';
 import { browser, browserStore, EMPTY_RUNTIME } from '@/state/browser';
 import { agent, agentStore } from '@/state/agent';
 import { companionById, faceFor } from '@/lib/companions';
 import { displayUrl, faviconFor, hostOf, isSecure, toUrl, ENGINE_NAMES } from '@/lib/url';
-import { Glass, IconButton, T, Tap, haptic } from './ui';
+import { Glass, IconButton, IconWell, T, Tap, haptic } from './ui';
 
-export const BAR_HEIGHT = 112; // address pill + toolbar, excluding the home-indicator inset
+const PAD = 6;
+const ADDRESS_H = 48;
+const TOOLBAR_H = 50;
+/** address pill + toolbar, excluding the home-indicator inset */
+export const BAR_HEIGHT = PAD + ADDRESS_H + TOOLBAR_H;
+const EDIT_H = PAD * 2 + ADDRESS_H;
 
 type Suggestion = { key: string; kind: 'search' | 'url' | 'history' | 'bookmark' | 'ask'; title: string; subtitle?: string; value: string };
 
-function useKeyboardHeight() {
-  const [h, setH] = useState(0);
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return; // Android resizes the window (softwareKeyboardLayoutMode: resize)
-    const show = Keyboard.addListener('keyboardWillShow', (e: KeyboardEvent) => setH(e.endCoordinates.height));
-    const hide = Keyboard.addListener('keyboardWillHide', () => setH(0));
-    return () => { show.remove(); hide.remove(); };
-  }, []);
-  return h;
-}
-
-export function BottomBar({ onOpenMenu }: { onOpenMenu: () => void }) {
+/** Floating glass address bar + toolbar. Rises with the keyboard (lift comes from the screen, see useKeyboardLift). */
+export function BottomBar({ onOpenMenu, lift, liftAnim }: { onOpenMenu: () => void; lift: number; liftAnim: Animated.Value }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const kb = useKeyboardHeight();
   const tab = useStore(browserStore, (s) => s.tabs.find((x) => x.id === s.activeId) || s.tabs[0]);
   const tabCount = useStore(browserStore, (s) => s.tabs.length);
   const rt = useStore(browserStore, (s) => s.runtime[s.activeId] || EMPTY_RUNTIME);
-  const { companionId, engine, adblock } = useStore(appStore, (s) => ({ companionId: s.settings.companionId, engine: s.settings.searchEngine, adblock: s.settings.adblock }));
+  const { companionId, engine } = useStore(appStore, (s) => ({ companionId: s.settings.companionId, engine: s.settings.searchEngine }));
   const activeRun = useStore(agentStore, (s) => s.runs.find((r) => r.id === s.activeRunId) || null);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const c = companionById(companionId);
+  const url = tab?.url || '';
 
   const startEdit = () => {
-    setText(tab.url);
+    setText(url);
     setEditing(true);
     setTimeout(() => inputRef.current?.focus(), 30);
   };
   const cancel = () => { setEditing(false); Keyboard.dismiss(); };
   const go = (value: string) => {
-    if (!value.trim()) return cancel();
-    browser.navigate(tab.id, value);
+    const v = value.trim();
+    if (!v || !tab) return cancel();
+    try {
+      browser.navigate(tab.id, v);
+    } catch (e) {
+      console.warn('[owl] navigate failed', e);
+    }
     cancel();
   };
   const ask = (value: string) => {
@@ -60,24 +60,46 @@ export function BottomBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     agent.start(value, companionId);
   };
 
+  // Android back while typing closes the editor instead of navigating the page.
+  useEffect(() => {
+    if (!editing || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { cancel(); return true; });
+    return () => sub.remove();
+  }, [editing]);
+
   const share = async () => {
-    if (!tab.url) return;
-    try { await Share.share(Platform.OS === 'ios' ? { url: tab.url, message: tab.title } : { message: `${tab.title}\n${tab.url}` }); } catch {}
+    if (!url) return;
+    try { await Share.share(Platform.OS === 'ios' ? { url, message: tab.title } : { message: `${tab.title}\n${url}` }); } catch {}
   };
 
-  // Bar only while a load is in flight and below 100%: a finished load (progress 1) never leaves a full bar behind.
+  // Bar only while a load is in flight and below 100%: a finished load never leaves a full bar behind.
   const progress = rt.loading && rt.progress < 1 ? Math.max(0.08, rt.progress) : 0;
+  const bottomPad = lift > 0 ? space.xs : Math.max(insets.bottom, space.sm);
+  const ink = t.ink;
 
   return (
     <>
-      {editing ? <Suggestions text={text} engine={engine} companionName={c.name} onPick={(s) => (s.kind === 'ask' ? ask(s.value) : go(s.value))} bottom={kb + BAR_HEIGHT + insets.bottom - 50} onCopy={async () => { await Clipboard.setStringAsync(tab.url); haptic('success'); }} canCopy={!!tab.url && text === tab.url} /> : null}
-      <View style={[styles.wrap, { bottom: kb, paddingBottom: kb ? 8 : Math.max(insets.bottom, 10) }]} pointerEvents="box-none">
-        <Glass style={styles.glass} rounded={radius.xl + 4}>
-          {/* address pill */}
-          <View style={[styles.address, { backgroundColor: t.dark ? 'rgba(255,245,235,0.08)' : 'rgba(30,20,10,0.06)' }]}>
+      {editing ? (
+        <Suggestions
+          text={text}
+          engine={engine}
+          companionName={c.name}
+          companionId={c.id}
+          onPick={(s) => (s.kind === 'ask' ? ask(s.value) : go(s.value))}
+          bottom={lift + bottomPad + EDIT_H}
+          onCopy={async () => { await Clipboard.setStringAsync(url); haptic('success'); cancel(); }}
+          canCopy={!!url && text === url}
+        />
+      ) : null}
+      <Animated.View
+        style={[styles.wrap, { paddingBottom: bottomPad, transform: [{ translateY: Animated.multiply(liftAnim, -1) }] }]}
+        pointerEvents="box-none"
+      >
+        <Glass style={styles.glass} rounded={radius.sheet}>
+          <View style={[styles.address, { backgroundColor: t.dark ? 'rgba(255,248,240,0.07)' : 'rgba(20,19,23,0.05)' }]}>
             {editing ? (
               <>
-                <Search size={17} color={t.ink3} />
+                <View style={styles.lead}><Search size={icon.sm} color={t.ink3} /></View>
                 <TextInput
                   ref={inputRef}
                   value={text}
@@ -87,67 +109,64 @@ export function BottomBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                   selectTextOnFocus
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="off"
                   keyboardType={Platform.OS === 'ios' ? 'web-search' : 'url'}
                   returnKeyType="go"
-                  placeholder={`Search ${ENGINE_NAMES[engine]} or type a URL`}
+                  placeholder="Search or enter address"
                   placeholderTextColor={t.ink3}
-                  style={[styles.input, { color: t.ink }]}
+                  style={[styles.input, { color: ink }]}
+                  selectionColor={t.accentFill}
                   accessibilityLabel="Address and search bar"
                 />
-                {text ? <IconButton size={32} label="Clear" icon={<X size={16} color={t.ink2} />} onPress={() => setText('')} /> : null}
+                {text ? <IconButton size={36} label="Clear" icon={<X size={icon.sm} color={t.ink2} />} onPress={() => setText('')} /> : <View style={{ width: 36 }} />}
               </>
             ) : (
               <>
-                <IconButton size={36} label="Page menu" icon={<Menu size={18} color={t.ink} />} onPress={onOpenMenu} />
-                <Tap label={tab.url ? `Address: ${tab.url}. Tap to edit` : 'Search or enter website'} onPress={startEdit} style={styles.addrTap} haptics={false}>
-                  {tab.private ? <EyeOff size={13} color={t.ink2} /> : tab.url ? (isSecure(tab.url) ? <Lock size={13} color={t.ink2} /> : <Globe size={13} color={t.warn} />) : <Search size={15} color={t.ink3} />}
-                  <T numberOfLines={1} style={{ fontSize: 16, fontWeight: tab.url ? '500' : '400', flexShrink: 1 }} color={tab.url ? t.ink : t.ink3}>
-                    {tab.url ? displayUrl(tab.url) : 'Search or enter website'}
+                <IconButton size={40} label="Menu" icon={<Ellipsis size={icon.md} color={ink} />} onPress={onOpenMenu} />
+                <Tap label={url ? `Address ${url}. Edit` : 'Search or enter address'} onPress={startEdit} style={styles.addrTap} haptics={false} feedback="opacity">
+                  {tab?.private ? <EyeOff size={14} color={t.ink2} /> : url ? (isSecure(url) ? <Lock size={13} color={t.ink2} /> : <Globe size={13} color={t.danger} />) : null}
+                  <T numberOfLines={1} style={{ flexShrink: 1, fontWeight: url ? '500' : '400' }} color={url ? ink : t.ink3}>
+                    {url ? displayUrl(url) : 'Search or enter address'}
                   </T>
-                  {adblock && rt.blocked > 0 ? (
-                    <View style={[styles.shield, { backgroundColor: t.accentSoft }]} accessibilityLabel={`${rt.blocked} trackers blocked`}>
-                      <ShieldCheck size={11} color={t.accent} />
-                      <T style={{ fontSize: 11, fontWeight: '700' }} color={t.accent}>{rt.blocked}</T>
-                    </View>
-                  ) : null}
                 </Tap>
-                {tab.url ? (
-                  <IconButton size={36} label={rt.loading ? 'Stop loading' : 'Reload'} icon={rt.loading ? <X size={18} color={t.ink} /> : <RotateCw size={17} color={t.ink} />} onPress={() => (rt.loading ? browser.stop(tab.id) : browser.reload(tab.id))} />
+                {url ? (
+                  <IconButton size={40} label={rt.loading ? 'Stop' : 'Reload'} icon={rt.loading ? <X size={icon.md} color={ink} /> : <RotateCw size={18} color={ink} />} onPress={() => (rt.loading ? browser.stop(tab.id) : browser.reload(tab.id))} />
                 ) : (
-                  <View style={{ width: 36 }} />
+                  <View style={{ width: 40 }} />
                 )}
               </>
             )}
-            {progress > 0 && !editing ? <View style={[styles.progress, { width: `${Math.min(100, progress * 100)}%`, backgroundColor: t.accent }]} /> : null}
+            {progress > 0 && !editing ? <View style={[styles.progress, { width: `${Math.min(100, progress * 100)}%`, backgroundColor: t.accentFill }]} /> : null}
           </View>
 
-          {/* toolbar */}
-          <View style={styles.toolbar}>
-            <IconButton label="Back" disabled={!tab.url} icon={<ChevronLeft size={26} color={t.ink} />} onPress={() => browser.goBack(tab.id)} />
-            <IconButton label="Forward" disabled={!rt.canGoForward} icon={<ChevronRight size={26} color={t.ink} />} onPress={() => browser.goForward(tab.id)} />
-            <Tap
-              label={activeRun ? `${c.name} is working. Open run` : `Ask ${c.name} about this page`}
-              onPress={() => (activeRun ? agent.openSheet(true) : router.push('/ask'))}
-              onLongPress={() => router.push('/companions')}
-              style={[styles.owl, { backgroundColor: activeRun ? c.look.body : t.accentSoft }]}
-            >
-              <Image source={faceFor(c.id)} style={{ width: 30, height: 30 }} contentFit="contain" />
-              {!activeRun ? <Sparkles size={12} color={t.accent} style={styles.spark} /> : null}
-            </Tap>
-            <IconButton label="Share" disabled={!tab.url} icon={<ShareIcon size={21} color={t.ink} />} onPress={share} />
-            <Tap label={`${tabCount} tabs. Open tab switcher`} onPress={() => router.push('/tabs')} onLongPress={() => { haptic('medium'); browser.newTab(); }} style={styles.tabsBtn}>
-              <View style={[styles.tabsBox, { borderColor: t.ink }]}>
-                <T style={{ fontSize: 12, fontWeight: '700' }}>{tabCount > 99 ? '∞' : tabCount}</T>
-              </View>
-            </Tap>
-          </View>
+          {!editing ? (
+            <View style={styles.toolbar}>
+              <IconButton label="Back" disabled={!url} icon={<ChevronLeft size={icon.lg} color={ink} />} onPress={() => browser.goBack(tab.id)} />
+              <IconButton label="Forward" disabled={!rt.canGoForward} icon={<ChevronRight size={icon.lg} color={ink} />} onPress={() => browser.goForward(tab.id)} />
+              <Tap
+                label={activeRun ? `${c.name} is working. Open` : `Ask ${c.name}`}
+                onPress={() => (activeRun ? agent.openSheet(true) : router.push('/ask'))}
+                onLongPress={() => router.push('/companions')}
+                style={styles.owl}
+              >
+                <Image source={faceFor(c.id)} style={{ width: 30, height: 30, borderRadius: 15 }} contentFit="cover" />
+                {activeRun ? <View style={[styles.liveDot, { backgroundColor: t.accentFill, borderColor: t.glass.fallback }]} /> : null}
+              </Tap>
+              <IconButton label="Share" disabled={!url} icon={<ShareIcon size={icon.md} color={ink} />} onPress={share} />
+              <Tap label={`${tabCount} tabs`} onPress={() => router.push('/tabs')} onLongPress={() => { haptic('medium'); browser.newTab(); }} style={styles.tabsBtn} feedback="opacity">
+                <View style={[styles.tabsBox, { borderColor: ink }]}>
+                  <T style={styles.tabsNum}>{tabCount > 99 ? '∞' : tabCount}</T>
+                </View>
+              </Tap>
+            </View>
+          ) : null}
         </Glass>
-      </View>
+      </Animated.View>
     </>
   );
 }
 
-function Suggestions({ text, engine, companionName, onPick, bottom, onCopy, canCopy }: { text: string; engine: string; companionName: string; onPick: (s: Suggestion) => void; bottom: number; onCopy: () => void; canCopy: boolean }) {
+function Suggestions({ text, engine, companionName, companionId, onPick, bottom, onCopy, canCopy }: { text: string; engine: string; companionName: string; companionId: string; onPick: (s: Suggestion) => void; bottom: number; onCopy: () => void; canCopy: boolean }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const history = useStore(appStore, (s) => s.history);
@@ -156,49 +175,50 @@ function Suggestions({ text, engine, companionName, onPick, bottom, onCopy, canC
     const q = text.trim().toLowerCase();
     const out: Suggestion[] = [];
     if (q) {
-      const asUrl = toUrl(text, engine as any);
-      const looksUrl = !asUrl.includes('?q=') && !asUrl.includes('/search?');
+      let asUrl = '';
+      try { asUrl = toUrl(text, engine as any); } catch { asUrl = ''; }
+      const looksUrl = !!asUrl && !asUrl.includes('?q=') && !asUrl.includes('/search?');
       if (looksUrl) out.push({ key: 'url', kind: 'url', title: hostOf(asUrl) || text, subtitle: asUrl, value: text });
-      out.push({ key: 'search', kind: 'search', title: text, subtitle: `Search ${ENGINE_NAMES[engine as keyof typeof ENGINE_NAMES]}`, value: text });
-      out.push({ key: 'ask', kind: 'ask', title: `Ask ${companionName}: “${text}”`, subtitle: 'Your companion does it in this tab', value: text });
+      out.push({ key: 'search', kind: 'search', title: text, subtitle: ENGINE_NAMES[engine as keyof typeof ENGINE_NAMES], value: text });
+      out.push({ key: 'ask', kind: 'ask', title: text, subtitle: `Ask ${companionName}`, value: text });
     }
     const seen = new Set<string>();
-    const match = (u: string, ti: string) => !q || u.toLowerCase().includes(q) || ti.toLowerCase().includes(q);
+    const match = (u: string, ti: string) => !q || (u || '').toLowerCase().includes(q) || (ti || '').toLowerCase().includes(q);
     for (const b of bookmarks) {
       if (out.length > 12) break;
-      if (match(b.url, b.title) && !seen.has(b.url)) { seen.add(b.url); out.push({ key: 'b' + b.id, kind: 'bookmark', title: b.title, subtitle: b.url, value: b.url }); }
+      if (b && match(b.url, b.title) && !seen.has(b.url)) { seen.add(b.url); out.push({ key: 'b' + b.id, kind: 'bookmark', title: b.title || b.url, subtitle: hostOf(b.url), value: b.url }); }
     }
     for (const h of history) {
       if (out.length > 14) break;
-      if (match(h.url, h.title) && !seen.has(h.url)) { seen.add(h.url); out.push({ key: 'h' + h.url, kind: 'history', title: h.title, subtitle: h.url, value: h.url }); }
+      if (h && match(h.url, h.title) && !seen.has(h.url)) { seen.add(h.url); out.push({ key: 'h' + h.url, kind: 'history', title: h.title || h.url, subtitle: hostOf(h.url), value: h.url }); }
     }
     return out;
   }, [text, engine, companionName, history, bookmarks]);
 
   return (
-    <View style={[styles.sugg, { top: insets.top, bottom, backgroundColor: t.ground }]}>
-      {canCopy ? (
-        <Tap label="Copy link" onPress={onCopy} style={[styles.copy, { backgroundColor: t.surface }]}>
-          <Copy size={16} color={t.accent} />
-          <T style={{ fontSize: 15 }} color={t.accent}>Copy link</T>
-        </Tap>
-      ) : null}
+    <View style={[styles.sugg, { top: 0, paddingTop: insets.top, bottom, backgroundColor: t.ground }]}>
       <FlatList
         data={items}
         keyExtractor={(i) => i.key}
         keyboardShouldPersistTaps="always"
         inverted
-        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}
+        contentContainerStyle={{ paddingHorizontal: space.xs, paddingVertical: space.xs }}
+        ListHeaderComponent={canCopy ? (
+          <Tap label="Copy link" onPress={onCopy} style={styles.suggRow} haptics={false} feedback="highlight">
+            <IconWell><Copy size={icon.sm} color={t.ink} /></IconWell>
+            <T style={{ flex: 1 }}>Copy link</T>
+          </Tap>
+        ) : undefined}
         renderItem={({ item }) => (
-          <Tap label={item.title} onPress={() => onPick(item)} style={styles.suggRow} haptics={false}>
-            <View style={[styles.suggIcon, { backgroundColor: item.kind === 'ask' ? t.accentSoft : t.surface2 }]}>
-              {item.kind === 'search' ? <Search size={16} color={t.ink2} /> : item.kind === 'ask' ? <Sparkles size={16} color={t.accent} /> : item.kind === 'url' ? <Globe size={16} color={t.ink2} /> : (
-                <Image source={{ uri: faviconFor(item.value) || undefined }} style={{ width: 18, height: 18 }} contentFit="contain" />
+          <Tap label={item.kind === 'ask' ? `Ask ${companionName}: ${item.title}` : item.title} onPress={() => onPick(item)} style={styles.suggRow} haptics={false} feedback="highlight">
+            <IconWell tint={item.kind === 'ask' ? t.accentSoft : undefined}>
+              {item.kind === 'search' ? <Search size={icon.sm} color={t.ink} /> : item.kind === 'ask' ? <Image source={faceFor(companionId)} style={{ width: 24, height: 24, borderRadius: 12 }} contentFit="cover" /> : item.kind === 'url' ? <Globe size={icon.sm} color={t.ink} /> : (
+                <Image source={{ uri: faviconFor(item.value) || undefined }} style={{ width: 18, height: 18, borderRadius: 4 }} contentFit="contain" />
               )}
-            </View>
+            </IconWell>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <T numberOfLines={1} style={{ fontSize: 16 }} color={item.kind === 'ask' ? t.accent : t.ink}>{item.title}</T>
-              {item.subtitle ? <T kind="small" numberOfLines={1} color={t.ink3}>{item.subtitle}</T> : null}
+              <T numberOfLines={1}>{item.title}</T>
+              {item.subtitle ? <T kind="footnote" numberOfLines={1} color={item.kind === 'ask' ? t.accent : t.ink2}>{item.subtitle}</T> : null}
             </View>
           </Tap>
         )}
@@ -208,20 +228,19 @@ function Suggestions({ text, engine, companionName, onPick, bottom, onCopy, canC
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 10 },
-  glass: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 2, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
-  address: { flexDirection: 'row', alignItems: 'center', height: 46, borderRadius: radius.pill, paddingHorizontal: 6, gap: 4, overflow: 'hidden' },
+  wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: space.xs },
+  glass: { paddingHorizontal: PAD, paddingTop: PAD },
+  address: { flexDirection: 'row', alignItems: 'center', height: ADDRESS_H, borderRadius: radius.pill, paddingHorizontal: 4, overflow: 'hidden', marginBottom: 0 },
+  lead: { width: 36, alignItems: 'center' },
   addrTap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, minWidth: 0 },
-  input: { flex: 1, fontSize: 16, height: 44, paddingHorizontal: 4 },
-  shield: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, height: 18, borderRadius: 9 },
-  progress: { position: 'absolute', left: 0, bottom: 0, height: 2.5, borderRadius: 2 },
-  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 54, paddingHorizontal: 4 },
-  owl: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  spark: { position: 'absolute', top: 4, right: 4 },
+  input: { flex: 1, fontSize: 16, height: 44, paddingHorizontal: 2, paddingVertical: 0 },
+  progress: { position: 'absolute', left: 0, bottom: 0, height: 2, borderRadius: 1 },
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: TOOLBAR_H, paddingHorizontal: 2 },
+  owl: { width: 48, height: 44, alignItems: 'center', justifyContent: 'center' },
+  liveDot: { position: 'absolute', bottom: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5 },
   tabsBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  tabsBox: { minWidth: 24, height: 24, borderWidth: 2, borderRadius: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  tabsBox: { minWidth: 22, height: 22, borderWidth: 1.75, borderRadius: 7, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  tabsNum: { fontSize: 11, lineHeight: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
   sugg: { position: 'absolute', left: 0, right: 0 },
-  copy: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 12, marginBottom: 0, padding: 14, borderRadius: radius.md },
-  suggRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8 },
-  suggIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  suggRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 56, paddingVertical: space.xs, paddingHorizontal: space.xs, borderRadius: radius.sm },
 });

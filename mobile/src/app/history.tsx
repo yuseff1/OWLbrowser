@@ -2,13 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { Alert, SectionList, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { X, History as HistoryIcon } from 'lucide-react-native';
-import { useTheme, radius } from '@/lib/theme';
+import { X } from 'lucide-react-native';
+import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
 import { browser } from '@/state/browser';
 import { faviconFor, hostOf } from '@/lib/url';
-import { Button, IconButton, T, Tap } from '@/components/ui';
+import { Button, Empty, IconButton, T, Tap, fieldStyle } from '@/components/ui';
 import type { HistoryEntry } from '@/lib/types';
 
 function dayLabel(ts: number) {
@@ -37,7 +37,7 @@ export default function HistoryScreen() {
     return out;
   }, [history, q]);
 
-  const clear = () => Alert.alert('Clear browsing history?', 'This removes history for this profile on this device.', [
+  const clear = () => Alert.alert('Clear history?', undefined, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Clear', style: 'destructive', onPress: () => app.clearHistory() },
   ]);
@@ -47,27 +47,21 @@ export default function HistoryScreen() {
       style={{ backgroundColor: t.ground }}
       sections={sections}
       keyExtractor={(h) => h.url}
-      contentContainerStyle={{ padding: 16 }}
+      contentContainerStyle={{ padding: space.md }}
       stickySectionHeadersEnabled={false}
       keyboardShouldPersistTaps="handled"
-      ListHeaderComponent={<TextInput value={q} onChangeText={setQ} placeholder="Search history" placeholderTextColor={t.ink3} style={[styles.search, { backgroundColor: t.surface2, color: t.ink }]} accessibilityLabel="Search history" />}
+      ListHeaderComponent={<TextInput value={q} onChangeText={setQ} placeholder="Search history" placeholderTextColor={t.ink3} selectionColor={t.accentFill} style={fieldStyle(t)} accessibilityLabel="Search history" />}
       ListFooterComponent={history.length ? <Button title="Clear history" kind="secondary" onPress={clear} style={{ marginTop: 16 }} /> : undefined}
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <HistoryIcon size={34} color={t.ink3} />
-          <T style={{ fontWeight: '600' }}>No history</T>
-          <T kind="small">Pages you visit (outside private tabs) show up here.</T>
-        </View>
-      }
-      renderSectionHeader={({ section }) => <T kind="tiny" color={t.ink3} style={{ marginTop: 12, marginBottom: 6, marginLeft: 4 }}>{section.title}</T>}
+      ListEmptyComponent={<Empty text={q ? 'No matches' : 'No history'} />}
+      renderSectionHeader={({ section }) => <T kind="section" style={{ marginTop: space.lg, marginBottom: space.xxs, marginLeft: space.xxs }}>{section.title}</T>}
       renderItem={({ item }) => (
-        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} style={styles.row}>
+        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} feedback="highlight" haptics={false} style={styles.row}>
           <Image source={{ uri: faviconFor(item.url) || undefined }} style={styles.fav} contentFit="contain" />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <T numberOfLines={1} style={{ fontSize: 15 }}>{item.title}</T>
-            <T kind="small" numberOfLines={1}>{hostOf(item.url)} · {new Date(item.lastVisit).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</T>
+            <T numberOfLines={1}>{item.title}</T>
+            <T kind="footnote" numberOfLines={1}>{hostOf(item.url)} · {new Date(item.lastVisit).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</T>
           </View>
-          <IconButton label={`Remove ${item.title}`} icon={<X size={16} color={t.ink3} />} onPress={() => app.removeHistory(item.url)} />
+          <IconButton label={`Remove ${item.title}`} icon={<X size={icon.sm} color={t.ink3} />} onPress={() => app.removeHistory(item.url)} />
         </Tap>
       )}
     />
@@ -75,8 +69,6 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  search: { height: 44, borderRadius: radius.md, paddingHorizontal: 14, fontSize: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 },
-  fav: { width: 20, height: 20, borderRadius: 4 },
-  empty: { alignItems: 'center', gap: 8, marginTop: 80 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 56, paddingLeft: space.xs, borderRadius: radius.sm },
+  fav: { width: 20, height: 20, borderRadius: 5 },
 });

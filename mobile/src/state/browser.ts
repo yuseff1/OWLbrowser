@@ -35,7 +35,7 @@ export const browserStore = createStore<BrowserState>({ tabs: [first], activeId:
 const tabsKey = () => `p:${appStore.get().profileId}:tabs`;
 
 let lastPersisted = '';
-function persist() {
+function persist(delay = 800) {
   const s = browserStore.get();
   // private tabs are never written to disk
   const tabs = s.tabs.filter((t) => !t.private).map(({ nonce, ...t }) => ({ ...t, src: t.url || t.src }));
@@ -44,7 +44,7 @@ function persist() {
   const sig = s.activeId + '|' + tabs.map((t) => t.id + '\u0001' + t.src + '\u0001' + t.title).join('\u0002');
   if (sig === lastPersisted) return;
   lastPersisted = sig;
-  saveJson(tabsKey(), value, 800);
+  saveJson(tabsKey(), value, delay);
 }
 
 // ---------- loading watchdog ----------
@@ -182,7 +182,7 @@ export const browser = {
       activeId: opts.background ? s.activeId : t.id,
       alive: opts.background ? s.alive : touchAlive(t.id, s.alive),
     });
-    persist();
+    persist(0);
     return t;
   },
 
@@ -210,7 +210,7 @@ export const browser = {
     browserStore.set({ tabs, activeId, runtime, alive: touchAlive(activeId, s.alive.filter((x) => x !== id)) });
     webviews.register(id, null);
     clearWatchdog(id);
-    persist();
+    persist(0);
   },
 
   closeAll(privateOnly = false) {
@@ -232,7 +232,7 @@ export const browser = {
       runtime: { ...s.runtime, [id]: { ...EMPTY_RUNTIME, loading: !!url } },
     });
     if (url) armWatchdog(id); else clearWatchdog(id);
-    persist();
+    persist(0);
     return url;
   },
 
