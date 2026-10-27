@@ -2,14 +2,14 @@ import React from 'react';
 import { Alert, ScrollView, Switch, TextInput, View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
-import { Cpu, Search, Palette, ShieldCheck, Hand, Brain, Users, Bot, User, Trash2, ChevronRight, X } from 'lucide-react-native';
+import { Cpu, Search, Palette, ShieldCheck, Hand, Brain, Users, Bot, User, Trash2, ChevronRight, X, PanelTop, PanelBottom, Droplets } from 'lucide-react-native';
 import { useTheme, icon, space } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
 import { browser } from '@/state/browser';
 import { ENGINE_NAMES } from '@/lib/url';
 import { companionById } from '@/lib/companions';
-import { IconWell, Row, Section, T } from '@/components/ui';
+import { IconWell, LIVE_BLUR, Row, Section, T } from '@/components/ui';
 import type { Settings } from '@/lib/types';
 
 function pick<T extends string>(title: string, options: Record<T, string>, current: T, onPick: (v: T) => void) {
@@ -20,6 +20,7 @@ function pick<T extends string>(title: string, options: Record<T, string>, curre
 }
 
 const THEMES: Record<Settings['theme'], string> = { system: 'Automatic', light: 'Light', dark: 'Dark' };
+const BAR_POS: Record<Settings['barPosition'], string> = { bottom: 'Bottom', top: 'Top' };
 const APPROVAL: Record<Settings['approvalMode'], string> = {
   'ask-risky': 'Risky actions',
   'ask-always': 'Every action',
@@ -66,6 +67,17 @@ export default function SettingsScreen() {
         <Row icon={<Search {...I} />} title="Search engine" subtitle={ENGINE_NAMES[s.searchEngine]} right={chev} onPress={() => pick('Search engine', ENGINE_NAMES, s.searchEngine, (v) => app.patchSettings({ searchEngine: v }))} />
         <Row icon={<ShieldCheck {...I} />} title="Block trackers" right={<Switch value={s.adblock} onValueChange={(v) => app.patchSettings({ adblock: v })} trackColor={{ true: t.accentFill, false: t.surface2 }} thumbColor="#FFFFFF" />} />
         <Row icon={<Palette {...I} />} title="Appearance" subtitle={THEMES[s.theme]} right={chev} onPress={() => pick('Appearance', THEMES, s.theme, (v) => app.patchSettings({ theme: v }))} last />
+      </Section>
+
+      <Section title="Address bar" footer={LIVE_BLUR ? 'Live blur lets the page show through the bar, softly blurred. Turn it off if pages feel slow; the bar then sits on a solid tint.' : 'Live blur needs Android 12 or later; the bar uses a solid tint here.'}>
+        <Row
+          icon={s.barPosition === 'top' ? <PanelTop {...I} /> : <PanelBottom {...I} />}
+          title="Address bar position"
+          subtitle={BAR_POS[s.barPosition === 'top' ? 'top' : 'bottom']}
+          right={chev}
+          onPress={() => pick('Address bar position', BAR_POS, s.barPosition === 'top' ? 'top' : 'bottom', (v) => app.patchSettings({ barPosition: v }))}
+        />
+        <Row icon={<Droplets {...I} />} title="Live blur" right={<Switch value={LIVE_BLUR && s.glassBlur !== false} disabled={!LIVE_BLUR} onValueChange={(v) => app.patchSettings({ glassBlur: v })} trackColor={{ true: t.accentFill, false: t.surface2 }} thumbColor="#FFFFFF" />} last />
       </Section>
 
       <Section title="Privacy">

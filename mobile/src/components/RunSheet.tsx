@@ -81,7 +81,7 @@ export function RunSheet({ lift = 0 }: { lift?: number }) {
   return (
     <Animated.View pointerEvents={open ? 'auto' : 'none'} style={[styles.wrap, { height: sheetH + insets.bottom, bottom: lift, transform: [{ translateY }] }]}>
       <View style={{ flex: 1 }}>
-        <Glass style={{ flex: 1, borderBottomLeftRadius: lift ? radius.sheet : 0, borderBottomRightRadius: lift ? radius.sheet : 0 }} rounded={radius.sheet} intensity={80}>
+        <Glass style={{ flex: 1, borderBottomLeftRadius: lift ? radius.sheet : 0, borderBottomRightRadius: lift ? radius.sheet : 0 }} rounded={radius.sheet} intensity={80} live={false}>
           <View style={styles.grabber}><View style={[styles.grab, { backgroundColor: t.ink3 }]} /></View>
           <View style={styles.head}>
             <Image source={faceFor(c.id)} style={styles.face} contentFit="cover" />

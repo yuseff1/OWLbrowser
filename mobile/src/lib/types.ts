@@ -73,6 +73,10 @@ export type Settings = {
   companionId: string;
   userName: string;
   desktopMode: boolean;
+  /** where the address bar + toolbar dock sits */
+  barPosition: 'top' | 'bottom';
+  /** live blur of the page behind the glass chrome (Android 12+ / iOS); off = dense tint, page stops at the bar */
+  glassBlur: boolean;
 };
 
 export type AgentStep = {

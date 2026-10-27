@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS: Settings = {
   companionId: 'hoot',
   userName: '',
   desktopMode: false,
+  barPosition: 'bottom',
+  glassBlur: true,
 };
 
 const DEFAULT_PROFILE: Profile = { id: 'default', name: 'Personal', color: '#E8A317', isolated: false, createdAt: 0 };

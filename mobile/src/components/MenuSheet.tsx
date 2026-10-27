@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Animated, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Star, BookOpen, Monitor, Plus, EyeOff, Bookmark, History, Brain, Settings, Users, Copy, ShieldCheck, Bot } from 'lucide-react-native';
@@ -10,12 +10,16 @@ import { app, appStore } from '@/state/app';
 import { browser, browserStore, webviews } from '@/state/browser';
 import { readerStore } from '@/state/reader';
 import { READ_SCRIPT } from '@/lib/agent/page-scripts';
-import { Glass, IconWell, T, Tap, haptic } from './ui';
+import { Glass, IconWell, T, Tap, haptic, useSqueeze } from './ui';
 
 type Item = { key: string; label: string; icon: React.ReactNode; onPress: () => void; active?: boolean; disabled?: boolean; right?: React.ReactNode };
 
-/** Page menu: bookmark, reader, desktop site, new/private tab, and the app's own screens. */
-export function MenuSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+/**
+ * Page menu: bookmark, reader, desktop site, new/private tab, and the app's own screens.
+ * An in-screen overlay rather than a RN <Modal>: a Modal is a separate Android window, and the glass blur can't reach
+ * the page from there (expo/expo#44165). Opens from the dock's edge: up from the bottom, down from the top.
+ */
+export function MenuSheet({ visible, onClose, position = 'bottom' }: { visible: boolean; onClose: () => void; position?: 'top' | 'bottom' }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -34,6 +38,15 @@ export function MenuSheet({ visible, onClose }: { visible: boolean; onClose: () 
       Animated.timing(a, { toValue: 0, duration: motion.duration.fast, easing: motion.ease, useNativeDriver: true }).start(({ finished }) => { if (finished) setShown(false); });
     }
   }, [visible, a]);
+
+  // Android back closes the menu first (what Modal's onRequestClose used to do).
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => sub.remove();
+  }, [visible, onClose]);
+  const top = position === 'top';
+  const squeeze = useSqueeze({ amount: 0.6, origin: top ? 'top' : 'bottom' });
 
   const nav = (path: string) => { onClose(); setTimeout(() => router.push(path as any), 60); };
 
@@ -69,42 +82,49 @@ export function MenuSheet({ visible, onClose }: { visible: boolean; onClose: () 
     { key: 'set', label: 'Settings', icon: <Settings {...I} />, onPress: () => nav('/settings') },
   ];
 
-  const translateY = a.interpolate({ inputRange: [0, 1], outputRange: [40, 0] });
+  const translateY = a.interpolate({ inputRange: [0, 1], outputRange: [top ? -40 : 40, 0] });
   const scale = a.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
 
   return (
-    <Modal visible={shown} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: t.scrim, opacity: a }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
-      </Animated.View>
-      <Animated.View style={[styles.sheetWrap, { paddingBottom: insets.bottom + space.xs, opacity: a, transform: [{ translateY }, { scale }] }]} pointerEvents="box-none">
-        <Glass rounded={radius.sheet} intensity={80} style={styles.sheet}>
-          <View style={styles.quick}>
-            {quick.map((q) => (
-              <Tap key={q.key} label={q.label} onPress={q.onPress} disabled={q.disabled} style={styles.quickBtn}>
-                <IconWell size={48} tint={q.active ? t.accentSoft : t.dark ? 'rgba(255,248,240,0.07)' : 'rgba(20,19,23,0.05)'}>{q.icon}</IconWell>
-                <T kind="caption" numberOfLines={1} color={t.ink2}>{q.label}</T>
-              </Tap>
-            ))}
-          </View>
-          <View style={[styles.divider, { backgroundColor: t.line }]} />
-          <ScrollView style={{ maxHeight: 440 }} bounces={false}>
-            {rows.map((r) => (
-              <Tap key={r.key} label={r.label} onPress={r.onPress} haptics={false} feedback="highlight" style={styles.row}>
-                <View style={styles.rowIcon}>{r.icon}</View>
-                <T style={{ flex: 1 }}>{r.label}</T>
-                {r.right}
-              </Tap>
-            ))}
-          </ScrollView>
-        </Glass>
-      </Animated.View>
-    </Modal>
+    shown ? (
+      <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: t.scrim, opacity: a }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
+        </Animated.View>
+        <Animated.View
+          style={[styles.sheetWrap, top ? { top: insets.top + space.xs } : { bottom: 0, paddingBottom: insets.bottom + space.xs }, { opacity: a, transformOrigin: top ? 'top' : 'bottom', transform: [{ translateY }, { scale }] }]}
+          pointerEvents="box-none"
+        >
+          <Animated.View style={squeeze.style} {...squeeze.handlers}>
+            <Glass rounded={radius.sheet} intensity={95} style={styles.sheet}>
+              <View style={styles.quick}>
+                {quick.map((q) => (
+                  <Tap key={q.key} label={q.label} onPress={q.onPress} disabled={q.disabled} style={styles.quickBtn}>
+                    <IconWell size={48} tint={q.active ? t.accentSoft : t.glass.well}>{q.icon}</IconWell>
+                    <T kind="caption" numberOfLines={1} color={t.ink}>{q.label}</T>
+                  </Tap>
+                ))}
+              </View>
+              <View style={[styles.divider, { backgroundColor: t.line }]} />
+              <ScrollView style={{ maxHeight: 440 }} bounces={false}>
+                {rows.map((r) => (
+                  <Tap key={r.key} label={r.label} onPress={r.onPress} haptics={false} feedback="highlight" style={styles.row}>
+                    <View style={styles.rowIcon}>{r.icon}</View>
+                    <T style={{ flex: 1 }}>{r.label}</T>
+                    {r.right}
+                  </Tap>
+                ))}
+              </ScrollView>
+            </Glass>
+          </Animated.View>
+        </Animated.View>
+      </View>
+    ) : null
   );
 }
 
 const styles = StyleSheet.create({
-  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: space.xs },
+  sheetWrap: { position: 'absolute', left: 0, right: 0, paddingHorizontal: space.xs },
   sheet: { paddingTop: space.md, paddingBottom: space.xs },
   quick: { flexDirection: 'row', paddingHorizontal: space.xs, paddingBottom: space.sm },
   quickBtn: { flex: 1, alignItems: 'center', gap: space.xs, paddingVertical: space.xxs },

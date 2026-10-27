@@ -35,14 +35,27 @@ export type Theme = {
   warn: string;
   scrim: string;
   glass: {
-    /** tint laid over the blur (iOS) */
+    /** tint laid over the iOS material blur (the material already darkens/lightens) */
     tint: string;
-    /** opaque-ish stand-in where nothing is blurred (Android: WebView content can't be sampled) */
+    /**
+     * tint laid over the Android blur. expo-blur's native overlay (`androidBlurTint`, alpha = 0.55·intensity dark /
+     * 0.78·intensity light) sits under it; together `ink` keeps ≥ 4.5:1 even over a pure white (dark theme) / black
+     * (light theme) page: measured 4.9:1 / 10.3:1 at intensity 90.
+     */
+    tintAndroid: string;
+    androidBlurTint: 'systemUltraThinMaterialDark' | 'light';
+    /** secondary text / glyphs inside glass (placeholder, lock): ink at 78 %, ≥ 4.5:1 on the capsule in the worst case */
+    ink2: string;
+    /** opaque-ish stand-in where nothing is blurred (Android < 12, blur switched off, screens without a blur target) */
     fallback: string;
     /** 1px rim around the shape */
     rim: string;
     /** 1px specular line along the top edge */
     highlight: string;
+    /** soft sheen fading down from the top edge (the "liquid" in liquid glass) */
+    sheen: string;
+    /** recessed fill for the capsule / wells that sit inside glass */
+    well: string;
     /** elevation for floating glass */
     shadow: string;
     blurTint: 'systemChromeMaterialDark' | 'systemChromeMaterialLight';
@@ -67,10 +80,15 @@ const dark: Theme = {
   warn: '#E8A317',
   scrim: 'rgba(0,0,0,0.45)',
   glass: {
-    tint: 'rgba(22,21,19,0.55)',
+    tint: 'rgba(24,22,20,0.38)',
+    tintAndroid: 'rgba(22,20,18,0.42)',
+    androidBlurTint: 'systemUltraThinMaterialDark',
+    ink2: 'rgba(245,242,238,0.78)',
     fallback: 'rgba(28,26,24,0.96)',
-    rim: 'rgba(255,248,240,0.09)',
-    highlight: 'rgba(255,248,240,0.14)',
+    rim: 'rgba(255,248,240,0.12)',
+    highlight: 'rgba(255,248,240,0.24)',
+    sheen: 'rgba(255,248,240,0.07)',
+    well: 'rgba(0,0,0,0.24)',
     shadow: '0px 1px 2px rgba(0,0,0,0.25), 0px 14px 36px -10px rgba(0,0,0,0.55)',
     blurTint: 'systemChromeMaterialDark',
   },
@@ -94,10 +112,15 @@ const light: Theme = {
   warn: '#9A6400',
   scrim: 'rgba(20,19,23,0.18)',
   glass: {
-    tint: 'rgba(252,251,249,0.62)',
+    tint: 'rgba(252,250,246,0.4)',
+    tintAndroid: 'rgba(252,250,246,0.25)',
+    androidBlurTint: 'light',
+    ink2: 'rgba(20,19,23,0.78)',
     fallback: 'rgba(252,251,249,0.97)',
     rim: 'rgba(20,19,23,0.08)',
     highlight: 'rgba(255,255,255,0.9)',
+    sheen: 'rgba(255,255,255,0.32)',
+    well: 'rgba(20,19,23,0.05)',
     shadow: '0px 1px 2px rgba(0,0,0,0.06), 0px 14px 36px -12px rgba(0,0,0,0.2)',
     blurTint: 'systemChromeMaterialLight',
   },
@@ -146,6 +169,8 @@ export const motion = {
     snappy: { damping: 28, stiffness: 340, mass: 1 },
     sheet: { damping: 30, stiffness: 300, mass: 1 },
     smooth: { damping: 36, stiffness: 320, mass: 1 },
+    /** liquid-glass squeeze release: dampingRatio ≈ 0.36, one visible wobble */
+    jelly: { damping: 14, stiffness: 420, mass: 0.9 },
   },
   duration: { press: 110, fast: 160, base: 220, slow: 280 },
   ease: Easing.bezier(0.23, 1, 0.32, 1),

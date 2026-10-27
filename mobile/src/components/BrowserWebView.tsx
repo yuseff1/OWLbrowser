@@ -1,5 +1,6 @@
-import React, { memo, useCallback, useRef } from 'react';
-import { Alert, Linking, StyleSheet, View } from 'react-native';
+import React, { memo, useCallback, useEffect, useRef } from 'react';
+import { Alert, Linking, Platform, StyleSheet, View } from 'react-native';
+import { insetBootScript, setInsetScript } from '@/lib/insets';
 import type { ShouldStartLoadRequest, WebViewMessageEvent, WebViewNavigation, WebViewNavigationEvent, WebViewProgressEvent } from 'react-native-webview/lib/WebViewTypes';
 import { WebView, type WebViewHandle } from './WebViewBase';
 import { browser, webviews, type BrowserTab } from '@/state/browser';
@@ -39,11 +40,12 @@ type Props = {
   incognito: boolean;
   adblock: boolean;
   desktopMode: boolean;
-  bottomInset: number;
+  /** how much of the page the floating dock covers (0 when the page stops at the dock) */
+  inset: { top: number; bottom: number };
 };
 
 /** One WebView per live tab. Reports navigation/progress into browserStore and answers the agent bridge. */
-function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bottomInset }: Props) {
+function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, inset }: Props) {
   const t = useTheme();
   const ref = useRef<WebViewHandle | null>(null);
   const id = tab.id;
@@ -52,6 +54,18 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
     ref.current = r;
     webviews.register(id, r);
   }, [id]);
+
+  // Android has no contentInset: pages get CSS insets (spacers + fixed bars moved clear of the dock). New loads read
+  // them from the boot script; a live page is updated in place when the dock moves or blur is toggled.
+  const insetTop = Math.round(inset.top);
+  const insetBottom = Math.round(inset.bottom);
+  const firstInset = useRef(true);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    if (firstInset.current) { firstInset.current = false; return; }
+    ref.current?.injectJavaScript(setInsetScript(insetTop, insetBottom));
+  }, [insetTop, insetBottom]);
+  const bootScript = Platform.OS === 'android' ? insetBootScript(insetTop, insetBottom) : '';
 
   const onNav = useCallback((e: WebViewNavigation) => {
     browser.onPageNav(id, { url: e.url, title: e.title, loading: e.loading, canGoBack: e.canGoBack, canGoForward: e.canGoForward });
@@ -125,12 +139,13 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, bot
       setSupportMultipleWindows
       javaScriptCanOpenWindowsAutomatically={false}
       pullToRefreshEnabled={false}
-      contentInset={{ bottom: bottomInset }}
+      contentInset={{ top: insetTop, bottom: insetBottom }}
+      scrollIndicatorInsets={{ top: insetTop, bottom: insetBottom }}
       automaticallyAdjustContentInsets={false}
       contentInsetAdjustmentBehavior="never"
       userAgent={desktopMode ? DESKTOP_UA : undefined}
       applicationNameForUserAgent={desktopMode ? undefined : 'OWL/0.1'}
-      injectedJavaScriptBeforeContentLoaded={adblock ? BLOCKER_SCRIPT : 'true;'}
+      injectedJavaScriptBeforeContentLoaded={(adblock ? BLOCKER_SCRIPT + '\n;' : '') + (bootScript || 'true;')}
       injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
       injectedJavaScriptForMainFrameOnly
       onShouldStartLoadWithRequest={onShouldStart}

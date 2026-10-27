@@ -1,29 +1,128 @@
-import React, { memo, useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextProps, type ViewStyle } from 'react-native';
+import React, { createContext, memo, useCallback, useContext, useRef, type RefObject } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type PressableProps, type StyleProp, type TextProps, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useTheme, radius, space, type as typeScale, motion, HIT, icon as iconTok } from '@/lib/theme';
+import { useStore } from '@/lib/store';
+import { appStore } from '@/state/app';
 
 /**
- * Glass for floating chrome only (address bar, menus, sheets). Recipe (glassyui + liquid-glass, kept subtle):
- * blur ~70 on iOS under a warm tint, a 1px rim, a 1px specular line on the top edge, and one soft two-layer shadow.
- * Android can't sample a WebView behind it, so it gets the same rim/highlight/shadow over a dense warm tint.
+ * Android can only blur what sits inside a `BlurTargetView` (expo-blur 58 / Dimezis BlurView 3, RenderNode based).
+ * The browser screen wraps the page (WebViews + Home) in one and publishes its ref here; glass outside that
+ * screen has no target and falls back to the dense tint.
  */
-export const Glass = memo(function Glass({ style, children, intensity = 70, rounded = radius.xl, shadow = true }: { style?: StyleProp<ViewStyle>; children?: React.ReactNode; intensity?: number; rounded?: number; shadow?: boolean }) {
+export const BlurTargetContext = createContext<RefObject<React.ComponentRef<typeof View> | null> | null>(null);
+
+/**
+ * Real blur only where it is cheap and correct: iOS, and Android 12+ (RenderNode). Below 12 expo-blur 58.0.5 still
+ * runs the old software blur even with `dimezisBlurViewSdk31Plus` (expo/expo#52042, crashes on Android 9), so we never
+ * hand it a target there.
+ */
+export const LIVE_BLUR = Platform.OS === 'ios' || (Platform.OS === 'android' && typeof Platform.Version === 'number' && Platform.Version >= 31);
+
+/** Whether glass on the browser screen is actually blurring the page right now (setting on + platform can). */
+export function useLiveBlur() {
+  const on = useStore(appStore, (s) => s.settings.glassBlur !== false);
+  return on && LIVE_BLUR;
+}
+
+/**
+ * Glass for floating chrome only (address dock, menus, sheets). Recipe (glassyui + liquid-glass):
+ * strong blur of what is behind (iOS BlurView; Android Dimezis blur of the BlurTargetView), a light warm tint dense
+ * enough for ≥ 4.5:1 text, a sheen fading down from the top, a 1px rim, a 1px specular line on the top edge and one
+ * soft two-layer shadow. Without a live blur it is the same stack over a dense warm tint.
+ */
+export const Glass = memo(function Glass({ style, children, intensity = 90, rounded = radius.xl, shadow = true, live = true }: { style?: StyleProp<ViewStyle>; children?: React.ReactNode; intensity?: number; rounded?: number; shadow?: boolean; live?: boolean }) {
   const t = useTheme();
-  const shape = { borderRadius: rounded, borderCurve: 'continuous' as const };
+  const target = useContext(BlurTargetContext);
+  const liveBlur = useLiveBlur();
+  const blur = live && liveBlur && (Platform.OS === 'ios' || !!target);
+  const flat = StyleSheet.flatten(style) || {};
+  // Corners can be overridden per side (RunSheet squares its bottom); the blur and clip layers follow them.
+  const corners = {
+    borderRadius: rounded,
+    borderTopLeftRadius: flat.borderTopLeftRadius,
+    borderTopRightRadius: flat.borderTopRightRadius,
+    borderBottomLeftRadius: flat.borderBottomLeftRadius,
+    borderBottomRightRadius: flat.borderBottomRightRadius,
+    borderCurve: 'continuous' as const,
+  };
   return (
-    <View style={[shape, shadow && { boxShadow: t.glass.shadow }, style]}>
-      <View style={[StyleSheet.absoluteFill, shape, { overflow: 'hidden' }]} pointerEvents="none">
-        {Platform.OS === 'ios' ? <BlurView tint={t.glass.blurTint} intensity={intensity} style={StyleSheet.absoluteFill} /> : null}
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: Platform.OS === 'ios' ? t.glass.tint : t.glass.fallback }]} />
-        <View style={[StyleSheet.absoluteFill, shape, { borderWidth: StyleSheet.hairlineWidth, borderColor: t.glass.rim }]} />
+    <View style={[corners, shadow && { boxShadow: t.glass.shadow }, style]}>
+      <View style={[StyleSheet.absoluteFill, corners, { overflow: 'hidden' }]} pointerEvents="none">
+        {blur ? (
+          <BlurView
+            tint={Platform.OS === 'ios' ? t.glass.blurTint : t.glass.androidBlurTint}
+            intensity={intensity}
+            blurMethod="dimezisBlurViewSdk31Plus"
+            blurReductionFactor={3}
+            blurTarget={Platform.OS === 'android' ? target ?? undefined : undefined}
+            style={[StyleSheet.absoluteFill, corners]}
+          />
+        ) : null}
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: blur ? (Platform.OS === 'ios' ? t.glass.tint : t.glass.tintAndroid) : t.glass.fallback }]} />
+        <LinearGradient colors={[t.glass.sheen, 'transparent']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.sheen} />
+        <View style={[StyleSheet.absoluteFill, corners, { borderWidth: 1, borderColor: t.glass.rim }]} />
         <View style={[styles.specular, { left: rounded * 0.6, right: rounded * 0.6, backgroundColor: t.glass.highlight }]} />
       </View>
       {children}
     </View>
   );
 });
+
+/**
+ * "Squeezy" liquid-glass body (iOS 26 style), RN Animated + native driver only. Press anywhere inside: the glass
+ * squashes (wider, shorter); drag: it stretches along the drag and follows the finger a little (rubber band);
+ * release: it wobbles back on the `jelly` spring. Uses raw touch events, so the buttons inside keep their own
+ * responders and nothing is stolen from them.
+ */
+export function useSqueeze({ amount = 1, origin = 'center' as 'center' | 'top' | 'bottom' } = {}) {
+  const press = useRef(new Animated.Value(0)).current;
+  const dx = useRef(new Animated.Value(0)).current;
+  const dy = useRef(new Animated.Value(0)).current;
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const spring = (v: Animated.Value, to: number, cfg = motion.spring.jelly) => Animated.spring(v, { toValue: to, ...cfg, useNativeDriver: true }).start();
+
+  const onTouchStart = useCallback((e: GestureResponderEvent) => {
+    if (e.nativeEvent.touches && e.nativeEvent.touches.length > 1) return;
+    start.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+    Animated.timing(press, { toValue: 1, duration: motion.duration.press, easing: motion.ease, useNativeDriver: true }).start();
+  }, [press]);
+  const onTouchMove = useCallback((e: GestureResponderEvent) => {
+    const s = start.current;
+    if (!s) return;
+    // rubber band: soft, saturating (x/(1+|x|/k))
+    const rb = (d: number, k: number) => d / (1 + Math.abs(d) / k);
+    dx.setValue(rb(e.nativeEvent.pageX - s.x, 90));
+    dy.setValue(rb(e.nativeEvent.pageY - s.y, 70));
+  }, [dx, dy]);
+  const onTouchEnd = useCallback(() => {
+    start.current = null;
+    spring(press, 0);
+    spring(dx, 0);
+    spring(dy, 0);
+  }, [press, dx, dy]);
+
+  const k = amount;
+  const absX = dx.interpolate({ inputRange: [-90, 0, 90], outputRange: [1, 0, 1], extrapolate: 'clamp' });
+  const absY = dy.interpolate({ inputRange: [-70, 0, 70], outputRange: [1, 0, 1], extrapolate: 'clamp' });
+  const scaleX = Animated.add(
+    press.interpolate({ inputRange: [0, 1], outputRange: [1, 1 + 0.022 * k] }),
+    Animated.subtract(Animated.multiply(absX, 0.05 * k), Animated.multiply(absY, 0.02 * k)),
+  );
+  const scaleY = Animated.add(
+    press.interpolate({ inputRange: [0, 1], outputRange: [1, 1 - 0.045 * k] }),
+    Animated.subtract(Animated.multiply(absY, 0.05 * k), Animated.multiply(absX, 0.025 * k)),
+  );
+  const translateX = Animated.multiply(dx, 0.14 * k);
+  const translateY = Animated.multiply(dy, 0.1 * k);
+  const transformOrigin = origin === 'top' ? 'top' : origin === 'bottom' ? 'bottom' : 'center';
+  return {
+    handlers: { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd },
+    style: { transformOrigin, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] },
+  };
+}
 
 export function haptic(kind: 'selection' | 'light' | 'medium' | 'success' | 'warning' = 'light') {
   if (Platform.OS === 'web') return;
@@ -155,7 +254,8 @@ export const fieldStyle = (t: ReturnType<typeof useTheme>) => ({ height: HIT, bo
 export const ICON = iconTok;
 
 const styles = StyleSheet.create({
-  specular: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth * 2, opacity: 0.9, borderRadius: 1 },
+  specular: { position: 'absolute', top: 1, height: 1, borderRadius: 1 },
+  sheen: { position: 'absolute', left: 0, right: 0, top: 0, height: '55%' },
   disabled: { opacity: 0.32 },
   iconBtn: { alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: space.md, gap: space.sm, minHeight: 60 },

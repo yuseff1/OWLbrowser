@@ -20,7 +20,7 @@ function greeting(name: string) {
 }
 
 /** New-tab page: the companion, one field, a few starting points, favourites. Nothing else. */
-export function Home({ tabId, isPrivate, bottomInset }: { tabId: string; isPrivate: boolean; bottomInset: number }) {
+export function Home({ tabId, isPrivate, topInset = 0, bottomInset }: { tabId: string; isPrivate: boolean; topInset?: number; bottomInset: number }) {
   const t = useTheme();
   const router = useRouter();
   const { companionId, userName } = useStore(appStore, (s) => ({ companionId: s.settings.companionId, userName: s.settings.userName }));
@@ -36,7 +36,7 @@ export function Home({ tabId, isPrivate, bottomInset }: { tabId: string; isPriva
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: t.ground }}
-      contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: space.xxxl, paddingBottom: bottomInset + space.xl }}
+      contentContainerStyle={{ paddingHorizontal: space.md, paddingTop: topInset + space.xxxl, paddingBottom: bottomInset + space.xl }}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
     >

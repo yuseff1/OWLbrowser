@@ -6,7 +6,7 @@ import { T, Tap } from './ui';
 import { faceFor } from '@/lib/companions';
 
 /** Shown over the tab a companion is driving: a quiet amber edge and one pill to open the run. */
-export function ControlRing({ name, companionId, onPress }: { name: string; companionId: string; color?: string; onPress: () => void }) {
+export function ControlRing({ name, companionId, onPress, topInset = 0 }: { name: string; companionId: string; color?: string; onPress: () => void; topInset?: number }) {
   const t = useTheme();
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -24,7 +24,7 @@ export function ControlRing({ name, companionId, onPress }: { name: string; comp
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: t.accentFill, opacity }]} />
-      <View style={styles.pillWrap} pointerEvents="box-none">
+      <View style={[styles.pillWrap, { top: topInset + space.sm }]} pointerEvents="box-none">
         <Tap label={`${name} is working. Open`} onPress={onPress} style={[styles.pill, { backgroundColor: t.dark ? '#1A1917' : '#FFFFFF', boxShadow: t.glass.shadow }]}>
           <Image source={faceFor(companionId)} style={styles.face} contentFit="cover" />
           <T kind="footnote" style={{ fontWeight: '600' }} color={t.ink}>{name}</T>
