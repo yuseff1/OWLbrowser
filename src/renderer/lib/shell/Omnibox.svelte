@@ -159,7 +159,7 @@
 
 <div class="omni-wrap no-drag" bind:this={wrap}>
   <div class="omni" class:focused class:agent={!!run}>
-    <span class="lead" title={tab?.internal ? 'OWL page' : secure ? 'Connection is secure' : 'Site information'}>
+    <span class="lead" data-omni-lead title={tab?.internal ? 'OWL page' : secure ? 'Connection is secure' : 'Site information'}>
       {#if tab?.internal}
         <img src={art.mark} alt="" width="15" height="15" draggable="false" />
       {:else if focused}

@@ -46,7 +46,22 @@ export type SuggestSpec = {
   sel: number;
   label?: string;
 };
-export type PopupSpec = (MenuSpec | SuggestSpec) & { id?: number; theme?: PopupTheme };
+/** non-modal anchored bubble (permission prompt): the layer is sized to `rect`, the page stays live around it */
+export type BubbleSpec = {
+  kind: 'bubble';
+  rect: Rect;
+  /** room for the shadow on every side of the card, inside rect */
+  inset: number;
+  /** x (window px) the arrow points at */
+  arrowX?: number;
+  icon?: string;
+  site: string;
+  title: string;
+  /** action labels; the last one is the primary button */
+  actions: string[];
+  label?: string;
+};
+export type PopupSpec = (MenuSpec | SuggestSpec | BubbleSpec) & { id?: number; theme?: PopupTheme };
 
 let seq = Math.floor(Math.random() * 1000);
 const handlers = new Map<number, (e: PopupEvent) => void>();

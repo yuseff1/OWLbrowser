@@ -16,6 +16,7 @@
   import CommandPalette from './lib/shell/CommandPalette.svelte';
   import Toasts from './lib/shell/Toasts.svelte';
   import PasswordPrompt from './lib/shell/PasswordPrompt.svelte';
+  import PermissionBubble from './lib/shell/PermissionBubble.svelte';
   import Onboarding from './lib/shell/Onboarding.svelte';
   import WebPlaceholder from './lib/shell/WebPlaceholder.svelte';
   import PageHost from './lib/pages/PageHost.svelte';
@@ -217,6 +218,7 @@
     <CommandPalette />
     <Toasts top={topBand} right={modern ? 148 : 8} />
     <PasswordPrompt top={pageTop} />
+    <PermissionBubble />
   {/if}
 </Tooltip.Provider>
 

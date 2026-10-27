@@ -138,6 +138,8 @@ function install() {
     sleepTab: (id: number) => { const t = win.tabs.find((x) => x.id === id); if (t) t.sleeping = true; push(); },
     duplicateTab: (id: number) => { const t = win.tabs.find((x) => x.id === id); if (t) impl.newTab(t.url); },
     setSplit: (id: number | null) => { win.splitTabId = id; push(); },
+    permissionPrompts: () => (q.get('perm') ? [{ id: 'perm1', tabId: win.activeTabId, origin: 'https://maps.example.com', permission: q.get('perm'), label: q.get('perm') === 'notifications' ? 'Show notifications' : 'Know your location', at: Date.now() }] : []),
+    answerPermission: () => true,
     // tab groups (same rules as window.ts, minus edge cases)
     groupTabs: (ids: number[], groupId?: string, opts: any = {}) => {
       let g = win.groups.find((x) => x.id === groupId);

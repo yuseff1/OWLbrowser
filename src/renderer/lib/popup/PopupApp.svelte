@@ -9,7 +9,7 @@
   import { onMount, tick } from 'svelte';
   import { owl, params } from '../api';
   import { isMock } from '../env';
-  import type { PopupSpec, MenuSpec, SuggestSpec, PopupTheme } from '../ui/popup';
+  import type { PopupSpec, MenuSpec, SuggestSpec, BubbleSpec, PopupTheme } from '../ui/popup';
   import { demoSpec } from './demo';
 
   type Live = PopupSpec & { id: number; origin?: { x: number; y: number } };
@@ -52,6 +52,7 @@
 
   const menu = $derived(spec?.kind === 'menu' ? (spec as MenuSpec & Live) : null);
   const sugg = $derived(spec?.kind === 'suggest' ? (spec as SuggestSpec & Live) : null);
+  const bub = $derived(spec?.kind === 'bubble' ? (spec as BubbleSpec & Live) : null);
 
   function selectable(s: Live | null, i: number) {
     const it = s && s.kind === 'menu' ? s.items[i] : null;
@@ -146,6 +147,22 @@
       {/each}
     </div>
   </div>
+{:else if bub}
+  <div class="bub pop-surface" role="dialog" aria-label={bub.label ?? bub.title} style:inset="{bub.inset}px"
+    style:--ax="{Math.max(18, Math.min((bub.arrowX ?? bub.rect.x + 30) - bub.rect.x - bub.inset, bub.rect.width - bub.inset * 2 - 18))}px">
+    <div class="bub-head">
+      <span class="bub-site">{bub.site} wants to</span>
+      <button type="button" class="bub-x" aria-label="Close" onclick={() => emit('dismiss')}>
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3.1 3.1a.5.5 0 0 1 .7 0L8 7.3l4.2-4.2a.5.5 0 1 1 .7.7L8.7 8l4.2 4.2a.5.5 0 0 1-.7.7L8 8.7l-4.2 4.2a.5.5 0 0 1-.7-.7L7.3 8 3.1 3.8a.5.5 0 0 1 0-.7Z"/></svg>
+      </button>
+    </div>
+    <div class="bub-what">{#if bub.icon}<span class="ic" aria-hidden="true">{@html bub.icon}</span>{/if}<span>{bub.title}</span></div>
+    <div class="bub-acts">
+      {#each bub.actions as a, i (i)}
+        <button type="button" class="bub-btn" class:primary={i === bub.actions.length - 1} onclick={() => emit('select', i)}>{a}</button>
+      {/each}
+    </div>
+  </div>
 {:else if sugg}
   <div class="sugg pop-surface" role="listbox" aria-label={sugg.label ?? 'Suggestions'} style:inset="{sugg.insetTop ?? sugg.inset}px {sugg.inset}px auto {sugg.inset}px"
     onpointerleave={() => hover(-1)}>
@@ -194,5 +211,19 @@
   .ic :global(svg) { display: block; }
   .fav { border-radius: 4px; flex: none; }
   .av { border-radius: 99px; flex: none; }
-  @media (prefers-reduced-motion: reduce) { .owl-menu.shown, .sugg { animation: none; } }
+  .bub { position: fixed; display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 12px 16px; border-radius: 16px; animation: pop-in .16s var(--ease-out) both; }
+  .bub::before { content: ''; position: absolute; top: -6px; left: calc(var(--ax) - 6px); width: 12px; height: 12px; transform: rotate(45deg); background: var(--surface); border-left: 1px solid var(--glass-edge); border-top: 1px solid var(--glass-edge); border-top-left-radius: 3px; }
+  .bub-head { display: flex; align-items: center; gap: 8px; }
+  .bub-site { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bub-x { display: grid; place-items: center; width: 24px; height: 24px; margin: -4px -6px -4px 0; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); }
+  .bub-x:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+  .bub-what { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); }
+  .bub-what .ic { color: var(--ink-2); }
+  .bub-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+  .bub-btn { height: 30px; min-width: 76px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 500; }
+  .bub-btn:hover { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); }
+  .bub-btn.primary { border-color: transparent; background: var(--ink); color: var(--surface); }
+  .bub-btn.primary:hover { background: color-mix(in srgb, var(--ink) 86%, var(--surface)); }
+  .bub-btn:focus-visible, .bub-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .owl-menu.shown, .sugg, .bub { animation: none; } }
 </style>

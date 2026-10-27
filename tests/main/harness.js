@@ -571,6 +571,50 @@ async function main() {
     const res = await wc.executeJavaScript(`(async()=>({ notif: Notification.permission, q: (await navigator.permissions.query({name:'notifications'})).state, geo: (await navigator.permissions.query({name:'geolocation'})).state }))()`);
     await owl('closeTab', id);
     assert.notStrictEqual(res.notif, 'granted', 'Notification.permission is granted without asking: ' + JSON.stringify(res));
+    // Chrome's undecided state: 'default' / 'prompt', never 'denied' (sites then never ask) or 'granted'
+    assert.deepStrictEqual(res, { notif: 'default', q: 'prompt', geo: 'prompt' });
+  });
+
+  test('permissions: non-modal bubble — dismiss asks again, allow / block are remembered, navigation cancels', async () => {
+    const id = await owl('newTab', PAGES + '/perm2');
+    await loaded(id, PAGES + '/perm2');
+    const wc = wcForUrl(PAGES + '/perm2', defaultSes());
+    const origin = new URL(PAGES).origin;
+    const pending = (perm) => until(async () => (await owl('permissionPrompts')).find((p) => p.permission === perm && p.tabId === id), 6000, perm + ' prompt');
+    // 1. dismissed (×): not remembered, still 'default'
+    let req = wc.executeJavaScript('Notification.requestPermission()', true);
+    let p = await pending('notifications');
+    assert.strictEqual(p.label, 'Show notifications');
+    assert.strictEqual(p.origin, origin);
+    assert.strictEqual(await owl('answerPermission', p.id, 'dismiss'), true);
+    await req;
+    assert.strictEqual(await wc.executeJavaScript('Notification.permission'), 'default', 'dismiss is not a decision');
+    assert.ok(!(await owl('permissionPrompts')).some((x) => x.id === p.id), 'prompt gone');
+    // 2. allowed: remembered, page sees granted
+    req = wc.executeJavaScript('Notification.requestPermission()', true);
+    p = await pending('notifications');
+    await owl('answerPermission', p.id, 'allow');
+    assert.strictEqual(await req, 'granted');
+    assert.strictEqual(await wc.executeJavaScript('Notification.permission'), 'granted');
+    assert.strictEqual(await owl('answerPermission', p.id, 'allow'), false, 'answered once');
+    // 3. geolocation request reaches the bubble (undecided check = false must not short-circuit it); block is remembered
+    wc.executeJavaScript('new Promise((r) => navigator.geolocation.getCurrentPosition(() => r(1), () => r(0)))', true).catch(() => {});
+    p = await pending('geolocation');
+    assert.strictEqual(p.label, 'Know your location');
+    await owl('answerPermission', p.id, 'block');
+    assert.strictEqual(await wc.executeJavaScript(`navigator.permissions.query({name:'geolocation'}).then((s) => s.state)`), 'denied');
+    const s = (await owl('siteSettings')).find((x) => x.origins?.includes(origin) || x.site === '127.0.0.1');
+    assert.ok(s && s.perms.notifications === true && s.perms.geolocation === false, 'decisions listed in site settings: ' + JSON.stringify(s));
+    // 4. a pending prompt is cancelled when the page navigates away
+    await owl('setSitePermission', origin, 'notifications', null);
+    wc.executeJavaScript('Notification.requestPermission()', true).catch(() => {});
+    p = await pending('notifications');
+    await owl('navigate', id, PAGES + '/c');
+    await until(async () => !(await owl('permissionPrompts')).some((x) => x.id === p.id), 6000, 'prompt cancelled by navigation');
+    // garbage answers are ignored
+    assert.strictEqual(await owl('answerPermission', 'nope', 'allow'), false);
+    await owl('setSitePermission', origin, 'geolocation', null);
+    await owl('closeTab', id);
   });
 
   // ---- providers ----

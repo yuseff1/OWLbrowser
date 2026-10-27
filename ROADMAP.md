@@ -43,7 +43,7 @@ Source of truth for the overnight build loop. Tick only after verification.
 - [x] Tab groups (named, coloured, collapsible; restored with the session)
 - [ ] Reader mode
 - [ ] Download shelf / bubble with progress per file
-- [ ] Permission prompt as an in-page bubble (not a modal dialog), with a "prompt" state
+- [x] Permission prompt as a non-modal bubble under the address bar, with Chrome's undecided state (`default` / `prompt`)
 - [ ] Windows runtime smoke test of this build
 
 ### Keyboard shortcut parity (Chrome → OWL)

@@ -155,6 +155,8 @@ export class OwlWindow {
   private popupPending: PopupSpec | null = null;
   private popupId: number | null = null;
   private popupFocus = false;
+  /** a non-modal bubble (permission prompt) parked in the layer: menus may cover it, it comes back when they close */
+  private bubble: PopupSpec | null = null;
 
   constructor(public profileId: string, public incognito: boolean, private hooks: WindowHooks, initial?: { bounds?: Electron.Rectangle }) {
     const dark = nativeTheme.shouldUseDarkColors;
@@ -211,7 +213,7 @@ export class OwlWindow {
     const ui = this.win.webContents;
     ui.ipc.on('owl-popup:show', (e, spec: PopupSpec) => { if (isTrustedUiFrame(e.senderFrame)) this.showPopup(spec); });
     ui.ipc.on('owl-popup:hide', (e, id?: number) => { if (isTrustedUiFrame(e.senderFrame)) this.hidePopup(typeof id === 'number' ? id : undefined); });
-    const dismiss = () => { if (this.popupId != null) { const id = this.popupId; this.hidePopup(); this.send('popup-event', { id, type: 'dismiss' }); } };
+    const dismiss = () => { if (this.popupId != null && this.popupId !== this.bubble?.id) { const id = this.popupId; this.hidePopup(); this.send('popup-event', { id, type: 'dismiss' }); } };
     this.win.on('blur', dismiss);
     this.win.on('resize', dismiss);
     this.win.on('move', dismiss);
@@ -250,6 +252,7 @@ export class OwlWindow {
       try { this.win.contentView.removeChildView(v); } catch {}
       if (this.popup === v) { this.popup = null; this.popupReady = false; }
       if (this.popupId != null) { const id = this.popupId; this.popupId = null; this.send('popup-event', { id, type: 'dismiss' }); }
+      if (this.bubble) { const id = this.bubble.id; this.bubble = null; if (id !== this.popupId) this.send('popup-event', { id, type: 'dismiss' }); }
     });
     wc.loadURL(uiUrl({ profile: this.profileId, incognito: this.incognito ? '1' : '0', popup: '1' })).catch(() => {});
     this.win.contentView.addChildView(v);
@@ -262,6 +265,7 @@ export class OwlWindow {
     const v = this.ensurePopup();
     if (!v) return;
     this.popupId = spec.id;
+    if (spec.kind === 'bubble') this.bubble = spec;
     if (!this.popupReady) { this.popupPending = spec; return; }
     const [cw, ch] = this.win.getContentSize();
     const r = spec.rect;
@@ -277,7 +281,8 @@ export class OwlWindow {
   }
 
   hidePopup(id?: number) {
-    if (id != null && id !== this.popupId) return; // a newer popup replaced it
+    if (id != null && id !== this.popupId) { if (id === this.bubble?.id) this.bubble = null; return; } // a newer popup replaced it
+    if (this.popupId != null && this.popupId === this.bubble?.id) this.bubble = null;
     this.popupId = null;
     this.popupPending = null;
     const v = this.popup;
@@ -285,6 +290,8 @@ export class OwlWindow {
     v.setVisible(false);
     v.webContents.send('owl:event', 'popup', null);
     if (this.popupFocus) { this.popupFocus = false; this.win.webContents.focus(); }
+    // a menu that covered a parked bubble closed: show the bubble again
+    if (this.bubble) { const b = this.bubble; setTimeout(() => { if (this.bubble === b && this.popupId == null) this.showPopup(b); }, 0); }
   }
 
   get id() { return this.win.id; }

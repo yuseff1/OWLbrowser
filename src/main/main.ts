@@ -159,6 +159,27 @@ function broadcast(profileId: string | null, type: string, payload?: any) {
 }
 function toast(w: OwlWindow | null, title: string, body?: string, kind = 'info') { (w ? [w] : [...windows]).forEach((x) => x.send('toast', { title, body, kind })); }
 
+// ---------- site permissions (decided per origin; undecided = ask) ----------
+const PERM_LABELS: Record<string, string> = { geolocation: 'Know your location', notifications: 'Show notifications', midi: 'Use your MIDI devices', midiSysex: 'Control your MIDI devices', 'clipboard-read': 'See text and images copied to the clipboard', 'display-capture': 'Share your screen', 'window-management': 'Manage windows on all your displays', 'idle-detection': 'Know when you are actively using this device', 'storage-access': 'Use cookies across sites', 'top-level-storage-access': 'Use cookies across sites' };
+type PermPrompt = { id: string; windowId: number; tabId: number; origin: string; permission: string; label: string; at: number; decide: (ok: boolean | null) => void };
+const permPrompts = new Map<string, PermPrompt>();
+/** incognito decisions live only as long as that profile's incognito windows */
+const incognitoPerms = new Map<string, Map<string, boolean>>();
+const permInfo = (p: PermPrompt) => ({ id: p.id, tabId: p.tabId, origin: p.origin, permission: p.permission, label: p.label, at: p.at });
+function decidedPerm(profileId: string, incognito: boolean, origin: string, permission: string): boolean | undefined {
+  const k = origin + '|' + permission;
+  if (incognito) { const m = incognitoPerms.get(profileId); if (m?.has(k)) return m.get(k); }
+  const perms: Record<string, boolean> | undefined = (dataFor(profileId).session.get() as any).perms;
+  return perms && k in perms ? perms[k] : undefined;
+}
+function rememberPerm(profileId: string, incognito: boolean, k: string, ok: boolean) {
+  if (incognito) { let m = incognitoPerms.get(profileId); if (!m) incognitoPerms.set(profileId, (m = new Map())); m.set(k, ok); return; }
+  const store = dataFor(profileId).session as any;
+  const cur = store.get();
+  (cur.perms ||= {})[k] = ok;
+  store.set(cur);
+}
+
 // ---------- sessions ----------
 function prepareSession(profileId: string, incognito: boolean): Session {
   const ses = sessionFor(profileId, incognito);
@@ -180,10 +201,7 @@ function prepareSession(profileId: string, incognito: boolean): Session {
   if (settings.get().adblock) enableAdblock(ses).catch((e) => console.warn('[adblock]', e.message));
 
   const DEVICE_PERMS = new Set(['hid', 'serial', 'usb', 'bluetooth']);
-  const storedPerm = (origin: string, permission: string): boolean | undefined => {
-    const perms: Record<string, boolean> | undefined = (dataFor(profileId).session.get() as any).perms;
-    return perms ? perms[origin + '|' + permission] : undefined;
-  };
+  const storedPerm = (origin: string, permission: string): boolean | undefined => decidedPerm(profileId, incognito, origin, permission);
   // Permission *checks* (navigator.permissions, device APIs): honour the user's stored choice; device APIs default to deny.
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
     let origin = '';
@@ -195,6 +213,9 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     // without ever reaching the request handler (verified on Electron 45), i.e. any site could post OS
     // notifications silently. Undecided → false; Notification.requestPermission() still prompts below.
     if (permission === 'notifications') return false;
+    // Geolocation: undecided is not "granted" (navigator.permissions said granted before asking). The web
+    // preload reports it as 'prompt' to the page; getCurrentPosition() still reaches the request handler.
+    if (permission === 'geolocation') return false;
     return true; // Electron's default for everything else; real grants still go through the request handler below
   });
   ses.setDevicePermissionHandler(() => false); // WebHID / WebSerial / WebUSB devices are never auto-granted
@@ -206,29 +227,41 @@ function prepareSession(profileId: string, incognito: boolean): Session {
     const auto = ['fullscreen', 'clipboard-sanitized-write', 'pointerLock']; // window-management (multi-screen details) now prompts, like Chrome
     if (auto.includes(permission)) return callback(true);
     const origin = (() => { try { return new URL(details.requestingUrl || wc.getURL()).origin; } catch { return 'This site'; } })();
-    const store = dataFor(profileId).session as any;
-    const perms: Record<string, boolean> = (store.get().perms ||= {});
     const k = origin + '|' + permission;
-    if (k in perms) return callback(perms[k]);
+    const known = decidedPerm(profileId, incognito, origin, permission);
+    if (known !== undefined) return callback(known);
     // Only prompt for a page that lives in a live OWL window; anything else (no window open, a window
     // that is closing, popups/background contents) is denied instead of crashing on a destroyed parent.
     const alive = (x: OwlWindow | null | undefined) => !!x && !x.win.isDestroyed();
     const owner = [...windows].find((x) => x.tabs.some((t) => t.wc === wc));
-    const w = alive(owner) ? owner! : alive(focusedWindow()) ? focusedWindow()! : null;
-    if (!w || DEVICE_PERMS.has(permission) || wc.isDestroyed()) return callback(false);
+    const w = alive(owner) ? owner! : null;
+    const tab = w?.tabs.find((t) => t.wc === wc);
+    if (!w || !tab || DEVICE_PERMS.has(permission) || wc.isDestroyed()) return callback(false);
+    const media = (details as any).mediaTypes as string[] | undefined;
+    const label = permission === 'media'
+      ? (media?.includes('video') && media?.includes('audio') ? 'Use your camera and microphone' : media?.includes('video') ? 'Use your camera' : 'Use your microphone')
+      : (PERM_LABELS[permission] || permission);
+    // Non-modal: the UI shows an anchored bubble under the address bar (PermissionBubble.svelte); the page
+    // keeps working. Allow / Block are remembered (in memory only for incognito); closing the bubble, a
+    // navigation or closing the tab answers "no" for this request only, so the site may ask again.
+    const id = uid('perm_');
     let answered = false;
-    const answer = (ok: boolean) => { if (answered) return; answered = true; try { callback(ok); } catch { /* request already gone */ } };
-    const label = ({ media: 'use your camera/microphone', geolocation: 'know your location', notifications: 'show notifications', midi: 'use MIDI devices', 'clipboard-read': 'read your clipboard', 'display-capture': 'capture your screen' } as any)[permission] || permission;
-    wc.once('destroyed', () => answer(false));
-    try {
-      dialog.showMessageBox(w.win, { type: 'question', buttons: ['Allow', 'Block'], defaultId: 1, cancelId: 1, message: `${origin} wants to ${label}`, checkboxLabel: 'Remember for this site', checkboxChecked: true })
-        .then(({ response, checkboxChecked }) => {
-          const ok = response === 0;
-          if (checkboxChecked && !incognito) { perms[k] = ok; store.set(store.get()); }
-          answer(ok);
-        })
-        .catch((e) => { logLine('warn', 'permission prompt', e); answer(false); });
-    } catch (e) { logLine('warn', 'permission prompt', e); answer(false); }
+    const cleanup = () => { try { wc.off('did-navigate', onNav); wc.off('destroyed', onGone); } catch { /* gone */ } };
+    const decide = (ok: boolean | null) => {
+      if (answered) return; answered = true;
+      cleanup();
+      permPrompts.delete(id);
+      if (!w.win.isDestroyed()) w.send('permission-done', { id });
+      if (ok !== null) rememberPerm(profileId, incognito, k, ok);
+      try { callback(ok === true); } catch { /* request already gone */ }
+    };
+    const onNav = () => decide(null);
+    const onGone = () => decide(null);
+    wc.on('did-navigate', onNav);
+    wc.once('destroyed', onGone);
+    permPrompts.set(id, { id, windowId: w.id, tabId: tab.id, origin, permission, label, at: Date.now(), decide });
+    try { w.send('permission-prompt', permInfo(permPrompts.get(id)!)); }
+    catch (e) { logLine('warn', 'permission prompt', e); decide(null); }
   });
 
   ses.on('will-download', (_e, item, wc) => {
@@ -288,7 +321,7 @@ function createWindow(profileId: string, incognito = false, urls?: string[], reo
           }
         } catch (e) { logLine('warn', 'closed window snapshot', e); }
       }
-      if (ow.incognito && ![...windows].some((x) => x.incognito && x.profileId === ow.profileId)) { incognitoDownloads.delete(ow.profileId); incognitoClosed.delete(ow.profileId); sitePrefs.dropIncognito(ow.profileId); }
+      if (ow.incognito && ![...windows].some((x) => x.incognito && x.profileId === ow.profileId)) { incognitoDownloads.delete(ow.profileId); incognitoClosed.delete(ow.profileId); sitePrefs.dropIncognito(ow.profileId); incognitoPerms.delete(ow.profileId); }
     },
     onCommand: (ow, cmd, arg) => runCommand(ow, cmd, arg),
     onPasswordSubmit: (ow, _tab, data) => {
@@ -612,6 +645,15 @@ const api: Record<string, Handler> = {
     for (const [host, z] of Object.entries(zoom)) get(host).zoom = z;
     return [...sites.values()].sort((a, b) => a.site.localeCompare(b.site));
   },
+  /** pending permission bubbles of this window (the UI asks again after a reload) */
+  permissionPrompts: (w) => [...permPrompts.values()].filter((p) => p.windowId === w.id).map(permInfo),
+  /** answer a permission bubble: 'allow' | 'block' (remembered) | anything else = dismissed (ask again next time) */
+  answerPermission: (w, id: string, choice: string) => {
+    const p = typeof id === 'string' ? permPrompts.get(id) : undefined;
+    if (!p || p.windowId !== w.id) return false;
+    p.decide(choice === 'allow' ? true : choice === 'block' ? false : null);
+    return true;
+  },
   setSitePermission: (w, origin: string, permission: string, value: boolean | null) => {
     if (w.incognito || typeof origin !== 'string' || typeof permission !== 'string' || !/^[a-z-]{2,40}$/.test(permission)) return false;
     let o = ''; try { const u = new URL(origin); if (u.protocol !== 'https:' && u.protocol !== 'http:') return false; o = u.origin; } catch { return false; }
@@ -845,6 +887,23 @@ for (const [name, fn] of Object.entries(api)) {
     catch (err: any) { console.error(`[ipc] ${name}`, err); throw new Error(err?.message || String(err)); }
   });
 }
+
+// web preload: is a permission decided for this page's origin? ('granted' | 'denied' | 'default'). Lets the
+// page see Chrome's undecided state (Notification.permission 'default', permissions.query 'prompt').
+ipcMain.on('owl-web:perm-state', (e, name: unknown) => {
+  // returnValue answers the sync call the moment it is assigned: compute first, assign once
+  let out = 'default';
+  try {
+    const frame = e.senderFrame;
+    const w = [...windows].find((x) => x.tabs.some((t) => t.wc === e.sender));
+    if (frame && w && typeof name === 'string') {
+      const origin = new URL(frame.url).origin;
+      const v = origin === 'null' ? undefined : decidedPerm(w.profileId, w.incognito, origin, name === 'camera' || name === 'microphone' ? 'media' : name);
+      out = v === true ? 'granted' : v === false ? 'denied' : 'default';
+    }
+  } catch { /* keep default */ }
+  e.returnValue = out;
+});
 
 // credentials for autofill — origin taken from the requesting frame, never trusted from the page
 ipcMain.handle('owl-web:credentials', (e) => {

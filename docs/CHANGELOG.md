@@ -1,11 +1,18 @@
 # Changelog
 
-## 2026-10-28 (night) — tab groups
+## 2026-10-28 (night) — tab groups, permission bubble
 - Tab groups, Chrome-style: tab menu › *Add tab to new group* / *Add to “…”* / *Remove from group*. The chip before a group collapses / expands it on click; right-click (or Enter / F2) opens the editor: name, nine muted colours (amber `#E8A317` included), new tab in group, collapse, ungroup, close group. A coloured underline runs from the chip under the group's tabs (horizontal strip); vertical tabs show the chip as a header with a colour rail.
 - Main keeps groups contiguous: grouping moves tabs next to each other, a tab dropped between two grouped tabs joins the group, one dragged out leaves it, a tab opened from a grouped opener joins it, pinning ungroups, empty groups disappear. Collapsing the active tab's group moves to the nearest tab outside it; activating a hidden tab expands its group.
 - Groups (and pinned tabs) are saved with the session and with a closed window, and come back on restore / Ctrl+Shift+T.
 - IPC `groupTabs(ids, groupId?, {title,color}) / ungroupTabs(ids) / updateGroup(id, {title,color,collapsed}) / closeGroup(id)`; `WindowState.groups`, `TabState.groupId` (replaces the unused `groupColor`).
 - Tests: tab-group test in `test:main`, reopen-window test checks the group comes back.
+
+Permissions:
+- Undecided now reads like Chrome: `Notification.permission` is `'default'` and `navigator.permissions.query()` says `'prompt'` for notifications and geolocation until the user decides (before: `'denied'`, so sites never asked; geolocation said `'granted'` before asking). The web preload patches the main world at document start; the decision comes from main by origin of the frame (sync IPC `owl-web:perm-state`), never from the page.
+- The modal "wants to…" dialog is gone. Requests show a non-modal bubble anchored under the address bar's site icon, drawn by the popup layer sized to the card, so the page stays usable. Block / Allow are remembered (incognito: in memory until its last window closes); × , a navigation or closing the tab answers this request only. A menu opened over it parks it; it returns when the menu closes. Switching tabs hides it; coming back shows it again. Labels per permission (camera vs microphone vs both, location, notifications, clipboard, screen share, MIDI…).
+- IPC `permissionPrompts()` / `answerPermission(id, 'allow' | 'block' | 'dismiss')`, events `permission-prompt` / `permission-done`. Popup layer: new `bubble` kind.
+- Fluent icons added: alert, location, clipboard, share-screen-start, person-swap, data-usage, text-font, text-font-size, immersive-reader, pause.
+- Tests: undecided state; dismiss asks again, allow/block remembered and listed in site settings, geolocation reaches the bubble, navigation cancels a pending prompt.
 
 ## 2026-10-27 (night) — bug sweep + daily-browser features
 Fixes (from the UI QA and main-process audits):

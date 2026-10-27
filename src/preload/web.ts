@@ -1,5 +1,38 @@
-// Preload for every web page tab (isolated world). Kept tiny for memory: password save/fill only.
-import { ipcRenderer } from 'electron';
+// Preload for every web page tab (isolated world). Kept tiny for memory: password save/fill, permission state.
+import { ipcRenderer, contextBridge } from 'electron';
+
+/**
+ * Chrome's "ask" state. Electron's permission check is yes/no, so an undecided site would read
+ * Notification.permission 'denied' (and many sites then never ask) or, for geolocation, 'granted'.
+ * Before any page script runs, patch the main world so undecided reads as 'default' / 'prompt'; the
+ * decision itself is asked from main synchronously (origin taken from the frame by main, not the page).
+ */
+try {
+  if (window.top === window && /^https?:$/.test(location.protocol)) {
+    const state = (name: string) => { try { return String(ipcRenderer.sendSync('owl-web:perm-state', name)); } catch { return 'default'; } };
+    contextBridge.executeInMainWorld({
+      func: (get: (n: string) => string) => {
+        const ASK = new Set(['notifications', 'geolocation']);
+        try {
+          const N = (window as any).Notification;
+          if (N) Object.defineProperty(N, 'permission', { configurable: true, enumerable: true, get: () => get('notifications') });
+        } catch { /* leave native */ }
+        try {
+          const P = (window as any).Permissions?.prototype;
+          const q = P?.query;
+          if (q) P.query = function (this: any, d: any) {
+            return q.call(this, d).then((st: any) => {
+              const n = d && d.name;
+              if (ASK.has(n) && st.state !== 'granted' && get(n) === 'default') { try { Object.defineProperty(st, 'state', { configurable: true, get: () => 'prompt' }); } catch { /* frozen */ } }
+              return st;
+            });
+          };
+        } catch { /* leave native */ }
+      },
+      args: [state],
+    });
+  }
+} catch { /* older Electron or no main world yet: native behaviour */ }
 
 function findForm(pw: HTMLInputElement) {
   const form = pw.form || pw.closest('form') || document.body;
