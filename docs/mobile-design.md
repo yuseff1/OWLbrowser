@@ -119,6 +119,19 @@ Haptics: light on taps, `selection` on segmented / companion change, medium on n
 - **Empty states:** one short line in `ink3`, centred. No icon, no explanation.
 - **Copy:** labels are nouns or verbs, one per intent ("Save", "Copy", "Block trackers"). No helper paragraphs, no "(e.g. …)", no emoji.
 
+## Daily-use browsing (2026-10-28)
+
+- **Dock swipe:** drag the address capsule sideways to move to the neighbouring tab in the same strip (normal or private). The capsule content follows the finger at 0.7×, leaves, and the next tab's slides in from the other side; at either end it rubber-bands. Selection haptic on switch. The toolbar row is not a swipe area.
+- **Private tabs:** the address capsule turns ink-dark (`#1E1C1A`, light text) in both themes, with the filled private glyph; tab cards in the Private strip are always dark.
+- **Tab switcher:** two-column cards: header (favicon, title, 28 pt close) over a cover — the page's `og:image` when it has one (captured by the page-tools script, https only, persisted with the tab), else the favicon and host on a soft well, the companion for a new tab. Swipe a card sideways to close it; amber 1.5 pt border marks the current tab; opens scrolled to it. Segmented pill shows both counts; Close all asks first.
+- **Long-press menu:** long-press a link or image → in-screen glass sheet (same overlay pattern as the page menu): target (thumbnail for images, link text, URL) then Open in new tab / Open in private tab / Copy link / Copy link text / Share link / Download link, and Open image in new tab / Copy image address / Download image. New tabs open in the background with a toast "Opened in new tab · Switch". From a private tab, links only open private.
+- **Toast:** one glass pill above the dock (below it in top mode), one line + optional amber action, 3.2 s.
+- **Find in page:** page menu → Find in page. The find capsule takes the dock's place (solid capsule while typing, rides the keyboard like the dock); amber highlights in the page, current match solid amber; `n/m` counter (danger colour at 0/0), up/down chevrons, Enter = next. Leaving the page or tab ends it.
+- **Text size:** page menu row with − / % / + stepper per site (50–200 %, Android WebView `textZoom`, iOS `-webkit-text-size-adjust`); tap the row to reset to 100 %. Non-default sizes show in amber.
+- **Downloads:** WebView downloads and long-press "Download" ask once ("Download file?" + file name) and hand the URL to the system.
+- **History / Bookmarks:** search field on top; long-press a row to open it in a background tab.
+- **Pull-to-refresh:** deliberately off (a wrapper intercepted vertical drags on pages that scroll an inner container). Reload is in the capsule.
+
 ## Removed in the 2026-10-27 pass
 
 Glow circle behind the companion art; tagline under the greeting; sparkle badge on the companion button; tracker-count badge in the address bar; companion-coloured rings/borders/cards (Atlas violet, Hoot blue); the neumorphic composer; uppercase micro-labels; lightbulb "Ideas for …" header; explanatory paragraphs on Memory, Profiles, Models, History, Bookmarks, Ask and the run sheet; icons in empty states; the "✓ / ☰" glyphs in copy.

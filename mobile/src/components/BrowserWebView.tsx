@@ -6,6 +6,11 @@ import { WebView, type WebViewHandle } from './WebViewBase';
 import { browser, webviews, type BrowserTab } from '@/state/browser';
 import { isBlocked, BLOCKER_SCRIPT } from '@/lib/blocklist';
 import { useTheme } from '@/lib/theme';
+import { useStore } from '@/lib/store';
+import { appStore } from '@/state/app';
+import { hostOf } from '@/lib/url';
+import { handOffDownload } from '@/lib/downloads';
+import { PAGE_TOOLS_SCRIPT, textSizeScript } from '@/lib/page-tools';
 
 const DESKTOP_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
 const PASSTHROUGH = /^(https?|about|data|blob|file|javascript):/i;
@@ -67,6 +72,15 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, ins
   }, [insetTop, insetBottom]);
   const bootScript = Platform.OS === 'android' ? insetBootScript(insetTop, insetBottom) : '';
 
+  // Per-site text size: Android WebView has a live textZoom setting; iOS gets -webkit-text-size-adjust injected.
+  const host = hostOf(tab.url);
+  const zoom = useStore(appStore, (s) => (host && s.settings.siteZoom?.[host]) || 100);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  useEffect(() => {
+    if (Platform.OS === 'ios') ref.current?.injectJavaScript(textSizeScript(zoom));
+  }, [zoom]);
+
   const onNav = useCallback((e: WebViewNavigation) => {
     browser.onPageNav(id, { url: e.url, title: e.title, loading: e.loading, canGoBack: e.canGoBack, canGoForward: e.canGoForward });
   }, [id]);
@@ -85,6 +99,7 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, ins
     const n = e?.nativeEvent || {};
     if (n.url) browser.onPageNav(id, { url: n.url, title: n.title, loading: false, canGoBack: !!n.canGoBack, canGoForward: !!n.canGoForward });
     browser.onLoadEnd(id);
+    if (Platform.OS === 'ios' && zoomRef.current !== 100) ref.current?.injectJavaScript(textSizeScript(zoomRef.current));
   }, [id]);
 
   const onMessage = useCallback((e: WebViewMessageEvent) => {
@@ -145,7 +160,8 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, ins
       contentInsetAdjustmentBehavior="never"
       userAgent={desktopMode ? DESKTOP_UA : undefined}
       applicationNameForUserAgent={desktopMode ? undefined : 'OWL/0.1'}
-      injectedJavaScriptBeforeContentLoaded={(adblock ? BLOCKER_SCRIPT + '\n;' : '') + (bootScript || 'true;')}
+      textZoom={Platform.OS === 'android' ? zoom : undefined}
+      injectedJavaScriptBeforeContentLoaded={(adblock ? BLOCKER_SCRIPT + '\n;' : '') + PAGE_TOOLS_SCRIPT + '\n;' + (bootScript || 'true;')}
       injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
       injectedJavaScriptForMainFrameOnly
       onShouldStartLoadWithRequest={onShouldStart}
@@ -157,7 +173,7 @@ function BrowserWebViewImpl({ tab, visible, incognito, adblock, desktopMode, ins
       onOpenWindow={onOpenWindow}
       onContentProcessDidTerminate={onCrash}
       onRenderProcessGone={onCrash}
-      onFileDownload={(e: any) => { Linking.openURL(e.nativeEvent.downloadUrl).catch(() => {}); }}
+      onFileDownload={(e: any) => handOffDownload(e?.nativeEvent?.downloadUrl || '')}
       webviewDebuggingEnabled={__DEV__}
       forceDarkOn={false}
     />

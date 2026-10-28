@@ -10,7 +10,11 @@ import { app, appStore } from '@/state/app';
 import { browser, browserStore, webviews } from '@/state/browser';
 import { readerStore } from '@/state/reader';
 import { READ_SCRIPT } from '@/lib/agent/page-scripts';
-import { Glass, IconWell, T, Tap, haptic, useSqueeze } from './ui';
+import { Glass, IconButton, IconWell, T, Tap, haptic, useSqueeze } from './ui';
+import { openFind } from './FindBar';
+import { showToast } from './Toast';
+import { hostOf } from '@/lib/url';
+import { TEXT_SIZES } from '@/lib/page-tools';
 
 type Item = { key: string; label: string; icon: React.ReactNode; onPress: () => void; active?: boolean; disabled?: boolean; right?: React.ReactNode };
 
@@ -26,6 +30,12 @@ export function MenuSheet({ visible, onClose, position = 'bottom' }: { visible: 
   const tab = useStore(browserStore, (s) => s.tabs.find((x) => x.id === s.activeId) || s.tabs[0]);
   const bookmarked = useStore(appStore, (s) => s.bookmarks.some((b) => b.url === tab.url));
   const { desktopMode, adblock } = useStore(appStore, (s) => ({ desktopMode: s.settings.desktopMode, adblock: s.settings.adblock }));
+  const host = hostOf(tab.url);
+  const zoom = useStore(appStore, (s) => (host && s.settings.siteZoom?.[host]) || 100);
+  const stepZoom = (dir: 1 | -1) => {
+    const next = dir > 0 ? TEXT_SIZES.find((z) => z > zoom) : [...TEXT_SIZES].reverse().find((z) => z < zoom);
+    if (next && next !== zoom) { haptic('selection'); app.setSiteZoom(host, next); }
+  };
 
   // Mounted while visible or animating out; slides up on a spring, leaves faster than it came.
   const [shown, setShown] = useState(visible);
@@ -66,11 +76,23 @@ export function MenuSheet({ visible, onClose, position = 'bottom' }: { visible: 
   const quick: Item[] = [
     { key: 'bm', label: bookmarked ? 'Saved' : 'Save', icon: <Icon name="star" {...I} color={bookmarked ? t.accent : t.ink} filled={bookmarked} />, onPress: () => { haptic('success'); app.toggleBookmark(tab.url, tab.title); }, disabled: !tab.url, active: bookmarked },
     { key: 'reader', label: 'Reader', icon: <Icon name="reading-mode-mobile" {...I} />, onPress: openReader, disabled: !tab.url },
-    { key: 'desk', label: 'Desktop', icon: <Icon name="desktop" {...I} color={desktopMode ? t.accent : t.ink} />, onPress: () => { app.patchSettings({ desktopMode: !desktopMode }); onClose(); }, active: desktopMode },
-    { key: 'copy', label: 'Copy', icon: <Icon name="copy" {...I} />, onPress: async () => { await Clipboard.setStringAsync(tab.url); haptic('success'); onClose(); }, disabled: !tab.url },
+    { key: 'desk', label: 'Desktop', icon: <Icon name="desktop" {...I} color={desktopMode ? t.accent : t.ink} filled={desktopMode} />, onPress: () => { app.patchSettings({ desktopMode: !desktopMode }); onClose(); }, active: desktopMode },
+    { key: 'copy', label: 'Copy', icon: <Icon name="copy" {...I} />, onPress: async () => { await Clipboard.setStringAsync(tab.url); haptic('success'); onClose(); showToast('Link copied'); }, disabled: !tab.url },
   ];
 
+  const zoomControl = (
+    <View style={styles.stepper}>
+      <IconButton size={36} label="Smaller text" disabled={zoom <= TEXT_SIZES[0]} icon={<Icon name="font-decrease" size={icon.md} color={t.ink} />} onPress={() => stepZoom(-1)} />
+      <T kind="callout" style={styles.zoomNum} color={zoom === 100 ? t.ink2 : t.accent}>{zoom}%</T>
+      <IconButton size={36} label="Larger text" disabled={zoom >= TEXT_SIZES[TEXT_SIZES.length - 1]} icon={<Icon name="font-increase" size={icon.md} color={t.ink} />} onPress={() => stepZoom(1)} />
+    </View>
+  );
+
   const rows: Item[] = [
+    ...(tab.url ? [
+      { key: 'find', label: 'Find in page', icon: <Icon name="search" {...I} />, onPress: () => { onClose(); setTimeout(openFind, 120); } },
+      { key: 'zoom', label: 'Text size', icon: <Icon name="text-font-size" {...I} />, onPress: () => { if (zoom !== 100) { haptic('selection'); app.setSiteZoom(host, 100); } }, right: zoomControl },
+    ] : []),
     { key: 'new', label: 'New tab', icon: <Icon name="add" {...I} />, onPress: () => { haptic('light'); browser.newTab(); onClose(); } },
     { key: 'priv', label: 'New private tab', icon: <Icon name="tab-in-private" {...I} />, onPress: () => { haptic('light'); browser.newTab('', { private: true }); onClose(); } },
     { key: 'bms', label: 'Bookmarks', icon: <Icon name="bookmark" {...I} />, onPress: () => nav('/bookmarks') },
@@ -131,4 +153,6 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: space.md, marginBottom: space.xxs },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 50, paddingHorizontal: space.md, marginHorizontal: space.xxs, borderRadius: radius.sm },
   rowIcon: { width: 24, alignItems: 'center' },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  zoomNum: { minWidth: 48, textAlign: 'center', fontVariant: ['tabular-nums'], fontWeight: '600' },
 });

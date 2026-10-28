@@ -4,12 +4,15 @@ import { toUrl } from '@/lib/url';
 import { appStore, app } from './app';
 import type { Tab, TabRuntime } from '@/lib/types';
 import type { WebViewHandle } from '@/components/WebViewBase';
+import { pageUiStore } from './pageui';
 
 export type BrowserTab = Tab & {
   /** URL requested by the user/agent; the WebView `source`. `url` is what the page currently shows. */
   src: string;
   /** bumps to force a reload of the same src */
   nonce: number;
+  /** page's og:image, used as the tab card cover (https only) */
+  thumb?: string;
 };
 
 export type BrowserState = {
@@ -41,7 +44,7 @@ function persist(delay = 800) {
   const tabs = s.tabs.filter((t) => !t.private).map(({ nonce, ...t }) => ({ ...t, src: t.url || t.src }));
   const value = { tabs, activeId: s.activeId };
   // Navigation events fire many times per page; only touch AsyncStorage when something we store changed.
-  const sig = s.activeId + '|' + tabs.map((t) => t.id + '\u0001' + t.src + '\u0001' + t.title).join('\u0002');
+  const sig = s.activeId + '|' + tabs.map((t) => t.id + '\u0001' + t.src + '\u0001' + t.title + '\u0001' + (t.thumb || '')).join('\u0002');
   if (sig === lastPersisted) return;
   lastPersisted = sig;
   saveJson(tabsKey(), value, delay);
@@ -119,6 +122,21 @@ export const webviews = {
         pending.delete(m.__owl);
         if (m.ok) p.resolve(m.value); else p.reject(new Error(m.error || 'Script error'));
       }
+      return true;
+    }
+    if (m && m.__owlCtx && typeof m.__owlCtx === 'object') {
+      const c = m.__owlCtx;
+      const href = typeof c.href === 'string' ? c.href.slice(0, 4000) : '';
+      const src = typeof c.src === 'string' ? c.src.slice(0, 4000) : '';
+      // only for the tab the user is looking at (a background tab can't be long-pressed)
+      if ((href || src) && browserStore.get().activeId === tabId) {
+        pageUiStore.set({ link: { tabId, href, src, text: typeof c.text === 'string' ? c.text.slice(0, 200) : '' } });
+      }
+      return true;
+    }
+    if (m && m.__owlMeta && typeof m.__owlMeta === 'object') {
+      const img = typeof m.__owlMeta.image === 'string' && /^https:\/\//i.test(m.__owlMeta.image) ? m.__owlMeta.image.slice(0, 2000) : '';
+      browser.setThumb(tabId, img);
       return true;
     }
     if (m && typeof m.__owlBlocked === 'number') {
@@ -213,6 +231,13 @@ export const browser = {
     persist(0);
   },
 
+  /** Close every private tab (keeps normal ones; a blank tab if nothing is left). */
+  closePrivate() {
+    const s = browserStore.get();
+    const ids = s.tabs.filter((t) => t.private).map((t) => t.id);
+    ids.forEach((x) => this.close(x));
+  },
+
   closeAll(privateOnly = false) {
     const s = browserStore.get();
     const keep = privateOnly ? s.tabs.filter((t) => !t.private) : [];
@@ -255,7 +280,7 @@ export const browser = {
     const sameRt = prev.loading === nextRt.loading && prev.canGoBack === nextRt.canGoBack && prev.canGoForward === nextRt.canGoForward && prev.blocked === nextRt.blocked && s.runtime[id] !== undefined;
     if (!sameTab || !sameRt) {
       browserStore.set({
-        tabs: sameTab ? s.tabs : s.tabs.map((t) => (t.id === id ? { ...t, url, title } : t)),
+        tabs: sameTab ? s.tabs : s.tabs.map((t) => (t.id === id ? { ...t, url, title, thumb: changedUrl ? undefined : t.thumb } : t)),
         runtime: sameRt ? s.runtime : { ...s.runtime, [id]: nextRt },
       });
     }
@@ -263,6 +288,24 @@ export const browser = {
       if (changedUrl) app.addHistory(url, title); else app.updateHistoryTitle(url, title);
     }
     persist();
+  },
+
+  setThumb(id: string, thumb: string) {
+    const s = browserStore.get();
+    const tab = s.tabs.find((t) => t.id === id);
+    if (!tab || (tab.thumb || '') === thumb) return;
+    browserStore.set({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, thumb: thumb || undefined } : t)) });
+    persist();
+  },
+
+  /** Neighbour in the strip the user is in (normal or private), for swiping the dock. */
+  neighbour(id: string, dir: 1 | -1): BrowserTab | null {
+    const s = browserStore.get();
+    const tab = s.tabs.find((t) => t.id === id);
+    if (!tab) return null;
+    const strip = s.tabs.filter((t) => !!t.private === !!tab.private);
+    const i = strip.findIndex((t) => t.id === id);
+    return strip[i + dir] || null;
   },
 
   setRuntime(id: string, patch: Partial<TabRuntime>) {

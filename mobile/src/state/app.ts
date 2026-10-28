@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   desktopMode: false,
   barPosition: 'bottom',
   glassBlur: true,
+  siteZoom: {},
 };
 
 const DEFAULT_PROFILE: Profile = { id: 'default', name: 'Personal', color: '#E8A317', isolated: false, createdAt: 0 };
@@ -121,6 +122,15 @@ export const app = {
     saveJson('profiles', profiles, 0);
     await Promise.all(['settings', 'bookmarks', 'history', 'memory', 'tabs'].map((k) => removeKey(pk(k, id))));
     if (appStore.get().profileId === id) await this.switchProfile('default');
+  },
+
+  /** Text size for one site (percent). 100 removes the override. */
+  setSiteZoom(host: string, pct: number) {
+    if (!host) return;
+    const cur = appStore.get().settings.siteZoom || {};
+    const next = { ...cur };
+    if (pct === 100) delete next[host]; else next[host] = Math.max(50, Math.min(200, Math.round(pct)));
+    this.patchSettings({ siteZoom: next });
   },
 
   patchSettings(patch: Partial<Settings>) {

@@ -8,7 +8,15 @@ import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
 import { browser } from '@/state/browser';
 import { faviconFor, hostOf } from '@/lib/url';
-import { Empty, IconButton, T, Tap, fieldStyle } from '@/components/ui';
+import { showToast } from '@/components/Toast';
+import { Empty, IconButton, T, Tap, fieldStyle, haptic } from '@/components/ui';
+
+/** Long-press: open in a background tab (private stays private), confirmed with a toast. */
+function openInNewTab(url: string) {
+  const t = browser.newTab(url, { private: browser.active().private, background: true });
+  haptic('success');
+  showToast('Opened in new tab', { label: 'Switch', run: () => browser.activate(t.id) });
+}
 
 export default function BookmarksScreen() {
   const t = useTheme();
@@ -30,7 +38,7 @@ export default function BookmarksScreen() {
       ListHeaderComponent={<TextInput value={q} onChangeText={setQ} placeholder="Search bookmarks" placeholderTextColor={t.ink3} selectionColor={t.accentFill} style={[fieldStyle(t), { marginBottom: space.md }]} accessibilityLabel="Search bookmarks" />}
       ListEmptyComponent={<Empty text={q ? 'No matches' : 'No bookmarks'} />}
       renderItem={({ item }) => (
-        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} feedback="highlight" haptics={false} style={styles.row}>
+        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} onLongPress={() => openInNewTab(item.url)} feedback="highlight" haptics={false} style={styles.row}>
           <Image source={{ uri: faviconFor(item.url) || undefined }} style={styles.fav} contentFit="contain" />
           <View style={{ flex: 1, minWidth: 0 }}>
             <T numberOfLines={1}>{item.title}</T>

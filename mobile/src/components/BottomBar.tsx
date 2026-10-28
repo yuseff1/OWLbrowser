@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, FlatList, Keyboard, Platform, Share, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, BackHandler, FlatList, Keyboard, PanResponder, Platform, Share, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -29,6 +29,9 @@ const EDIT_H = PAD + ADDRESS_H + PAD;
 /** gap between the dock and the screen edge (sides, and top in top mode) */
 export const DOCK_GAP = space.xs;
 export type DockPosition = 'top' | 'bottom';
+const PRIVATE_WELL = '#1E1C1A';
+const PRIVATE_INK = '#F4EFE8';
+const PRIVATE_INK2 = 'rgba(244,239,232,0.62)';
 
 type Suggestion = { key: string; kind: 'search' | 'url' | 'history' | 'bookmark' | 'ask'; title: string; subtitle?: string; value: string };
 
@@ -82,6 +85,34 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
     return () => sub.remove();
   }, [editing]);
 
+  // Swipe the address capsule sideways to move to the neighbouring tab (Chrome's bottom-bar gesture). The capsule's
+  // content follows the finger, leaves, and the next tab's slides in from the other side; at the ends it rubber-bands.
+  const swipeX = useRef(new Animated.Value(0)).current;
+  const pan = useMemo(() => {
+    const back = () => Animated.spring(swipeX, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }).start();
+    return PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, g) => {
+        const has = !!browser.neighbour(browserStore.get().activeId, g.dx < 0 ? 1 : -1);
+        swipeX.setValue(has ? g.dx * 0.7 : g.dx / (1 + Math.abs(g.dx) / 36));
+      },
+      onPanResponderRelease: (_, g) => {
+        const dir: 1 | -1 = g.dx < 0 ? 1 : -1;
+        const next = browser.neighbour(browserStore.get().activeId, dir);
+        if (!next || (Math.abs(g.dx) < 56 && Math.abs(g.vx) < 0.5)) return back();
+        haptic('selection');
+        Animated.timing(swipeX, { toValue: -dir * 140, duration: motion.duration.press, easing: motion.ease, useNativeDriver: true }).start(() => {
+          browser.activate(next.id);
+          swipeX.setValue(dir * 140);
+          back();
+        });
+      },
+      onPanResponderTerminate: back,
+    });
+  }, [swipeX]);
+  const swipeOpacity = swipeX.interpolate({ inputRange: [-140, 0, 140], outputRange: [0, 1, 0], extrapolate: 'clamp' });
+
   const share = async () => {
     if (!url) return;
     try { await Share.share(Platform.OS === 'ios' ? { url, message: tab.title } : { message: `${tab.title}\n${url}` }); } catch {}
@@ -92,6 +123,10 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
   const top = position === 'top';
   const bottomPad = lift > 0 ? space.xs : Math.max(insets.bottom, space.xs);
   const ink = t.ink;
+  // Private tabs: the capsule turns ink-dark in both themes (Safari / Chrome incognito cue), text goes light.
+  const priv = !!tab?.private;
+  const addrInk = priv ? PRIVATE_INK : ink;
+  const addrInk2 = priv ? PRIVATE_INK2 : t.glass.ink2;
 
   // Position switch: slide in from the new edge on a spring (the old one is simply gone; exits stay quiet).
   const slide = useRef(new Animated.Value(0)).current;
@@ -129,7 +164,7 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
             page behind never ghosts through the text field; the dock is then one clean capsule with no inner well. */}
         <Animated.View style={editing ? undefined : squeeze.style} {...(editing ? {} : squeeze.handlers)}>
           <Glass style={styles.glass} rounded={DOCK_RADIUS} live={!editing} intensity={100}>
-            <View style={[styles.address, { backgroundColor: editing ? 'transparent' : t.glass.well }]}>
+            <View style={[styles.address, { backgroundColor: editing ? 'transparent' : priv ? PRIVATE_WELL : t.glass.well }]} {...(editing ? {} : pan.panHandlers)}>
               {editing ? (
                 <>
                   <View style={styles.lead}><Icon name="search" size={icon.sm} color={t.glass.ink2} /></View>
@@ -155,15 +190,17 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
                 </>
               ) : (
                 <>
-                  <IconButton size={40} label="Menu" icon={<Icon name="more-horizontal" size={icon.md} color={ink} />} onPress={onOpenMenu} />
-                  <Tap label={url ? `Address ${url}. Edit` : 'Search or enter address'} onPress={startEdit} style={styles.addrTap} haptics={false} feedback="opacity">
-                    {tab?.private ? <Icon name="tab-in-private" size={14} color={t.glass.ink2} /> : url ? (isSecure(url) ? <Icon name="lock-closed" size={14} color={t.glass.ink2} /> : <Icon name="globe" size={14} color={t.danger} />) : null}
-                    <T numberOfLines={1} style={{ flexShrink: 1, fontWeight: url ? '500' : '400' }} color={url ? ink : t.glass.ink2}>
-                      {url ? displayUrl(url) : 'Search or enter address'}
-                    </T>
-                  </Tap>
+                  <IconButton size={40} label="Menu" icon={<Icon name="more-horizontal" size={icon.md} color={addrInk} />} onPress={onOpenMenu} />
+                  <Animated.View style={{ flex: 1, minWidth: 0, opacity: swipeOpacity, transform: [{ translateX: swipeX }] }}>
+                    <Tap label={url ? `Address ${url}. Edit` : 'Search or enter address'} onPress={startEdit} style={styles.addrTap} haptics={false} feedback="opacity">
+                      {priv ? <Icon name="tab-in-private" size={15} color={addrInk2} filled /> : url ? (isSecure(url) ? <Icon name="lock-closed" size={14} color={addrInk2} /> : <Icon name="globe" size={14} color={t.danger} />) : null}
+                      <T numberOfLines={1} style={{ flexShrink: 1, fontWeight: url ? '500' : '400' }} color={url ? addrInk : addrInk2}>
+                        {url ? displayUrl(url) : priv ? 'Private' : 'Search or enter address'}
+                      </T>
+                    </Tap>
+                  </Animated.View>
                   {url ? (
-                    <IconButton size={40} label={rt.loading ? 'Stop' : 'Reload'} icon={rt.loading ? <Icon name="dismiss" size={icon.md} color={ink} /> : <Icon name="arrow-clockwise" size={18} color={ink} />} onPress={() => (rt.loading ? browser.stop(tab.id) : browser.reload(tab.id))} />
+                    <IconButton size={40} label={rt.loading ? 'Stop' : 'Reload'} icon={rt.loading ? <Icon name="dismiss" size={icon.md} color={addrInk} /> : <Icon name="arrow-clockwise" size={18} color={addrInk} />} onPress={() => (rt.loading ? browser.stop(tab.id) : browser.reload(tab.id))} />
                   ) : (
                     <View style={{ width: 40 }} />
                   )}

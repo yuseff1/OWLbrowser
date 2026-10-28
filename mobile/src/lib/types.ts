@@ -77,6 +77,8 @@ export type Settings = {
   barPosition: 'top' | 'bottom';
   /** live blur of the page behind the glass chrome (Android 12+ / iOS); off = dense tint, page stops at the bar */
   glassBlur: boolean;
+  /** per-site text size in percent, keyed by host (missing = 100) */
+  siteZoom: Record<string, number>;
 };
 
 export type AgentStep = {

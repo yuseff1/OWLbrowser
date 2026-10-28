@@ -8,7 +8,8 @@ import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
 import { browser } from '@/state/browser';
 import { faviconFor, hostOf } from '@/lib/url';
-import { Button, Empty, IconButton, T, Tap, fieldStyle } from '@/components/ui';
+import { showToast } from '@/components/Toast';
+import { Button, Empty, IconButton, T, Tap, fieldStyle, haptic } from '@/components/ui';
 import type { HistoryEntry } from '@/lib/types';
 
 function dayLabel(ts: number) {
@@ -18,6 +19,13 @@ function dayLabel(ts: number) {
   if (d.toDateString() === today.toDateString()) return 'Today';
   if (d.toDateString() === y.toDateString()) return 'Yesterday';
   return d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+/** Long-press: open in a background tab (private stays private), confirmed with a toast. */
+function openInNewTab(url: string) {
+  const t = browser.newTab(url, { private: browser.active().private, background: true });
+  haptic('success');
+  showToast('Opened in new tab', { label: 'Switch', run: () => browser.activate(t.id) });
 }
 
 export default function HistoryScreen() {
@@ -55,7 +63,7 @@ export default function HistoryScreen() {
       ListEmptyComponent={<Empty text={q ? 'No matches' : 'No history'} />}
       renderSectionHeader={({ section }) => <T kind="section" style={{ marginTop: space.lg, marginBottom: space.xxs, marginLeft: space.xxs }}>{section.title}</T>}
       renderItem={({ item }) => (
-        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} feedback="highlight" haptics={false} style={styles.row}>
+        <Tap label={item.title} onPress={() => { browser.navigate(browser.active().id, item.url); router.back(); }} onLongPress={() => openInNewTab(item.url)} feedback="highlight" haptics={false} style={styles.row}>
           <Image source={{ uri: faviconFor(item.url) || undefined }} style={styles.fav} contentFit="contain" />
           <View style={{ flex: 1, minWidth: 0 }}>
             <T numberOfLines={1}>{item.title}</T>

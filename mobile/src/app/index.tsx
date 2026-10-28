@@ -16,6 +16,10 @@ import { RunSheet } from '@/components/RunSheet';
 import { MenuSheet } from '@/components/MenuSheet';
 import { ControlRing } from '@/components/ControlRing';
 import { useKeyboardLift } from '@/lib/keyboard';
+import { FindBar } from '@/components/FindBar';
+import { LinkMenu } from '@/components/LinkMenu';
+import { Toast } from '@/components/Toast';
+import { pageUiStore } from '@/state/pageui';
 
 /**
  * The browser: live WebViews (most-recent tabs stay mounted), OWL Home for empty tabs, the liquid-glass dock
@@ -37,6 +41,7 @@ export default function BrowserScreen() {
   const blurTarget = useRef<React.ComponentRef<typeof View> | null>(null);
   const isolated = useStore(appStore, (s) => !!s.profiles.find((p) => p.id === s.profileId)?.isolated);
   const run = useStore(agentStore, (s) => s.runs.find((r) => r.id === s.activeRunId) || null);
+  const finding = useStore(pageUiStore, (s) => !!s.find);
   const active = tabs.find((x) => x.id === activeId) || tabs[0] || { id: '', url: '', src: '', private: false, title: '', nonce: 0, createdAt: 0, lastActive: 0 };
 
   // Android hardware back: close sheet → page back → home
@@ -92,9 +97,15 @@ export default function BrowserScreen() {
             <ControlRing name={c.name} companionId={c.id} topInset={pageInset.top} onPress={() => agent.openSheet(true)} />
           ) : null}
         </Target>
-        <BottomBar onOpenMenu={() => setMenu(true)} lift={kb.lift} liftAnim={kb.anim} position={barPosition} />
+        {finding ? (
+          <FindBar lift={kb.lift} liftAnim={kb.anim} position={barPosition} />
+        ) : (
+          <BottomBar onOpenMenu={() => setMenu(true)} lift={kb.lift} liftAnim={kb.anim} position={barPosition} />
+        )}
+        <Toast position={barPosition} offset={top ? insets.top + DOCK_GAP + DOCK_H + space.sm : Math.max(insets.bottom, DOCK_GAP) + DOCK_H + space.sm} />
         <RunSheet lift={kb.lift} />
         <MenuSheet visible={menu} onClose={() => setMenu(false)} position={barPosition} />
+        <LinkMenu position={barPosition} />
       </BlurTargetContext.Provider>
     </View>
   );
