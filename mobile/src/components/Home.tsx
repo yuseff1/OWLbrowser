@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { EyeOff } from 'lucide-react-native';
+import { Icon } from './Icon';
 import { useTheme, radius, space } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { appStore } from '@/state/app';
@@ -42,7 +42,7 @@ export function Home({ tabId, isPrivate, topInset = 0, bottomInset }: { tabId: s
     >
       <Image source={artFor(c.id)} style={styles.art} contentFit="contain" transition={200} accessibilityLabel={c.name} />
       <View style={styles.titleRow}>
-        {isPrivate ? <EyeOff size={20} color={t.ink2} /> : null}
+        {isPrivate ? <Icon name="tab-in-private" size={20} color={t.ink2} /> : null}
         <T kind="display" style={{ textAlign: 'center' }}>{isPrivate ? 'Private' : hello}</T>
       </View>
 

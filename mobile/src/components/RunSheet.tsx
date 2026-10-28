@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, Platform, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Square, ChevronDown, Check, ArrowUp, AlertTriangle, CircleCheck, Wrench, Brain, User } from 'lucide-react-native';
+import { Icon } from './Icon';
 import { useTheme, radius, space, icon, motion } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { agent, agentStore } from '@/state/agent';
@@ -22,12 +22,12 @@ const STATUS: Record<AgentRun['status'], string> = {
 const StepRow = memo(function StepRow({ step }: { step: AgentStep }) {
   const t = useTheme();
   const glyph =
-    step.kind === 'tool' ? <Wrench size={14} color={t.ink2} /> :
-    step.kind === 'thought' ? <Brain size={14} color={t.ink3} /> :
-    step.kind === 'user' ? <User size={14} color={t.ink2} /> :
-    step.kind === 'error' ? <AlertTriangle size={14} color={t.danger} /> :
-    step.kind === 'approval' ? <Check size={14} color={t.accent} /> :
-    step.kind === 'message' ? <CircleCheck size={14} color={t.accent} /> : null;
+    step.kind === 'tool' ? <Icon name="wrench" size={14} color={t.ink2} /> :
+    step.kind === 'thought' ? <Icon name="brain-circuit" size={14} color={t.ink3} /> :
+    step.kind === 'user' ? <Icon name="person" size={14} color={t.ink2} /> :
+    step.kind === 'error' ? <Icon name="warning" size={14} color={t.danger} /> :
+    step.kind === 'approval' ? <Icon name="checkmark" size={14} color={t.accent} /> :
+    step.kind === 'message' ? <Icon name="checkmark-circle" size={14} color={t.accent} /> : null;
   if (step.kind === 'result') {
     return <T kind="small" numberOfLines={3} color={t.ink3} style={styles.result}>{step.text}</T>;
   }
@@ -93,9 +93,9 @@ export function RunSheet({ lift = 0 }: { lift?: number }) {
               </View>
             </View>
             {live ? (
-              <IconButton label="Stop" tint={t.surface2} icon={<Square size={14} color={t.ink} fill={t.ink} />} onPress={() => { haptic('medium'); agent.stop(run.id); }} />
+              <IconButton label="Stop" tint={t.surface2} icon={<Icon name="stop" size={14} color={t.ink} filled />} onPress={() => { haptic('medium'); agent.stop(run.id); }} />
             ) : null}
-            <IconButton label="Hide" icon={<ChevronDown size={icon.lg} color={t.ink2} />} onPress={() => agent.openSheet(false)} />
+            <IconButton label="Hide" icon={<Icon name="chevron-down" size={icon.lg} color={t.ink2} />} onPress={() => agent.openSheet(false)} />
           </View>
 
           <FlatList
@@ -138,7 +138,7 @@ export function RunSheet({ lift = 0 }: { lift?: number }) {
               returnKeyType="send"
               accessibilityLabel="Reply to companion"
             />
-            <IconButton label="Send" disabled={!reply.trim()} tint={reply.trim() ? t.accentFill : t.surface2} icon={<ArrowUp size={icon.md} color={reply.trim() ? t.accentInk : t.ink3} />} onPress={send} />
+            <IconButton label="Send" disabled={!reply.trim()} tint={reply.trim() ? t.accentFill : t.surface2} icon={<Icon name="arrow-up" size={icon.md} color={reply.trim() ? t.accentInk : t.ink3} />} onPress={send} />
           </View>
         </Glass>
       </View>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Check, ExternalLink, RefreshCw } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, radius } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
@@ -87,7 +87,7 @@ export default function ProviderScreen() {
               <TextInput value={apiKey} onChangeText={setApiKey} placeholder={existing?.hasKey ? '••••••••••••' : 'Paste your key'} placeholderTextColor={t.ink3} autoCapitalize="none" autoCorrect={false} secureTextEntry style={[styles.input, { color: t.ink, backgroundColor: t.surface2 }]} accessibilityLabel="API key" />
               {preset.keyUrl ? (
                 <Tap label="Get a key" onPress={() => Linking.openURL(preset.keyUrl!)} style={styles.link}>
-                  <ExternalLink size={14} color={t.accent} />
+                  <Icon name="open" size={14} color={t.accent} />
                   <T kind="small" color={t.accent}>Get a key</T>
                 </Tap>
               ) : null}
@@ -104,14 +104,14 @@ export default function ProviderScreen() {
         <Section title="Models" footer="Tap a model to make it the default for all companions.">
           <View style={[styles.field, { flexDirection: 'row', gap: 8 }]}>
             <TextInput value={filter || manual} onChangeText={(v) => { setFilter(v); setManual(v); }} placeholder="Filter or type a model id" placeholderTextColor={t.ink3} autoCapitalize="none" autoCorrect={false} style={[styles.input, { flex: 1, color: t.ink, backgroundColor: t.surface2 }]} accessibilityLabel="Model id" />
-            <Button title="Discover" kind="secondary" icon={<RefreshCw size={14} color={t.ink} />} onPress={discover} />
+            <Button title="Discover" kind="secondary" icon={<Icon name="arrow-sync" size={14} color={t.ink} />} onPress={discover} />
           </View>
           {manual && !models.includes(manual) ? (
             <Row title={`Use “${manual}”`} subtitle="Add this model id" onPress={async () => { const next = [manual, ...models]; setModels(next); await save({ models: next }); await useModel(manual); setManual(''); setFilter(''); }} />
           ) : null}
           {shown.slice(0, 200).map((m, i) => {
             const on = def?.providerId === providerId && def?.model === m;
-            return <Row key={m} last={i === Math.min(shown.length, 200) - 1} title={m} right={on ? <Check size={18} color={t.accent} /> : null} onPress={() => useModel(m)} />;
+            return <Row key={m} last={i === Math.min(shown.length, 200) - 1} title={m} right={on ? <Icon name="checkmark" size={18} color={t.accent} /> : null} onPress={() => useModel(m)} />;
           })}
           {!shown.length ? <T kind="small" style={{ padding: 16 }}>No models</T> : null}
         </Section>

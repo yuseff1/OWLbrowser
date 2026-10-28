@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Check, Cloud, Wifi, Plus, KeyRound } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, space, radius, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { appStore } from '@/state/app';
@@ -23,10 +23,10 @@ export default function ModelsScreen() {
             <Row
               key={p.id}
               last={i === providers.length - 1}
-              icon={p.local ? <Wifi size={icon.md} color={t.ink} /> : <Cloud size={icon.md} color={t.ink} />}
+              icon={p.local ? <Icon name="wifi-1" size={icon.md} color={t.ink} /> : <Icon name="cloud" size={icon.md} color={t.ink} />}
               title={p.name}
               subtitle={def?.providerId === p.id ? def.model : !p.local && !p.hasKey ? 'No key' : `${p.models.length} models`}
-              right={def?.providerId === p.id ? <Check size={icon.md} color={t.accent} /> : !p.local && !p.hasKey ? <KeyRound size={icon.sm} color={t.ink3} /> : null}
+              right={def?.providerId === p.id ? <Icon name="checkmark" size={icon.md} color={t.accent} /> : !p.local && !p.hasKey ? <Icon name="key" size={icon.sm} color={t.ink3} /> : null}
               onPress={() => router.push({ pathname: '/settings/provider', params: { id: p.id } })}
             />
           ))}
@@ -37,13 +37,13 @@ export default function ModelsScreen() {
 
       <Section title="On your network" footer="Same Wi-Fi as this phone.">
         {LOCAL_KINDS.map((k, i) => (
-          <Row key={k} last={i === LOCAL_KINDS.length - 1} icon={<Wifi size={icon.md} color={t.ink} />} title={PROVIDER_PRESETS[k].name} subtitle={PROVIDER_PRESETS[k].hint} right={<Plus size={icon.md} color={t.ink3} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
+          <Row key={k} last={i === LOCAL_KINDS.length - 1} icon={<Icon name="wifi-1" size={icon.md} color={t.ink} />} title={PROVIDER_PRESETS[k].name} subtitle={PROVIDER_PRESETS[k].hint} right={<Icon name="add" size={icon.md} color={t.ink3} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
         ))}
       </Section>
 
       <Section title="Cloud">
         {CLOUD_KINDS.map((k, i) => (
-          <Row key={k} last={i === CLOUD_KINDS.length - 1} icon={<Cloud size={icon.md} color={t.ink} />} title={PROVIDER_PRESETS[k].name} right={<Plus size={icon.md} color={t.ink3} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
+          <Row key={k} last={i === CLOUD_KINDS.length - 1} icon={<Icon name="cloud" size={icon.md} color={t.ink} />} title={PROVIDER_PRESETS[k].name} right={<Icon name="add" size={icon.md} color={t.ink3} />} onPress={() => router.push({ pathname: '/settings/provider', params: { kind: k } })} />
         ))}
       </Section>
     </ScrollView>

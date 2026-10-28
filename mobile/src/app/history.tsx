@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Alert, SectionList, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { X } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
@@ -61,7 +61,7 @@ export default function HistoryScreen() {
             <T numberOfLines={1}>{item.title}</T>
             <T kind="footnote" numberOfLines={1}>{hostOf(item.url)} · {new Date(item.lastVisit).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</T>
           </View>
-          <IconButton label={`Remove ${item.title}`} icon={<X size={icon.sm} color={t.ink3} />} onPress={() => app.removeHistory(item.url)} />
+          <IconButton label={`Remove ${item.title}`} icon={<Icon name="dismiss" size={icon.sm} color={t.ink3} />} onPress={() => app.removeHistory(item.url)} />
         </Tap>
       )}
     />

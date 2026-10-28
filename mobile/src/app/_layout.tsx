@@ -4,10 +4,9 @@ import { Stack, SplashScreen, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { LucideProvider } from 'lucide-react-native';
 import { installCrashGuard } from '@/lib/crashguard';
 import { useStore } from '@/lib/store';
-import { useTheme, icon } from '@/lib/theme';
+import { useTheme } from '@/lib/theme';
 import { app, appStore } from '@/state/app';
 import { browser, browserStore } from '@/state/browser';
 
@@ -58,7 +57,6 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <LucideProvider strokeWidth={icon.stroke}>
       <StatusBar style={t.dark ? 'light' : 'dark'} />
       {ready && tabsReady ? (
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.ground } }}>
@@ -80,7 +78,6 @@ export default function RootLayout() {
           <ActivityIndicator color={t.accent} />
         </View>
       )}
-      </LucideProvider>
     </SafeAreaProvider>
   );
 }

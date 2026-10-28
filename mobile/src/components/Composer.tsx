@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
-import { ArrowUp } from 'lucide-react-native';
+import { Icon } from './Icon';
 import { Image } from 'expo-image';
 import { useTheme, radius, space, icon } from '@/lib/theme';
 import { faceFor, companionById } from '@/lib/companions';
@@ -45,7 +45,7 @@ export function Composer({ companionId, onSubmit, onPickCompanion, autoFocus, pl
         accessibilityLabel={`Message ${c.name}`}
       />
       <Tap label="Send" onPress={send} disabled={!ready} style={[styles.send, { backgroundColor: ready ? t.accentFill : t.surface2 }]}>
-        <ArrowUp size={icon.md} color={ready ? t.accentInk : t.ink3} />
+        <Icon name="arrow-up" size={icon.md} color={ready ? t.accentInk : t.ink3} />
       </Tap>
     </View>
   );

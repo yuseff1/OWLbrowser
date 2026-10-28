@@ -1,0 +1,12 @@
+{
+ "_note": "Fluent UI System Icons (MIT, github.com/microsoft/fluentui-system-icons) used by the mobile app. Add a name, then from mobile/: node scripts/gen-icons.mjs (reads ../node_modules/@fluentui/svg-icons, the desktop dev dependency).",
+ "regular": [
+  "add", "arrow-clockwise", "arrow-download", "arrow-left", "arrow-right", "arrow-sync", "arrow-up", "book-open", "bookmark", "bot",
+  "brain-circuit", "checkmark", "checkmark-circle", "chevron-down", "chevron-left", "chevron-right", "chevron-up",
+  "cloud", "color", "copy", "delete", "desktop", "developer-board", "dismiss", "document-footer", "document-header",
+  "drop", "eye-off", "font-decrease", "font-increase", "globe", "hand-left", "history", "key", "link", "lock-closed",
+  "more-horizontal", "open", "people", "person", "search", "settings", "share-android", "shield-checkmark", "star", "stop",
+  "tab-add", "tab-in-private", "text-font-size", "warning", "wifi-1", "wrench", "image", "reading-mode-mobile", "dismiss-circle"
+ ],
+ "filled": ["bookmark", "checkmark-circle", "desktop", "reading-mode-mobile", "star", "stop", "text-font-size", "tab-in-private"]
+}

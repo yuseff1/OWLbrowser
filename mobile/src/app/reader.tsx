@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { WebView } from '@/components/WebViewBase';
 import { useRouter } from 'expo-router';
-import { AArrowDown, AArrowUp } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { readerStore } from '@/state/reader';
@@ -67,8 +67,8 @@ export default function ReaderScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: t.ground }}>
       <View style={[styles.tools, { borderBottomColor: t.line }]}>
-        <IconButton label="Smaller text" icon={<AArrowDown size={20} color={t.ink} />} onPress={() => setSize((s) => Math.max(14, s - 1))} />
-        <IconButton label="Larger text" icon={<AArrowUp size={22} color={t.ink} />} onPress={() => setSize((s) => Math.min(28, s + 1))} />
+        <IconButton label="Smaller text" icon={<Icon name="font-decrease" size={20} color={t.ink} />} onPress={() => setSize((s) => Math.max(14, s - 1))} />
+        <IconButton label="Larger text" icon={<Icon name="font-increase" size={22} color={t.ink} />} onPress={() => setSize((s) => Math.min(28, s + 1))} />
       </View>
       <WebView
         originWhitelist={['*']}

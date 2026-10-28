@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { Trash2 } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
@@ -36,7 +36,7 @@ export default function BookmarksScreen() {
             <T numberOfLines={1}>{item.title}</T>
             <T kind="footnote" numberOfLines={1}>{hostOf(item.url)}</T>
           </View>
-          <IconButton label={`Delete ${item.title}`} icon={<Trash2 size={icon.sm} color={t.ink3} />} onPress={() => app.removeBookmark(item.id)} />
+          <IconButton label={`Delete ${item.title}`} icon={<Icon name="delete" size={icon.sm} color={t.ink3} />} onPress={() => app.removeBookmark(item.id)} />
         </Tap>
       )}
     />

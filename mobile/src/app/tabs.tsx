@@ -3,7 +3,7 @@ import { Alert, Animated, FlatList, StyleSheet, View, useWindowDimensions } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { X, Plus } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, radius, space, icon, motion } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { browser, browserStore, type BrowserTab } from '@/state/browser';
@@ -28,7 +28,7 @@ const TabCard = memo(function TabCard({ tab, active, working, width, onOpen, onC
         )}
         {working ? <View style={[styles.dot, { backgroundColor: t.accentFill }]} /> : null}
         <View style={styles.close}>
-          <IconButton size={28} label={`Close ${title}`} tint={t.dark ? 'rgba(0,0,0,0.45)' : 'rgba(20,19,23,0.08)'} icon={<X size={14} color={t.ink} />} onPress={() => { haptic('light'); onClose(tab.id); }} />
+          <IconButton size={28} label={`Close ${title}`} tint={t.dark ? 'rgba(0,0,0,0.45)' : 'rgba(20,19,23,0.08)'} icon={<Icon name="dismiss" size={14} color={t.ink} />} onPress={() => { haptic('light'); onClose(tab.id); }} />
         </View>
       </View>
       <T kind="footnote" numberOfLines={1} color={t.ink} style={styles.title}>{title}</T>
@@ -98,7 +98,7 @@ export default function TabsScreen() {
       <View style={[styles.barWrap, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
         <Glass rounded={radius.pill} style={styles.bar}>
           <Tap label="Close all" onPress={closeAll} feedback="opacity" style={styles.textBtn}><T kind="callout" color={t.ink2}>Close all</T></Tap>
-          <IconButton label="New tab" tint={t.accentFill} icon={<Plus size={icon.lg} color={t.accentInk} />} onPress={add} />
+          <IconButton label="New tab" tint={t.accentFill} icon={<Icon name="add" size={icon.lg} color={t.accentInk} />} onPress={add} />
           <Tap label="Done" onPress={() => router.back()} feedback="opacity" style={[styles.textBtn, { alignItems: 'flex-end' }]}><T kind="headline">Done</T></Tap>
         </Glass>
       </View>

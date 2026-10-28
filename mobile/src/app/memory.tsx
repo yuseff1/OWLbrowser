@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, FlatList, StyleSheet, TextInput, View } from 'react-native';
-import { Trash2, Plus } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
@@ -30,7 +30,7 @@ export default function MemoryScreen() {
         <View style={{ marginBottom: space.md }}>
           <View style={styles.addRow}>
             <TextInput value={text} onChangeText={setText} placeholder="Add a memory" placeholderTextColor={t.ink3} selectionColor={t.accentFill} style={[fieldStyle(t), { flex: 1 }]} onSubmitEditing={add} returnKeyType="done" accessibilityLabel="New memory" />
-            <IconButton label="Add memory" disabled={!text.trim()} tint={text.trim() ? t.accentFill : t.surface2} icon={<Plus size={icon.md} color={text.trim() ? t.accentInk : t.ink3} />} onPress={add} />
+            <IconButton label="Add memory" disabled={!text.trim()} tint={text.trim() ? t.accentFill : t.surface2} icon={<Icon name="add" size={icon.md} color={text.trim() ? t.accentInk : t.ink3} />} onPress={add} />
           </View>
         </View>
       }
@@ -44,7 +44,7 @@ export default function MemoryScreen() {
               <T selectable>{item.text}</T>
               <T kind="footnote">{who} · {new Date(item.createdAt).toLocaleDateString()}</T>
             </View>
-            <IconButton label="Delete memory" icon={<Trash2 size={icon.sm} color={t.ink3} />} onPress={() => app.removeMemory(item.id)} />
+            <IconButton label="Delete memory" icon={<Icon name="delete" size={icon.sm} color={t.ink3} />} onPress={() => app.removeMemory(item.id)} />
           </View>
         );
       }}

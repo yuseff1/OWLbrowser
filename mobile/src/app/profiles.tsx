@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Check, Trash2 } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
@@ -58,8 +58,8 @@ export default function ProfilesScreen() {
             onPress={() => switchTo(p.id)}
             right={
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {p.id === current ? <Check size={icon.md} color={t.accent} /> : null}
-                {p.id !== 'default' ? <IconButton label={`Delete ${p.name}`} icon={<Trash2 size={icon.sm} color={t.ink3} />} onPress={() => remove(p.id, p.name)} /> : null}
+                {p.id === current ? <Icon name="checkmark" size={icon.md} color={t.accent} /> : null}
+                {p.id !== 'default' ? <IconButton label={`Delete ${p.name}`} icon={<Icon name="delete" size={icon.sm} color={t.ink3} />} onPress={() => remove(p.id, p.name)} /> : null}
               </View>
             }
           />

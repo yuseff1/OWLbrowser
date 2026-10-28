@@ -3,7 +3,7 @@ import { Animated, BackHandler, FlatList, Keyboard, Platform, Share, StyleSheet,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ChevronLeft, ChevronRight, Share as ShareIcon, Copy, Lock, RotateCw, X, Search, Globe, Ellipsis, EyeOff } from 'lucide-react-native';
+import { Icon } from './Icon';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme, radius, space, icon, motion } from '@/lib/theme';
 import { useStore } from '@/lib/store';
@@ -132,7 +132,7 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
             <View style={[styles.address, { backgroundColor: editing ? 'transparent' : t.glass.well }]}>
               {editing ? (
                 <>
-                  <View style={styles.lead}><Search size={icon.sm} color={t.glass.ink2} /></View>
+                  <View style={styles.lead}><Icon name="search" size={icon.sm} color={t.glass.ink2} /></View>
                   <TextInput
                     ref={inputRef}
                     value={text}
@@ -151,19 +151,19 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
                     selectionColor={t.accentFill}
                     accessibilityLabel="Address and search bar"
                   />
-                  {text ? <IconButton size={40} label="Clear" icon={<X size={icon.sm} color={t.glass.ink2} />} onPress={() => setText('')} /> : <View style={{ width: 40 }} />}
+                  {text ? <IconButton size={40} label="Clear" icon={<Icon name="dismiss" size={icon.sm} color={t.glass.ink2} />} onPress={() => setText('')} /> : <View style={{ width: 40 }} />}
                 </>
               ) : (
                 <>
-                  <IconButton size={40} label="Menu" icon={<Ellipsis size={icon.md} color={ink} />} onPress={onOpenMenu} />
+                  <IconButton size={40} label="Menu" icon={<Icon name="more-horizontal" size={icon.md} color={ink} />} onPress={onOpenMenu} />
                   <Tap label={url ? `Address ${url}. Edit` : 'Search or enter address'} onPress={startEdit} style={styles.addrTap} haptics={false} feedback="opacity">
-                    {tab?.private ? <EyeOff size={14} color={t.glass.ink2} /> : url ? (isSecure(url) ? <Lock size={13} color={t.glass.ink2} /> : <Globe size={13} color={t.danger} />) : null}
+                    {tab?.private ? <Icon name="tab-in-private" size={14} color={t.glass.ink2} /> : url ? (isSecure(url) ? <Icon name="lock-closed" size={14} color={t.glass.ink2} /> : <Icon name="globe" size={14} color={t.danger} />) : null}
                     <T numberOfLines={1} style={{ flexShrink: 1, fontWeight: url ? '500' : '400' }} color={url ? ink : t.glass.ink2}>
                       {url ? displayUrl(url) : 'Search or enter address'}
                     </T>
                   </Tap>
                   {url ? (
-                    <IconButton size={40} label={rt.loading ? 'Stop' : 'Reload'} icon={rt.loading ? <X size={icon.md} color={ink} /> : <RotateCw size={18} color={ink} />} onPress={() => (rt.loading ? browser.stop(tab.id) : browser.reload(tab.id))} />
+                    <IconButton size={40} label={rt.loading ? 'Stop' : 'Reload'} icon={rt.loading ? <Icon name="dismiss" size={icon.md} color={ink} /> : <Icon name="arrow-clockwise" size={18} color={ink} />} onPress={() => (rt.loading ? browser.stop(tab.id) : browser.reload(tab.id))} />
                   ) : (
                     <View style={{ width: 40 }} />
                   )}
@@ -173,8 +173,8 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
 
             {!editing ? (
               <View style={styles.toolbar}>
-                <IconButton label="Back" disabled={!url} icon={<ChevronLeft size={icon.lg} color={ink} />} onPress={() => browser.goBack(tab.id)} />
-                <IconButton label="Forward" disabled={!rt.canGoForward} icon={<ChevronRight size={icon.lg} color={ink} />} onPress={() => browser.goForward(tab.id)} />
+                <IconButton label="Back" disabled={!url} icon={<Icon name="chevron-left" size={icon.lg} color={ink} />} onPress={() => browser.goBack(tab.id)} />
+                <IconButton label="Forward" disabled={!rt.canGoForward} icon={<Icon name="chevron-right" size={icon.lg} color={ink} />} onPress={() => browser.goForward(tab.id)} />
                 <Tap
                   label={activeRun ? `${c.name} is working. Open` : `Ask ${c.name}`}
                   onPress={() => (activeRun ? agent.openSheet(true) : router.push('/ask'))}
@@ -184,7 +184,7 @@ export function BottomBar({ onOpenMenu, lift, liftAnim, position = 'bottom' }: {
                   <Image source={faceFor(c.id)} style={{ width: 30, height: 30, borderRadius: 15 }} contentFit="cover" />
                   {activeRun ? <View style={[styles.liveDot, { backgroundColor: t.accentFill, borderColor: t.glass.fallback }]} /> : null}
                 </Tap>
-                <IconButton label="Share" disabled={!url} icon={<ShareIcon size={icon.md} color={ink} />} onPress={share} />
+                <IconButton label="Share" disabled={!url} icon={<Icon name="share-android" size={icon.md} color={ink} />} onPress={share} />
                 <Tap label={`${tabCount} tabs`} onPress={() => router.push('/tabs')} onLongPress={() => { haptic('medium'); browser.newTab(); }} style={styles.tabsBtn} feedback="opacity">
                   <View style={[styles.tabsBox, { borderColor: ink }]}>
                     <T style={styles.tabsNum}>{tabCount > 99 ? '∞' : tabCount}</T>
@@ -246,14 +246,14 @@ function Suggestions({ text, engine, companionName, companionId, onPick, positio
         contentContainerStyle={{ paddingHorizontal: space.xs, paddingVertical: space.xs }}
         ListHeaderComponent={canCopy ? (
           <Tap label="Copy link" onPress={onCopy} style={styles.suggRow} haptics={false} feedback="highlight">
-            <IconWell><Copy size={icon.sm} color={t.ink} /></IconWell>
+            <IconWell><Icon name="copy" size={icon.sm} color={t.ink} /></IconWell>
             <T style={{ flex: 1 }}>Copy link</T>
           </Tap>
         ) : undefined}
         renderItem={({ item }) => (
           <Tap label={item.kind === 'ask' ? `Ask ${companionName}: ${item.title}` : item.title} onPress={() => onPick(item)} style={styles.suggRow} haptics={false} feedback="highlight">
             <IconWell tint={item.kind === 'ask' ? t.accentSoft : undefined}>
-              {item.kind === 'search' ? <Search size={icon.sm} color={t.ink} /> : item.kind === 'ask' ? <Image source={faceFor(companionId)} style={{ width: 24, height: 24, borderRadius: 12 }} contentFit="cover" /> : item.kind === 'url' ? <Globe size={icon.sm} color={t.ink} /> : (
+              {item.kind === 'search' ? <Icon name="search" size={icon.sm} color={t.ink} /> : item.kind === 'ask' ? <Image source={faceFor(companionId)} style={{ width: 24, height: 24, borderRadius: 12 }} contentFit="cover" /> : item.kind === 'url' ? <Icon name="globe" size={icon.sm} color={t.ink} /> : (
                 <Image source={{ uri: faviconFor(item.value) || undefined }} style={{ width: 18, height: 18, borderRadius: 4 }} contentFit="contain" />
               )}
             </IconWell>

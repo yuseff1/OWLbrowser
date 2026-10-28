@@ -2,7 +2,7 @@ import React from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ChevronRight, KeyRound } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, radius, space, icon } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { appStore } from '@/state/app';
@@ -43,9 +43,9 @@ export default function AskScreen() {
           <View style={{ gap: space.sm, marginBottom: space.xl }}>
             {!hasModel ? (
               <Tap label="Add a model" onPress={() => router.push('/settings/models')} style={[styles.warn, { backgroundColor: t.surface }]}>
-                <IconWell tint={t.accentSoft}><KeyRound size={icon.md} color={t.accent} /></IconWell>
+                <IconWell tint={t.accentSoft}><Icon name="key" size={icon.md} color={t.accent} /></IconWell>
                 <T style={{ flex: 1 }}>Add a model</T>
-                <ChevronRight size={icon.sm} color={t.ink3} />
+                <Icon name="chevron-right" size={icon.sm} color={t.ink3} />
               </Tap>
             ) : null}
             <Composer companionId={companionId} onSubmit={start} onPickCompanion={() => router.push('/companions')} autoFocus />
@@ -68,7 +68,7 @@ export default function AskScreen() {
                 <T numberOfLines={1}>{item.task}</T>
                 <T kind="footnote" numberOfLines={1}>{rc.name} · {item.status}</T>
               </View>
-              <ChevronRight size={icon.sm} color={t.ink3} />
+              <Icon name="chevron-right" size={icon.sm} color={t.ink3} />
             </Tap>
           );
         }}

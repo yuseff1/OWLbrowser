@@ -2,7 +2,7 @@ import React from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { Check } from 'lucide-react-native';
+import { Icon } from '@/components/Icon';
 import { useTheme, radius, space } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { app, appStore } from '@/state/app';
@@ -32,7 +32,7 @@ export default function CompanionsScreen() {
           >
             <View style={styles.art}>
               <Image source={artFor(item.id)} style={{ width: '72%', height: '72%' }} contentFit="contain" />
-              {on ? <View style={[styles.check, { backgroundColor: t.accentFill }]}><Check size={14} color={t.accentInk} /></View> : null}
+              {on ? <View style={[styles.check, { backgroundColor: t.accentFill }]}><Icon name="checkmark" size={14} color={t.accentInk} /></View> : null}
             </View>
             <View style={{ paddingHorizontal: space.md, paddingBottom: space.md }}>
               <T kind="headline">{item.name}</T>

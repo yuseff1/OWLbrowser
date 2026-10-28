@@ -42,7 +42,7 @@ Accent budget per screen: one primary action **or** one active state, plus the l
 - **Spacing (4 pt grid):** 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48. Gutter 16, card padding 16, section gap 24.
 - **Radius:** 8 xs · 12 rows/inputs · 16 tiles · 20 cards · 24 composer · 28 sheets & address bar · pill for every action. Always `borderCurve: 'continuous'`.
 - **Type (system grotesk):** display 32/36 600 −0.9 (one per screen) · title 22/28 600 −0.4 · headline 17/22 600 · body 16/22 · callout 15/20 · footnote 13/18 · caption 12/16 500 · section header 13/18 600 sentence case (no uppercase labels).
-- **Icons:** lucide-react-native only, stroke **1.75** everywhere (set once with `LucideProvider`), sizes 18 / 20 / 24. Icon in a 36 pt soft circle (`surface2`) leads list rows; 48 pt circles for the page-menu quick actions.
+- **Icons:** Microsoft **Fluent UI System Icons** (MIT, same set as desktop) through `components/Icon.tsx` (`<Icon name="dismiss" size={20} color={t.ink} />`), drawn with react-native-svg so it ships over the air. Only the names in `mobile/scripts/fluent-icons.json` are bundled; add one there and run `node scripts/gen-icons.mjs` from `mobile/`. **Regular** style everywhere; **filled** only for an on/active state (saved star, desktop site on, reader active, stop while running). Fluent draws separate art per size; `Icon` picks 16 / 20 / 24 art for the size it renders at. Sizes 18 / 20 / 24. Icon in a 36 pt soft circle (`surface2`) leads list rows; 48 pt circles for the page-menu quick actions. No lucide (rejected as the generic "AI look").
 - **Targets:** ≥ 44 pt (IconButton pads small glyphs with hitSlop).
 
 ## Glass (floating chrome only)

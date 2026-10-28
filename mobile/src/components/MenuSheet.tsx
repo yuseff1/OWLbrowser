@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Star, BookOpen, Monitor, Plus, EyeOff, Bookmark, History, Brain, Settings, Users, Copy, ShieldCheck, Bot } from 'lucide-react-native';
+import { Icon } from './Icon';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme, radius, space, icon, motion } from '@/lib/theme';
 import { useStore } from '@/lib/store';
@@ -64,22 +64,22 @@ export function MenuSheet({ visible, onClose, position = 'bottom' }: { visible: 
 
   const I = { size: icon.md, color: t.ink };
   const quick: Item[] = [
-    { key: 'bm', label: bookmarked ? 'Saved' : 'Save', icon: <Star {...I} color={bookmarked ? t.accent : t.ink} fill={bookmarked ? t.accent : 'transparent'} />, onPress: () => { haptic('success'); app.toggleBookmark(tab.url, tab.title); }, disabled: !tab.url, active: bookmarked },
-    { key: 'reader', label: 'Reader', icon: <BookOpen {...I} />, onPress: openReader, disabled: !tab.url },
-    { key: 'desk', label: 'Desktop', icon: <Monitor {...I} color={desktopMode ? t.accent : t.ink} />, onPress: () => { app.patchSettings({ desktopMode: !desktopMode }); onClose(); }, active: desktopMode },
-    { key: 'copy', label: 'Copy', icon: <Copy {...I} />, onPress: async () => { await Clipboard.setStringAsync(tab.url); haptic('success'); onClose(); }, disabled: !tab.url },
+    { key: 'bm', label: bookmarked ? 'Saved' : 'Save', icon: <Icon name="star" {...I} color={bookmarked ? t.accent : t.ink} filled={bookmarked} />, onPress: () => { haptic('success'); app.toggleBookmark(tab.url, tab.title); }, disabled: !tab.url, active: bookmarked },
+    { key: 'reader', label: 'Reader', icon: <Icon name="reading-mode-mobile" {...I} />, onPress: openReader, disabled: !tab.url },
+    { key: 'desk', label: 'Desktop', icon: <Icon name="desktop" {...I} color={desktopMode ? t.accent : t.ink} />, onPress: () => { app.patchSettings({ desktopMode: !desktopMode }); onClose(); }, active: desktopMode },
+    { key: 'copy', label: 'Copy', icon: <Icon name="copy" {...I} />, onPress: async () => { await Clipboard.setStringAsync(tab.url); haptic('success'); onClose(); }, disabled: !tab.url },
   ];
 
   const rows: Item[] = [
-    { key: 'new', label: 'New tab', icon: <Plus {...I} />, onPress: () => { haptic('light'); browser.newTab(); onClose(); } },
-    { key: 'priv', label: 'New private tab', icon: <EyeOff {...I} />, onPress: () => { haptic('light'); browser.newTab('', { private: true }); onClose(); } },
-    { key: 'bms', label: 'Bookmarks', icon: <Bookmark {...I} />, onPress: () => nav('/bookmarks') },
-    { key: 'hist', label: 'History', icon: <History {...I} />, onPress: () => nav('/history') },
-    { key: 'comp', label: 'Companions', icon: <Bot {...I} />, onPress: () => nav('/companions') },
-    { key: 'mem', label: 'Memory', icon: <Brain {...I} />, onPress: () => nav('/memory') },
-    { key: 'prof', label: 'Profiles', icon: <Users {...I} />, onPress: () => nav('/profiles') },
-    { key: 'ad', label: 'Block trackers', icon: <ShieldCheck {...I} />, onPress: () => app.patchSettings({ adblock: !adblock }), right: <Switch value={adblock} onValueChange={(v) => app.patchSettings({ adblock: v })} trackColor={{ true: t.accentFill, false: t.surface2 }} thumbColor="#FFFFFF" /> },
-    { key: 'set', label: 'Settings', icon: <Settings {...I} />, onPress: () => nav('/settings') },
+    { key: 'new', label: 'New tab', icon: <Icon name="add" {...I} />, onPress: () => { haptic('light'); browser.newTab(); onClose(); } },
+    { key: 'priv', label: 'New private tab', icon: <Icon name="tab-in-private" {...I} />, onPress: () => { haptic('light'); browser.newTab('', { private: true }); onClose(); } },
+    { key: 'bms', label: 'Bookmarks', icon: <Icon name="bookmark" {...I} />, onPress: () => nav('/bookmarks') },
+    { key: 'hist', label: 'History', icon: <Icon name="history" {...I} />, onPress: () => nav('/history') },
+    { key: 'comp', label: 'Companions', icon: <Icon name="bot" {...I} />, onPress: () => nav('/companions') },
+    { key: 'mem', label: 'Memory', icon: <Icon name="brain-circuit" {...I} />, onPress: () => nav('/memory') },
+    { key: 'prof', label: 'Profiles', icon: <Icon name="people" {...I} />, onPress: () => nav('/profiles') },
+    { key: 'ad', label: 'Block trackers', icon: <Icon name="shield-checkmark" {...I} />, onPress: () => app.patchSettings({ adblock: !adblock }), right: <Switch value={adblock} onValueChange={(v) => app.patchSettings({ adblock: v })} trackColor={{ true: t.accentFill, false: t.surface2 }} thumbColor="#FFFFFF" /> },
+    { key: 'set', label: 'Settings', icon: <Icon name="settings" {...I} />, onPress: () => nav('/settings') },
   ];
 
   const translateY = a.interpolate({ inputRange: [0, 1], outputRange: [top ? -40 : 40, 0] });

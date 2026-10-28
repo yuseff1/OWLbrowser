@@ -151,8 +151,8 @@ export const type = {
   section: { fontSize: 13, lineHeight: 18, fontWeight: '600' as const, letterSpacing: 0 },
 } as const;
 
-/** Lucide: one stroke weight everywhere, three sizes. */
-export const icon = { stroke: 1.75, sm: 18, md: 20, lg: 24 } as const;
+/** Fluent UI System Icons (components/Icon): three sizes; regular art, filled only for active states. */
+export const icon = { sm: 18, md: 20, lg: 24 } as const;
 
 /** Minimum touch target. */
 export const HIT = 44;
