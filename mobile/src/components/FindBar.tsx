@@ -7,6 +7,7 @@ import { useTheme, space, icon, motion } from '@/lib/theme';
 import { useStore } from '@/lib/store';
 import { browserStore, webviews } from '@/state/browser';
 import { pageUiStore } from '@/state/pageui';
+import { chrome } from '@/state/chrome';
 import { FIND_CLEAR_SCRIPT, findScript, findStepScript } from '@/lib/page-tools';
 import { DOCK_GAP } from './BottomBar';
 
@@ -14,6 +15,7 @@ const PAD = 6;
 const H = 48;
 
 export function openFind() {
+  chrome.expand();
   const id = browserStore.get().activeId;
   pageUiStore.set({ find: { tabId: id, query: '', count: 0, index: -1 } });
 }

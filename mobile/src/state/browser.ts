@@ -5,6 +5,8 @@ import { appStore, app } from './app';
 import type { Tab, TabRuntime } from '@/lib/types';
 import type { WebViewHandle } from '@/components/WebViewBase';
 import { pageUiStore } from './pageui';
+import { chrome, resetHook } from './chrome';
+import { SCROLL_RESET_SCRIPT } from '@/lib/page-tools';
 
 export type BrowserTab = Tab & {
   /** URL requested by the user/agent; the WebView `source`. `url` is what the page currently shows. */
@@ -139,6 +141,11 @@ export const webviews = {
       browser.setThumb(tabId, img);
       return true;
     }
+    if (m && typeof m.__owlScroll === 'number') {
+      // only the tab on screen drives the dock; the scroll script reports state flips, not every frame
+      if (browserStore.get().activeId === tabId) chrome.setCompact(m.__owlScroll === 1);
+      return true;
+    }
     if (m && typeof m.__owlBlocked === 'number') {
       browser.setRuntime(tabId, { blocked: Math.max(browserStore.get().runtime[tabId]?.blocked || 0, m.__owlBlocked) });
       return true;
@@ -207,6 +214,8 @@ export const browser = {
   activate(id: string) {
     const s = browserStore.get();
     if (!s.tabs.some((t) => t.id === id)) return;
+    chrome.expand();
+    refs.get(id)?.injectJavaScript(SCROLL_RESET_SCRIPT);
     browserStore.set({
       activeId: id,
       alive: touchAlive(id, s.alive),
@@ -249,6 +258,7 @@ export const browser = {
 
   /** Navigate a tab to typed input (URL or search words). '' goes Home. */
   navigate(id: string, input: string) {
+    chrome.expand();
     const url = input ? toUrl(input, appStore.get().settings.searchEngine) : '';
     const s = browserStore.get();
     browserStore.set({
@@ -320,6 +330,7 @@ export const browser = {
 
   /** A real page load started in the WebView (main frame). */
   onLoadStart(id: string) {
+    if (browserStore.get().activeId === id) chrome.expand();
     const prev = browserStore.get().runtime[id] || EMPTY_RUNTIME;
     this.setRuntime(id, { loading: true, progress: prev.loading && prev.progress < 1 ? prev.progress : 0 });
     armWatchdog(id);
@@ -361,3 +372,5 @@ export const browser = {
     this.onLoadEnd(id);
   },
 };
+
+resetHook.current = () => { refs.get(browserStore.get().activeId)?.injectJavaScript(SCROLL_RESET_SCRIPT); };

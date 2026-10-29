@@ -158,17 +158,36 @@ export const icon = { sm: 18, md: 20, lg: 24 } as const;
 export const HIT = 44;
 
 /**
- * Motion vocabulary (RN Animated, native driver). Springs for anything a finger moved or that
- * enters/leaves (sheets, bar lift, tab switcher); short strong ease-out timing for the rest.
- *  - snappy: dampingRatio ≈ 0.8, press release / chips
- *  - sheet:  dampingRatio ≈ 0.85, sheets and menus
- *  - smooth: dampingRatio = 1, keyboard lift, no overshoot
+ * Apple's spring maths (SwiftUI `Spring(duration:bounce:)`, WWDC23 "Animate with springs"), mass 1:
+ *   stiffness = (2π / duration)², damping = 4π(1 − bounce) / duration.
+ * RN Animated.spring uses the same physical model, so Apple presets convert 1:1. See docs/research-safari.md.
+ */
+export function appleSpring(duration: number, bounce = 0) {
+  const stiffness = Math.pow((2 * Math.PI) / duration, 2);
+  const damping = bounce >= 0 ? (4 * Math.PI * (1 - bounce)) / duration : (4 * Math.PI) / (duration * (1 + bounce));
+  return { stiffness: Math.round(stiffness * 10) / 10, damping: Math.round(damping * 10) / 10, mass: 1 };
+}
+
+/** PanResponder velocity is px/ms; Animated.spring's `velocity` is units/s. Clamped so a wild flick can't fling. */
+export const flingVelocity = (vPxPerMs: number) => Math.max(-6000, Math.min(6000, vPxPerMs * 1000));
+
+/**
+ * Motion vocabulary (RN Animated, native driver). Springs for anything a finger moved or that enters/leaves;
+ * short strong ease-out timing for the rest. Safari-calibrated (system chrome runs faster than SwiftUI's 0.5 s):
+ *  - snappy: (0.38 s, bounce 0.12)  press release, chips, bar expand
+ *  - sheet:  (0.42 s, bounce 0.10)  sheets and menus
+ *  - smooth: (0.40 s, bounce 0)     keyboard lift, bar collapse, no overshoot
+ *  - commit: (0.34 s, bounce 0)     a swipe that committed (tab switch), carries the finger's velocity
+ *  - zoom:   (0.42 s, bounce 0.06)  tab overview zoom in/out
+ *  - jelly:  liquid-glass squeeze release, one visible wobble
  */
 export const motion = {
   spring: {
-    snappy: { damping: 28, stiffness: 340, mass: 1 },
-    sheet: { damping: 30, stiffness: 300, mass: 1 },
-    smooth: { damping: 36, stiffness: 320, mass: 1 },
+    snappy: appleSpring(0.38, 0.12),
+    sheet: appleSpring(0.42, 0.1),
+    smooth: appleSpring(0.4, 0),
+    commit: appleSpring(0.34, 0),
+    zoom: appleSpring(0.42, 0.06),
     /** liquid-glass squeeze release: dampingRatio ≈ 0.36, one visible wobble */
     jelly: { damping: 14, stiffness: 420, mass: 0.9 },
   },

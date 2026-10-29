@@ -58,12 +58,39 @@ export const PAGE_TOOLS_SCRIPT = `(function(){
     post({ __owlMeta: { image: /^https:/i.test(img) ? img : '' } });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', meta, { once: true }); else meta();
+  // Scroll direction for Safari's scroll-to-minimize dock. Posts only when the wanted state flips:
+  // compact after 24 px of continuous downward travel once past the first 48 px; full again after 24 px upward,
+  // near the top, or at the very bottom of the page. Works for window scrolling and for big inner scrollers.
+  var lastY = -1, acc = 0, want = 0, sent = -1;
+  function onScroll(e){
+    var el = e && e.target && e.target !== document && e.target.nodeType === 1 ? e.target : null;
+    var y, max, vh;
+    if (el && el.clientHeight > window.innerHeight * 0.6) { y = el.scrollTop; max = el.scrollHeight; vh = el.clientHeight; }
+    else if (!el) { y = window.scrollY || document.documentElement.scrollTop || 0; max = document.documentElement.scrollHeight; vh = window.innerHeight; }
+    else return;
+    if (lastY < 0) { lastY = y; return; }
+    var d = y - lastY; lastY = y;
+    if (!d) return;
+    acc = (acc > 0) === (d > 0) ? acc + d : d;
+    if (y < 48) want = 0;
+    else if (y + vh >= max - 4) want = 0;
+    else if (acc > 24) want = 1;
+    else if (acc < -24) want = 0;
+    if (want !== sent) { sent = want; post({ __owlScroll: want }); }
+  }
+  document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+  window.addEventListener('pageshow', function(){ lastY = -1; acc = 0; want = 0; sent = -1; });
+  // the app brought the dock back (tap on the pill, tab switch): start counting again so the next scroll down collapses it
+  window.__owlScrollReset = function(){ acc = 0; want = 0; sent = 0; };
 })();`;
 
 /**
  * Find in page. Wraps text matches in <mark data-owl-find> (case-insensitive, skips scripts/inputs/hidden nodes, max
  * 500), scrolls the current one into view and returns { count, index } (index is 0-based, -1 when none).
  */
+/** Tell a page's scroll watcher that the dock is full again. */
+export const SCROLL_RESET_SCRIPT = 'try { window.__owlScrollReset && window.__owlScrollReset(); } catch (e) {} true;';
+
 export const findScript = (query: string) => `(function(q){
   var W = window, D = document;
   function clear(){

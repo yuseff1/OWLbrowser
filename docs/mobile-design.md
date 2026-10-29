@@ -100,13 +100,17 @@ Capsule 48 high; toolbar row 48; dock 108 (editing: 60, toolbar hidden, same ins
 | What | How |
 |---|---|
 | Press | press-in 110 ms ease-out to scale 0.97 (buttons/cards), row highlight (lists), opacity 0.5 (bar glyphs); release on `snappy` spring |
-| Address bar ↔ keyboard | `smooth` spring (damping 36, stiffness 320 — no overshoot) on `translateY` |
+| Address bar ↔ keyboard | `smooth` spring (Apple formula, 0.40 s, bounce 0 → stiffness 246.7, damping 31.4) on `translateY` |
 | Squeeze (dock, page menu) | liquid-glass body: press squashes it (scaleX +2.2 %, scaleY −4.5 %, from the edge it's docked to); dragging stretches along the drag and follows the finger on a soft rubber band (x/(1+\|x\|/k)); release wobbles back on `jelly` (damping 14, stiffness 420, mass 0.9 ≈ ζ 0.36). Raw touch events, so buttons inside keep their own press feedback. Menu at 60 % strength. |
 | Dock position switch | slides in from the new edge on `sheet` spring with a fade |
 | Page menu | in: `sheet` spring from ±40 px (from the dock's edge) / 0.97 scale; out: 160 ms ease-out (exits faster) |
 | Run sheet | `sheet` spring (damping 30, stiffness 300) |
 | Tab switcher segmented pill | lozenge slides on `snappy` spring, selection haptic |
-| Never | animate scrolling, tab switches inside the browser, or anything the user is reading |
+| Springs | Apple's `Spring(duration:bounce:)` maths (`appleSpring` in theme.ts): snappy 0.38/0.12, sheet 0.42/0.10, smooth 0.40/0, commit 0.34/0, zoom 0.42/0.06. Gesture velocity carried into the spring (px/ms × 1000). See docs/research-safari.md |
+| Scroll to minimize | page scrolls down 24 px (past 48 px) → dock morphs into a 36 pt domain pill (`smooth`); up 24 px, top, bottom of page, or tap → full dock (`snappy`). Only when the page runs under the dock (Live blur on / iOS) |
+| Bar swipe | whole page follows the finger 1:1, neighbour tab (live WebView or cover card) slides in 16 pt beside it, neighbour host peeks in the capsule; commit ⅓ width or flick > 0.3 px/ms on `commit`; rubber-band at the ends; swipe left past the last non-blank tab = new tab; swipe up = tab overview |
+| Tab overview | transparent modal: the live page zooms (top-left origin) into the current card on `zoom` while the grid fades in (280 ms); opening a card zooms the page back up from it, grid out in 160 ms |
+| Never | animate scrolling, or anything the user is reading |
 
 Haptics: light on taps, `selection` on segmented / companion change, medium on new-tab long-press and Stop, success on save/approve, warning when a run needs you.
 
@@ -121,9 +125,10 @@ Haptics: light on taps, `selection` on segmented / companion change, medium on n
 
 ## Daily-use browsing (2026-10-28)
 
-- **Dock swipe:** drag the address capsule sideways to move to the neighbouring tab in the same strip (normal or private). The capsule content follows the finger at 0.7×, leaves, and the next tab's slides in from the other side; at either end it rubber-bands. Selection haptic on switch. The toolbar row is not a swipe area.
+- **Dock swipe (Safari):** drag the address capsule sideways to move to the neighbouring tab in the same strip (normal or private): the page follows the finger and the neighbour page slides in beside it, its host peeking in the capsule. Past the last non-blank tab a swipe left opens a new tab (light haptic); at the ends it rubber-bands; selection haptic on switch. Swipe up on the capsule (bottom dock) opens the tab overview. The toolbar row is not a swipe area.
+- **Minimized dock:** scrolling down shrinks the dock to a glass pill with lock + domain at the same edge; scrolling up, reaching the top/bottom, tapping the pill, switching tab, loading, find and the menu bring it back.
 - **Private tabs:** the address capsule turns ink-dark (`#1E1C1A`, light text) in both themes, with the filled private glyph; tab cards in the Private strip are always dark.
-- **Tab switcher:** two-column cards: header (favicon, title, 28 pt close) over a cover — the page's `og:image` when it has one (captured by the page-tools script, https only, persisted with the tab), else the favicon and host on a soft well, the companion for a new tab. Swipe a card sideways to close it; amber 1.5 pt border marks the current tab; opens scrolled to it. Segmented pill shows both counts; Close all asks first.
+- **Tab switcher:** two-column cards: header (favicon, title, 28 pt close) over a cover — the page's `og:image` when it has one (captured by the page-tools script, https only, persisted with the tab), else the favicon and host on a soft well, the companion for a new tab. Portrait covers (0.8). Swipe a card sideways to close it (fling carries velocity); amber 1.5 pt border marks the current tab; opens scrolled to it, zooming the live page into its card (see Motion). Segmented pill shows both counts; Close all asks first.
 - **Long-press menu:** long-press a link or image → in-screen glass sheet (same overlay pattern as the page menu): target (thumbnail for images, link text, URL) then Open in new tab / Open in private tab / Copy link / Copy link text / Share link / Download link, and Open image in new tab / Copy image address / Download image. New tabs open in the background with a toast "Opened in new tab · Switch". From a private tab, links only open private.
 - **Toast:** one glass pill above the dock (below it in top mode), one line + optional amber action, 3.2 s.
 - **Find in page:** page menu → Find in page. The find capsule takes the dock's place (solid capsule while typing, rides the keyboard like the dock); amber highlights in the page, current match solid amber; `n/m` counter (danger colour at 0/0), up/down chevrons, Enter = next. Leaving the page or tab ends it.

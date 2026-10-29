@@ -61,7 +61,8 @@ export default function RootLayout() {
       {ready && tabsReady ? (
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.ground } }}>
           <Stack.Screen name="index" />
-          <Stack.Screen name="tabs" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+          {/* transparent modal: the browser stays rendered underneath so its live page can zoom into the grid (tabs.tsx) */}
+          <Stack.Screen name="tabs" options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }} />
           <Stack.Screen name="ask" options={{ ...sheet, title: 'Companion' }} />
           <Stack.Screen name="bookmarks" options={{ ...sheet, title: 'Bookmarks' }} />
           <Stack.Screen name="history" options={{ ...sheet, title: 'History' }} />
