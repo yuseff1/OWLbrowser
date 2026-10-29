@@ -30,7 +30,7 @@ export function useLiveBlur() {
 /**
  * Glass for floating chrome only (address dock, menus, sheets). Recipe (glassyui + liquid-glass):
  * strong blur of what is behind (iOS BlurView; Android Dimezis blur of the BlurTargetView), a light warm tint dense
- * enough for ≥ 4.5:1 text, a sheen fading down from the top, a 1px rim, a 1px specular line on the top edge and one
+ * enough for ≥ 4.5:1 text, a sheen fading down from the top, an imperceptible hairline rim (no top specular line) and one
  * soft two-layer shadow. Without a live blur it is the same stack over a dense warm tint.
  */
 export const Glass = memo(function Glass({ style, children, intensity = 90, rounded = radius.xl, shadow = true, live = true }: { style?: StyleProp<ViewStyle>; children?: React.ReactNode; intensity?: number; rounded?: number; shadow?: boolean; live?: boolean }) {
@@ -74,8 +74,9 @@ export const Glass = memo(function Glass({ style, children, intensity = 90, roun
         ) : null}
         <View style={[StyleSheet.absoluteFill, { backgroundColor: blur ? (Platform.OS === 'ios' ? t.glass.tint : t.glass.tintAndroid) : t.glass.fallback }]} />
         <LinearGradient colors={[t.glass.sheen, 'transparent']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.sheen} />
-        <View style={[StyleSheet.absoluteFill, corners, { borderWidth: 1, borderColor: t.glass.rim }]} />
-        <View style={[styles.specular, { left: rounded * 0.6, right: rounded * 0.6, backgroundColor: t.glass.highlight }]} />
+        {/* Hairline rim only, uniform all round: no specular stroke on the top edge (it read as a bright line on
+            device). The edge is carried by the shadow and the tint, the way iOS 26 glass does it. */}
+        <View style={[StyleSheet.absoluteFill, corners, { borderWidth: StyleSheet.hairlineWidth, borderColor: t.glass.rim }]} />
       </View>
       {children}
     </View>
@@ -265,7 +266,6 @@ export const fieldStyle = (t: ReturnType<typeof useTheme>) => ({ height: HIT, bo
 export const ICON = iconTok;
 
 const styles = StyleSheet.create({
-  specular: { position: 'absolute', top: 1, height: 1, borderRadius: 1 },
   sheen: { position: 'absolute', left: 0, right: 0, top: 0, height: '55%' },
   disabled: { opacity: 0.32 },
   iconBtn: { alignItems: 'center', justifyContent: 'center' },

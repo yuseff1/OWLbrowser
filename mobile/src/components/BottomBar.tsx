@@ -273,9 +273,13 @@ function Suggestions({ text, engine, companionName, companionId, onPick, positio
   }, [text, engine, companionName, history, bookmarks]);
 
   return (
-    // Bottom dock: list grows up from the bar (inverted, best match nearest the thumb). Top dock: opens downward.
-    <View style={[styles.sugg, position === 'top' ? { top, bottom } : { top: 0, paddingTop: insets.top, bottom }, { backgroundColor: t.ground }]}>
+    // One opaque sheet over the WHOLE screen while editing (status bar to the bottom edge, under the dock and the
+    // keyboard too), so no page ever shows between the capsule and the keyboard or while the dock rides up. The list
+    // itself stops at the dock: bottom dock = grows up from the bar (inverted, best match nearest the thumb); top dock
+    // = opens downward from under it to the keyboard.
+    <View style={[styles.sugg, { top: 0, bottom: 0, paddingTop: position === 'top' ? top : insets.top, backgroundColor: t.ground }]}>
       <FlatList
+        style={{ flex: 1, marginBottom: bottom }}
         data={items}
         keyExtractor={(i) => i.key}
         keyboardShouldPersistTaps="always"
