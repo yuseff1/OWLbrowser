@@ -21,6 +21,8 @@ npm run dev        # build + launch Electron
 npm run typecheck
 npm run dist       # Windows installer into release/
 ```
-Stack: Electron 45, Svelte 5, Vite, Tailwind 4, bits-ui, Lucide, sql.js. Mobile app (Expo) lives in `mobile/`.
+Stack: Electron 45, Svelte 5, Vite, Tailwind 4, bits-ui, Fluent UI System Icons, sql.js. Mobile app (Expo) lives in `mobile/`.
+
+Start here: `AGENTS.md`, `docs/HANDOFF.md`, `docs/DESIGN.md`, `docs/TOOLS.md`.
 
 Docs: `docs/ui-contract.md` (the `window.owl` API), `docs/ui-requests.md`, `docs/research.md`, `ROADMAP.md`.
