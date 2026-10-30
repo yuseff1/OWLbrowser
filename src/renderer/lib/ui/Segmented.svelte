@@ -34,7 +34,7 @@
   :global(.owl-seg-item:hover) { color: var(--ink); }
   :global(.owl-seg-item[data-state='on']) {
     color: var(--ink); background: var(--surface);
-    box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 2px 6px -2px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.6);
+    box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 2px 6px -2px rgba(0,0,0,.12);
   }
-  :global(.dark .owl-seg-item[data-state='on']) { background: #2c2a30; box-shadow: 0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06); }
+  :global(.dark .owl-seg-item[data-state='on']) { background: #2c2a30; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
 </style>

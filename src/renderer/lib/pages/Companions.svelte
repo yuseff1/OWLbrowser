@@ -105,8 +105,8 @@
       {#each list as c (c.id)}
         {@const color = c.look?.body || '#9AA3B5'}
         <article class="owl-sheet flex flex-col overflow-hidden" aria-labelledby="cmp-{c.id}">
-          <div class="relative grid h-[148px] place-items-center" style:background="radial-gradient(120% 90% at 50% 100%, color-mix(in srgb, {color} 22%, var(--surface)), color-mix(in srgb, {color} 6%, var(--surface)))">
-            <img src={art.companion(c.id)} alt="" class="h-[118px] w-[118px] object-contain drop-shadow-[0_8px_10px_rgba(20,10,40,.16)]" loading="lazy" draggable="false" />
+          <div class="relative grid h-[148px] place-items-center" style:background="color-mix(in srgb, {color} 10%, var(--surface))">
+            <img src={art.companion(c.id)} alt="" class="h-[118px] w-[118px] object-contain" loading="lazy" draggable="false" />
             {#if c.hired}<span class="absolute left-3 top-3"><Badge variant="ok" dot>Hired</Badge></span>{/if}
             <div class="absolute right-2 top-2">
               <Menu items={menuFor(c)}>

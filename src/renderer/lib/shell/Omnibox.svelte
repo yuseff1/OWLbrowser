@@ -231,11 +231,11 @@
   .omni {
     display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 12px; border-radius: 999px;
     background: color-mix(in srgb, var(--ink) 5.5%, transparent); border: 1px solid transparent;
-    box-shadow: inset 0 1px 2px rgba(24, 22, 20, 0.06), 0 1px 0 var(--glass-rim-lo); /* recessed glass field */
+    box-shadow: inset 0 1px 2px rgba(24, 22, 20, 0.06); /* recessed field */
     transition: background-color .18s var(--ease-out), box-shadow .18s, border-color .18s;
   }
   .omni:hover { background: color-mix(in srgb, var(--ink) 7.5%, transparent); }
-  .omni.focused { background: var(--surface) var(--glass-sheen); border-color: color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: var(--glass-rim), 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent), 0 6px 20px -8px rgba(0,0,0,.2); }
+  .omni.focused { background: var(--surface); border-color: color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .lead { display: grid; place-items: center; width: 16px; color: var(--ink-3); flex: none; }
   input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13.5px; }
   input.pretty { color: var(--ink-2); text-align: center; }

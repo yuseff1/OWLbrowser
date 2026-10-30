@@ -190,7 +190,6 @@
   /* no backdrop blur here: this view is composited over the page, so it reads as a solid sheet */
   .pop-surface {
     background-color: var(--surface);
-    background-image: var(--glass-sheen), var(--glass-hue);
     border: 1px solid var(--glass-edge);
     box-shadow: var(--glass-rim), var(--glass-float-drop);
   }

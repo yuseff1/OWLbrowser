@@ -118,8 +118,6 @@
 <div class="relative h-full overflow-y-auto overflow-x-hidden" class:halftone={wallpaper !== 'none'}>
   {#if wallpaper === 'aurora'}
     <div aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div class="absolute left-1/2 top-[-18%] h-[520px] w-[820px] -translate-x-1/2 rounded-full opacity-[.16] blur-[90px] dark:opacity-[.12]" style:background="radial-gradient(closest-side, {color}, transparent)"></div>
-      <div class="absolute bottom-[-25%] right-[-10%] h-[420px] w-[620px] rounded-full opacity-[.10] blur-[90px]" style:background="radial-gradient(closest-side, var(--accent), transparent)"></div>
     </div>
   {:else if wallpaper === 'dusk'}
     <div aria-hidden="true" class="pointer-events-none absolute inset-0" style="background: linear-gradient(180deg, color-mix(in srgb, #ffb38a 14%, transparent), transparent 45%, color-mix(in srgb, #e8a317 12%, transparent))"></div>
@@ -145,7 +143,7 @@
     <!-- companion stage -->
     <div class="relative mt-6">
       {#key active?.id}
-        <img src={art.companion(active?.id ?? 'hoot')} alt="{active?.name ?? 'Companion'}, {active?.role ?? ''}" class="nt-hero animate-bob h-[112px] w-[112px] select-none object-contain drop-shadow-[0_10px_14px_rgba(20,19,23,.18)]" draggable="false" />
+        <img src={art.companion(active?.id ?? 'hoot')} alt="{active?.name ?? 'Companion'}, {active?.role ?? ''}" class="nt-hero animate-bob h-[112px] w-[112px] select-none object-contain" draggable="false" />
       {/key}
       <Tooltip text="Edit {active?.name ?? 'companion'}" side="right">
         {#snippet children(p)}
@@ -249,7 +247,7 @@
     {/if}
 
     <!-- ideas -->
-    <section class="nt-sec glass glass-sheen mt-8 w-full rounded-[22px] p-4 pb-3" aria-labelledby="nt-ideas">
+    <section class="nt-sec glass mt-8 w-full rounded-[22px] p-4 pb-3" aria-labelledby="nt-ideas">
       <div class="mb-3 flex items-center gap-2 px-1">
         <div class="min-w-0 flex-1">
           <h2 id="nt-ideas" class="text-[14px] font-semibold tracking-[-0.01em]">Some ideas for you</h2>

@@ -63,15 +63,15 @@
   --glass-edge: rgba(24, 22, 20, 0.11);        /* 1px hairline that holds the shape on light grounds */
   --glass-drop: 0 1px 2px rgba(24, 22, 20, 0.09), 0 14px 34px -16px rgba(24, 22, 20, 0.26);
   --glass-float-drop: 0 2px 6px rgba(24, 22, 20, 0.08), 0 24px 56px -16px rgba(24, 22, 20, 0.32);
-  --glass-sheen: linear-gradient(158deg, rgba(255, 255, 255, 0.34), transparent 36%);
-  --glass-hue: radial-gradient(110% 85% at 0% 0%, rgb(232 163 23 / 0.05), transparent 58%);
+  --glass-sheen: none;
+  --glass-hue: none;
   --glass-radius: 14px;
   --glass-radius-float: 16px;
   /* legacy names, kept so existing call sites read the new recipe */
   --glass-bg: rgb(var(--glass-tint) / var(--glass-pane));
   --glass-bg-strong: rgb(var(--glass-tint) / var(--glass-float-a));
   --glass-border: var(--glass-edge);
-  --glass-rim: inset 1.5px 1.5px 0 -0.5px var(--glass-rim-hi), inset -1px -1px 0 var(--glass-rim-lo), inset 0 0 0 2px var(--glass-rim-ring);
+  --glass-rim: 0 0 0 0 transparent; /* no specular rim: flat glass, no lighting (Youssef 2026-10-30) */
   --glass-shadow: var(--glass-drop);
   --glass-blur: blur(var(--glass-frost)) saturate(var(--glass-sat));
 
@@ -107,8 +107,8 @@
   --glass-edge: rgba(255, 255, 255, 0.08);
   --glass-drop: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 34px -16px rgba(0, 0, 0, 0.6);
   --glass-float-drop: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 56px -16px rgba(0, 0, 0, 0.75);
-  --glass-sheen: linear-gradient(158deg, rgba(255, 246, 230, 0.06), transparent 36%);
-  --glass-hue: radial-gradient(110% 85% at 0% 0%, rgb(232 163 23 / 0.06), transparent 58%);
+  --glass-sheen: none;
+  --glass-hue: none;
 
   --neu-bg: #1c1a1f;
   --neu-out: 6px 6px 14px rgba(0, 0, 0, 0.55), -5px -5px 12px rgba(255, 255, 255, 0.035);
@@ -144,21 +144,19 @@ input, textarea, [contenteditable] { user-select: text; }
    there is nothing to blur, so floating sheets carry a high tint and still read as solid. */
 @utility glass {
   background-color: var(--glass-bg);
-  background-image: var(--glass-sheen), var(--glass-hue);
-  backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--glass-rim), var(--glass-drop);
 }
 @utility glass-strong {
   background-color: var(--glass-bg-strong);
-  background-image: var(--glass-sheen), var(--glass-hue);
-  backdrop-filter: blur(var(--glass-float-frost)) saturate(var(--glass-sat));
+    backdrop-filter: blur(var(--glass-float-frost)) saturate(var(--glass-sat));
   border: 1px solid var(--glass-edge);
   box-shadow: var(--glass-rim), var(--glass-float-drop);
 }
 @utility glass-field {
   background-color: color-mix(in srgb, var(--ink) 5%, transparent);
-  box-shadow: inset 0 1px 2px rgba(24, 22, 20, 0.07), inset 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent), 0 1px 0 var(--glass-rim-lo);
+  box-shadow: inset 0 1px 2px rgba(24, 22, 20, 0.07), inset 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent);
 }
 @utility glass-rim {
   box-shadow: var(--glass-rim), 0 0 0 1px var(--glass-edge), 0 1px 2px rgba(24, 22, 20, 0.08);
@@ -173,7 +171,7 @@ input, textarea, [contenteditable] { user-select: text; }
 .glass-sheen::before {
   content: '';
   position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 38%, transparent 60%);
+  background: none; display: none;
   pointer-events: none; border-radius: inherit; mix-blend-mode: soft-light;
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -204,7 +202,7 @@ input, textarea, [contenteditable] { user-select: text; }
 @keyframes owl-blink { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(0.1) } }
 @keyframes owl-pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
 @keyframes owl-in { from { opacity: 0; transform: translateY(6px) scale(.98) } to { opacity: 1; transform: none } }
-.animate-bob { animation: owl-bob 3.2s var(--ease-out) infinite; }
+.animate-bob { animation: none; } /* companions stay still */
 .animate-in { animation: owl-in .22s var(--ease-out) both; }
 .animate-pulse-soft { animation: owl-pulse 1.6s ease-in-out infinite; }
 

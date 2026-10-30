@@ -277,7 +277,7 @@
   .row { display: flex; align-items: center; gap: 6px; margin-left: -4px; }
   .model { display: inline-flex; align-items: center; gap: 4px; max-width: 150px; height: 26px; padding: 0 9px; border-radius: 99px; border: 0; background: transparent; color: var(--ink-2); font: inherit; font-size: 12px; }
   .model:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
-  .send { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; border: 0; background: var(--cc); color: #fff; box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--cc) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.25); transition: transform .12s var(--ease-out), opacity .15s; flex: none; }
+  .send { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; border: 0; background: var(--cc); color: #fff; box-shadow: none; transition: transform .12s var(--ease-out), opacity .15s; flex: none; }
   .send:active:not(:disabled) { transform: scale(.92); }
   .send:disabled { opacity: .35; box-shadow: none; }
 </style>

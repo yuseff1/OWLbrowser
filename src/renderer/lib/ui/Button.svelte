@@ -46,7 +46,7 @@
   .lg { height: 42px; padding: 0 22px; font-size: 14.5px; }
 
   /* primary = black pill on light, white pill on dark */
-  .primary { background: var(--ink); color: var(--ground); box-shadow: 0 1px 2px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12); }
+  .primary { background: var(--ink); color: var(--ground); box-shadow: 0 1px 2px rgba(0,0,0,.18); }
   .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 88%, var(--ground)); }
   .secondary { background: var(--surface); border-color: var(--line); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
   .secondary:hover:not(:disabled) { background: var(--surface-2); }
